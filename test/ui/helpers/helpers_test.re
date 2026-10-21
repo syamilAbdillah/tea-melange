@@ -96,7 +96,7 @@ let typeahead = () => {
   let labels = [|
     "Apple",
     "apricot",
-    "Àlmond",
+    {js|Àlmond|js},
     "Banana",
     "Blueberry",
     "Cherry",
@@ -151,21 +151,78 @@ let typeahead = () => {
     && T.buffer(state) == "z"
     && T.last_time_stamp(state) == Some(2.),
   );
+  /* {js|...|js} literals are real UTF-16 strings, as labels and
+     KeyboardEvent.key are at runtime; plain literals would be UTF-8 bytes. */
   List.iter(
     ((source, expected)) =>
-      check("Latin-1 folds", T.normalize(source) == expected),
+      check(
+        "Unicode folds " ++ expected,
+        String.equal(T.normalize(source), expected),
+      ),
     [
-      ("ÀÁÂÃÄÅàáâãäå", "aaaaaaaaaaaa"),
-      ("ÆæÇç", "aeaecc"),
-      ("ÈÉÊËèéêë", "eeeeeeee"),
-      ("ÌÍÎÏìíîï", "iiiiiiii"),
-      ("ÐðÑñ", "ddnn"),
-      ("ÒÓÔÕÖØòóôõöø", "oooooooooooo"),
-      ("ÙÚÛÜùúûü", "uuuuuuuu"),
-      ("ÝýÿÞþß", "yyyththss"),
-      ("CAFÉ", "cafe"),
-      ("東京", "東京"),
-      ("é", "é"),
+      ({js|ÀÁÂÃÄÅàáâãäå|js}, "aaaaaaaaaaaa"),
+      ({js|ÆæÇçŒœ|js}, "aeaeccoeoe"),
+      ({js|ÈÉÊËèéêë|js}, "eeeeeeee"),
+      ({js|ÌÍÎÏìíîïıİ|js}, "iiiiiiiiii"),
+      ({js|ÐðĐđÑñ|js}, "ddddnn"),
+      ({js|ÒÓÔÕÖØòóôõöø|js}, "oooooooooooo"),
+      ({js|ÙÚÛÜùúûü|js}, "uuuuuuuu"),
+      ({js|ÝýÿÞþß|js}, "yyyththss"),
+      ({js|Łódź Šťŕň|js}, "lodz strn"),
+      ({js|CAFÉ|js}, "cafe"),
+      /* Decomposed: e + U+0301 COMBINING ACUTE ACCENT. */
+      ({js|cafe\u0301|js}, "cafe"),
+      ({js|Éxport|js}, "export"),
+      ({js|東京|js}, {js|東京|js}),
+      ({js|Ωμέγα|js}, {js|ωμεγα|js}),
+    ],
+  );
+  check(
+    "accented key matches unaccented label",
+    snd(
+      T.feed(
+        ~time_stamp=1.,
+        ~key={js|é|js},
+        ~from=-1,
+        ~labels=[|"Apple", {js|Éxport|js}|],
+        ~disabled=[|false, false|],
+        T.empty,
+      ),
+    )
+    == Some(1),
+  );
+  check(
+    "plain key matches accented label",
+    snd(
+      T.feed(
+        ~time_stamp=1.,
+        ~key="a",
+        ~from=-1,
+        ~labels=[|"Banana", {js|Álpha|js}|],
+        ~disabled=[|false, false|],
+        T.empty,
+      ),
+    )
+    == Some(1),
+  );
+  List.iter(
+    ((name, key, accepted)) => {
+      let (_, found) =
+        T.feed(
+          ~time_stamp=1.,
+          ~key,
+          ~from=-1,
+          ~labels=[|key|],
+          ~disabled=[|false|],
+          T.empty,
+        );
+      check(name, found == (accepted ? Some(0) : None));
+    },
+    [
+      ("BMP letter is one character", {js|é|js}, true),
+      ("astral emoji is one character", {js|😀|js}, true),
+      ("two letters are not one key", "ab", false),
+      ("lone combining mark is ignored", {js|\u0301|js}, false),
     ],
   );
   for (n in 0 to 6) {
@@ -238,9 +295,9 @@ let typeahead = () => {
   let (_, emoji) =
     T.feed(
       ~time_stamp=0.,
-      ~key="🍵",
+      ~key={js|🍵|js},
       ~from=-1,
-      ~labels=[|"🍵 tea"|],
+      ~labels=[|{js|🍵 tea|js}|],
       ~disabled=[|false|],
       T.empty,
     );
@@ -267,7 +324,18 @@ let attributes = () => {
     == V.Attribute("aria-labelledby", "label help"),
   );
   check("part id", A.part_id("menu", "button") == "menu-button");
-  let keys = ["", "_", "_0020", " ", "a-b", "a_b", "a/b", "é", "🍵"];
+  let keys = [
+    "",
+    "_",
+    "_0020",
+    " ",
+    "a-b",
+    "a_b",
+    "a/b",
+    {js|é|js},
+    {js|🍵|js},
+    {js|e\u0301|js},
+  ];
   List.iter(
     key =>
       List.iter(
