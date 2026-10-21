@@ -49,19 +49,10 @@ module Bindings = {
   [@mel.get] external value: Dom.element => string = "value";
   [@mel.send]
   external range: (Dom.element, int, int) => unit = "setSelectionRange";
-  [@mel.send] external normalize: (string, string) => string = "normalize";
   [@mel.send] external lower: string => string = "toLowerCase";
-  [@mel.send]
-  external replace: (string, Js.Re.t, string) => string = "replace";
 };
-let fold = text =>
-  Bindings.lower(
-    Bindings.replace(
-      Bindings.normalize(text, "NFD"),
-      Js.Re.fromStringWithFlags("[\\u0300-\\u036f]", ~flags="g"),
-      "",
-    ),
-  );
+/* Same folding as typeahead: lowercase, NFD without marks, ligature folds. */
+let fold = Ui_typeahead.normalize;
 let filter = (~query, ~label, ~mode=Contains, items) => {
   let query = fold(query);
   Array.of_list(

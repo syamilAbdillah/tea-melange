@@ -349,6 +349,22 @@ let completed = {
     == [|{js|Áland|js}, {js|álpha|js}|],
   );
   check(
+    "filter folds letters without canonical decomposition",
+    C.filter(
+      ~query="ss",
+      ~label=x => x,
+      [|{js|Straße|js}, {js|Øresund|js}, "Strasse"|],
+    )
+    == [|{js|Straße|js}, "Strasse"|]
+    && C.filter(
+         ~query="o",
+         ~label=x => x,
+         ~mode=C.Starts_with,
+         [|{js|Øresund|js}|],
+       )
+    == [|{js|Øresund|js}|],
+  );
+  check(
     "contains default",
     C.filter(~query="AN", ~label=x => x, [|"Canada", "Japan", "UK"|])
     == [|"Canada", "Japan"|],

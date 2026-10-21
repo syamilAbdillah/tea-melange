@@ -59,8 +59,9 @@ type out_msg =
 type model;
 /** Opaque keyboard/pointer intents and embedded lifecycle progress. */
 type msg;
-/** Unicode NFD + lowercase + removal of U+0300..036F marks. Stable order;
-    empty query matches all. Not locale-sensitive or a full Unicode casefold. */
+/** Folds query and labels like typeahead (lowercase, Unicode NFD, U+0300..036F
+    marks removed, æ/œ/ø/ß/þ/ð/đ/ł/ı folded). Stable order; empty query
+    matches all. Not locale-sensitive or a full Unicode casefold. */
 let filter:
   (~query: string, ~label: 'a => string, ~mode: filter_mode=?, array('a)) =>
   array('a);

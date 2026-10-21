@@ -295,9 +295,10 @@ No mutable model fields, global listeners, timers or DOM node caches are added.
 Range writes, scrolling and announcements are lifecycle-gated after render.
 Anchor and Animation supply all overlay browser lifecycle capabilities without
 workarounds. Anchor's native popover fallback and document-local id limitations
-apply; see [Anchor](anchor.md) and [Animation](animation.md). Filtering is not a
-locale-specific collation or full Unicode casefold; marks outside U+0300..036F
-are retained. Unicode source literals in Reason/Melange should use
+apply; see [Anchor](anchor.md) and [Animation](animation.md). Filtering folds like
+typeahead (lowercase, NFD, U+0300..036F marks removed, æ/œ/ø/ß/þ/ð/đ/ł/ı
+folded); it is not a locale-specific collation or full Unicode casefold, and
+marks outside U+0300..036F are retained. Unicode source literals in Reason/Melange should use
 `{js|…|js}`; normal DOM/remote JavaScript strings already use UTF-16.
 
 ## Verification
