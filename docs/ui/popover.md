@@ -90,7 +90,7 @@ Escape, the trigger, close button and outside pointer dismissal still work.
 | Space on trigger | Native button prevents scroll; toggles on keyup |
 | Tab | Natural next control; leaving trigger/panel closes by default, never prevents Tab |
 | Shift+Tab | Natural previous control; first panel control returns to trigger and stays open |
-| Escape in trigger or panel | Close, return focus to trigger; prevent default only while expanded |
+| Escape in trigger or panel | Close, return focus to trigger; while expanded, prevent default and stop propagation so an enclosing Dialog or overlay is not also dismissed |
 | Enter/Space on close button | Close with Programmatic reason and return focus to trigger |
 | Other keys | Native behavior; optional non-preventing keydown hooks |
 | Ctrl/Alt/Meta chords, IME | Unchanged; no Popover shortcut is claimed |

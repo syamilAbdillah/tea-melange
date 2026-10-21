@@ -8,7 +8,8 @@
     - Enter / Space on the native trigger: toggle (native button timing).
     - Tab / Shift+Tab: natural DOM navigation, never prevented or trapped.
       Shift+Tab from the first panel control returns to the trigger, staying open.
-    - Escape in trigger/panel: close and focus trigger.
+    - Escape in trigger/panel: close and focus trigger; while open the event
+      is stopped so an enclosing Dialog or overlay is not also dismissed.
     - Other keys, modified shortcuts and IME: unchanged.
 
     Data attributes: data-open; Animation's data-closed, data-enter,

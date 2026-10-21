@@ -15,6 +15,29 @@ type model = {
   removed: bool,
   hooks: int,
 };
+[@mel.send]
+external listen: (Dom.document, string, Dom.event => unit) => unit =
+  "addEventListener";
+[@mel.send]
+external unlisten: (Dom.document, string, Dom.event => unit) => unit =
+  "removeEventListener";
+let escape_stopped = selector => {
+  let reached = ref(false);
+  let spy = _ => reached := true;
+  listen(document, "keydown", spy);
+  let e =
+    keyboard_event(
+      "keydown",
+      {
+        "key": "Escape",
+        "bubbles": true,
+        "cancelable": true,
+      },
+    );
+  ignore(dispatch(node(selector), e));
+  unlisten(document, "keydown", spy);
+  ! reached^;
+};
 let settle = () =>
   for (_i in 1 to 12) {
     flush();
@@ -376,7 +399,10 @@ let completed = {
     ["#first", "#test-trigger"],
   );
   expanded(true);
-  check("Escape handled", !key("#first", "keydown", "Escape"));
+  check(
+    "handled Escape stops propagation to enclosing overlays",
+    escape_stopped("#first"),
+  );
   flush();
   expanded(false);
   hidden(false);
@@ -400,7 +426,8 @@ let completed = {
   );
   check(
     "closed Escape untouched",
-    key("#test-trigger", "keydown", "Escape"),
+    key("#test-trigger", "keydown", "Escape")
+    && !escape_stopped("#test-trigger"),
   );
   check(
     "Anchor stopped on Left",
