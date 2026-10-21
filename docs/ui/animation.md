@@ -236,12 +236,10 @@ is the CSS-free path. Id lookup is document-local, not shadow-root/iframe aware.
 
 Stopping a subscription suppresses results immediately, including shutdown.
 Frames use the shared scheduler's noncancellable callback API and become
-harmless no-ops after stopping. An already-started Browser_dom wait cannot be
-cancelled through its public Task API: its internal observer/timer cleans up on
-settlement, node removal or the watchdog, even if shutdown leaves DOM mounted.
-Animation adds no document/window listeners, locks, timers or observers of its
-own. A cancellable Browser_dom wait would allow the integrator to consolidate
-immediate underlying-resource disposal; no foundation files are changed here.
+harmless no-ops after stopping. An in-flight wait uses
+`Browser_dom.watch_animations`, whose canceller releases the observer and
+watchdog at once, so a stopped Animation leaves no timers, observers or
+listeners behind.
 
 Run:
 

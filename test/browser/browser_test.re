@@ -716,6 +716,45 @@ let restoring_focus = () => {
   app.shutdown();
   frame();
 };
+type resources = {
+  timers: int,
+  observers: int,
+};
+external resources: unit => resources = "teaResourceProbe";
+let cancelled_animation_wait = () => {
+  let app = mount(Html.div([Html.id("cancelled")], []));
+  let pending = Js.Promise.make((~resolve as _, ~reject as _) => ());
+  put(node("#cancelled"), "getAnimations", _ =>
+    [|{ "finished": pending }|]
+  );
+  let before = resources();
+  let count = ref(0);
+  let cancel = B.watch_animations("cancelled", _ => incr(count));
+  flush();
+  let during = resources();
+  check(
+    "wait holds a watchdog and an observer",
+    during.timers == before.timers
+    + 1
+    && during.observers == before.observers
+    + 1,
+  );
+  cancel();
+  cancel();
+  let after = resources();
+  check(
+    "cancel releases watchdog and observer at once",
+    after.timers == before.timers && after.observers == before.observers,
+  );
+  remove(node("#cancelled"));
+  check("cancelled wait never completes", count^ == 0);
+  let early = B.watch_animations("cancelled", _ => incr(count));
+  early();
+  flush();
+  check("cancel before render never starts or completes", count^ == 0);
+  app.shutdown();
+  frame();
+};
 let animations = () => {
   let app = mount(Html.div([Html.id("animated")], []));
   let reject_animation = ref(_ => ());
@@ -778,5 +817,6 @@ let completed = {
   locks();
   ios_locks();
   restoring_focus();
+  cancelled_animation_wait();
   animations();
 };
