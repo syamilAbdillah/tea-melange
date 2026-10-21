@@ -1,0 +1,4 @@
+(library
+ (name tea_core)
+ (public_name tea.core)
+ (modes native melange))
