@@ -24,23 +24,50 @@ module Group = {
   type t = {
     skip_delay_ms: int,
     closed_at: option(float),
+    open_keys: list(string),
   };
   let init = (~skip_delay_ms, ()) => {
     skip_delay_ms: max(0, skip_delay_ms),
     closed_at: None,
+    open_keys: [],
   };
-  let record_close = (~time_stamp, group) => {
+  let record_open = (~key, group) =>
+    List.mem(key, group.open_keys)
+      ? group
+      : {
+        ...group,
+        open_keys: [key, ...group.open_keys],
+      };
+  let record_close = (~key=?, ~time_stamp, group) => {
     ...group,
     closed_at: Some(time_stamp),
+    open_keys:
+      switch (key) {
+      | None => group.open_keys
+      | Some(key) =>
+        List.filter(open_ => !String.equal(open_, key), group.open_keys)
+      },
   };
+  let forget = (~key, group) => {
+    ...group,
+    open_keys:
+      List.filter(open_ => !String.equal(open_, key), group.open_keys),
+  };
+  let open_keys = group => group.open_keys;
   let warm = (time_stamp, group) =>
-    switch (group.closed_at) {
-    | Some(closed) =>
-      time_stamp >= closed
-      && time_stamp
-      -. closed < float_of_int(group.skip_delay_ms)
-    | None => false
-    };
+    group.skip_delay_ms > 0
+    && (
+      group.open_keys != []
+      || (
+        switch (group.closed_at) {
+        | Some(closed) =>
+          time_stamp >= closed
+          && time_stamp
+          -. closed < float_of_int(group.skip_delay_ms)
+        | None => false
+        }
+      )
+    );
 };
 type region =
   | Trigger

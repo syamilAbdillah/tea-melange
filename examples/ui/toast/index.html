@@ -1,0 +1,63 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <base href="/">
+  <link rel="icon" href="data:,">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Tea UI · Toast queue</title>
+  <style>
+    :root { font: 17px/1.55 "Trebuchet MS", sans-serif; color: #18344b; background: #eaf2f8; }
+    body { margin: 0; }
+    main { max-width: 66rem; margin: 3rem auto; padding: 0 1.5rem 3rem; }
+    h1 { font-size: clamp(2rem, 5vw, 3.4rem); line-height: 1.12; letter-spacing: -.04em; max-width: 18ch; }
+    h2 { font-size: 1.4rem; margin: 0 0 1rem; }
+    h3 { font-size: 1.1rem; margin: 0; }
+    p { max-width: 64ch; }
+    .intro { max-width: 46rem; margin-bottom: 2.5rem; }
+    .workbench { display: grid; grid-template-columns: 1fr 1fr; gap: 3rem; align-items: start; }
+    section { padding: 1.5rem 0; }
+    .controls, .toast-actions { display: flex; flex-wrap: wrap; gap: .65rem; }
+    button { font: inherit; color: #18344b; background: #fff; border: 2px solid #44677f; padding: .45rem .8rem; border-radius: .35rem; cursor: pointer; }
+    button:hover:not(:disabled) { background: #d8eaf8; }
+    button:disabled { cursor: default; color: #526575; border-color: #8499a8; }
+    :focus-visible { outline: 3px solid #8b2995; outline-offset: 4px; }
+    .notifications { min-height: 5rem; padding: .8rem; border-left: 4px solid #688da8; }
+    .toast { background: #fff; color: #18344b; border: 1px solid #688da8; border-left: 5px solid #22638c; border-radius: .4rem; padding: 1rem; margin-bottom: 1rem; box-shadow: calc(var(--tea-toast-index) * 2px) 4px 0 #c2d7e6; transform: translateX(0); }
+    .toast[data-urgency="urgent"] { border-left-color: #a02138; }
+    .toast p { margin: .4rem 0 .8rem; }
+    .toast[data-transition] { transition: transform 180ms ease; }
+    .toast[data-closed] { transform: translateX(1rem); }
+    .toast[data-paused] { border-top-style: dashed; }
+    .queue { font-size: .9rem; margin: .6rem 0 0; }
+    pre { white-space: pre-wrap; font-size: .85rem; padding: 1rem; min-height: 2rem; background: #d9e8f2; }
+    @media (max-width: 45rem) { .workbench { grid-template-columns: 1fr; gap: .5rem; } main { margin-top: 1.5rem; } }
+    @media (prefers-reduced-motion: reduce) { .toast[data-transition] { transition: none; } }
+  </style>
+</head>
+<body>
+  <div id="app"></div>
+  <script type="importmap">
+{
+  "imports": {
+    "melange/": "./node_modules/melange/",
+    "melange.dom/": "./node_modules/melange.dom/",
+    "melange.js/": "./node_modules/melange.js/",
+    "melange.__private__.melange_mini_stdlib/": "./node_modules/melange.__private__.melange_mini_stdlib/",
+    "tea.browser/": "./node_modules/tea.browser/",
+    "tea.ui/": "./node_modules/tea.ui/",
+    "tea/": "./node_modules/tea/",
+    "tea.core/": "./node_modules/tea.core/",
+    "tea.dom/": "./node_modules/tea.dom/",
+    "tea.effects/": "./node_modules/tea.effects/",
+    "tea.html/": "./node_modules/tea.html/",
+    "tea.http/": "./node_modules/tea.http/",
+    "tea.nav/": "./node_modules/tea.nav/",
+    "tea.url/": "./node_modules/tea.url/",
+    "tea.vdom/": "./node_modules/tea.vdom/"
+  }
+}
+  </script>
+  <script type="module" src="./examples/ui/toast/main.mjs"></script>
+</body>
+</html>

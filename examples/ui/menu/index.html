@@ -1,0 +1,60 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <base href="/">
+  <link rel="icon" href="data:,">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Tea UI · Menu</title>
+  <style>
+    :root { font: 17px/1.6 "Trebuchet MS", sans-serif; color: #15384a; background: #eef5f8; }
+    body { margin: 0; }
+    main { max-width: 58rem; margin: 3rem auto; padding: 0 1.5rem 3rem; }
+    h1 { font: 600 2.8rem/1.15 "Trebuchet MS", sans-serif; letter-spacing: -.04em; }
+    h2 { font-size: 1.15rem; }
+    p { max-width: 66ch; }
+    .specimens { display: flex; flex-wrap: wrap; gap: 3rem; margin: 2rem 0; }
+    button { font: inherit; padding: .5rem .8rem; border: 2px solid #246578; background: white; color: #15384a; border-radius: .25rem; cursor: pointer; }
+    button[aria-expanded=true] { background: #164b60; color: white; }
+    :focus-visible { outline: 3px solid #8c3272; outline-offset: 3px; }
+    .panel { padding: .4rem; min-width: 13rem; max-height: min(70vh, var(--tea-available-height)); overflow: auto; color: #15384a; background: white; border: 2px solid #246578; border-radius: .35rem; box-shadow: 0 .5rem 1rem #15384a22; }
+    [role^=menuitem] { display: flex; align-items: center; gap: .6rem; padding: .4rem .6rem; cursor: default; border-radius: .15rem; }
+    [data-active] { background: #164b60; color: white; }
+    [data-disabled] { text-decoration: line-through; }
+    .icon { width: 1rem; text-align: center; }
+    .shortcut { margin-inline-start: auto; font-size: .8rem; }
+    [role=separator] { border-top: 1px solid #7696a2; margin: .4rem; }
+    .group-label { padding: .25rem .6rem; font-weight: bold; }
+    .animated { transform: translateY(0); }
+    .animated[data-transition] { transition: transform 160ms ease; }
+    .animated[data-closed] { transform: translateY(.8rem); }
+    #activity { padding: 1rem 0; border-top: 2px solid #a1bdc9; }
+    @media (prefers-reduced-motion: reduce) { .animated[data-transition] { transition: none; } }
+  </style>
+</head>
+<body>
+  <div id="app"></div>
+  <script type="importmap">
+{
+  "imports": {
+    "melange/": "./node_modules/melange/",
+    "melange.dom/": "./node_modules/melange.dom/",
+    "melange.js/": "./node_modules/melange.js/",
+    "melange.__private__.melange_mini_stdlib/": "./node_modules/melange.__private__.melange_mini_stdlib/",
+    "tea.browser/": "./node_modules/tea.browser/",
+    "tea.ui/": "./node_modules/tea.ui/",
+    "tea/": "./node_modules/tea/",
+    "tea.core/": "./node_modules/tea.core/",
+    "tea.dom/": "./node_modules/tea.dom/",
+    "tea.effects/": "./node_modules/tea.effects/",
+    "tea.html/": "./node_modules/tea.html/",
+    "tea.http/": "./node_modules/tea.http/",
+    "tea.nav/": "./node_modules/tea.nav/",
+    "tea.url/": "./node_modules/tea.url/",
+    "tea.vdom/": "./node_modules/tea.vdom/"
+  }
+}
+  </script>
+  <script type="module" src="./examples/ui/menu/main.mjs"></script>
+</body>
+</html>
