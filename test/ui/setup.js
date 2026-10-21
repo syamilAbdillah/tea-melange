@@ -5,6 +5,16 @@ import { resolve } from 'node:path';
 
 const dom = new JSDOM('<!doctype html><html lang="en"><head><title>UI test</title></head><body><div id="app"></div></body></html>', { url: 'https://tea.test/' });
 const { window } = dom;
+// Live library timeouts and connected observers; teaResourceProbe exposes them.
+const probe = { timers: new Set(), observers: 0 };
+const setTimeout_ = globalThis.setTimeout, clearTimeout_ = globalThis.clearTimeout;
+const trackTimeout = (callback, ms, ...rest) => {
+  const id = setTimeout_(() => { probe.timers.delete(id); callback(...rest); }, ms);
+  probe.timers.add(id);
+  return id;
+};
+const untrackTimeout = id => { probe.timers.delete(id); clearTimeout_(id); };
+globalThis.teaResourceProbe = () => ({ timers: probe.timers.size, observers: probe.observers });
 Object.assign(globalThis, {
   window, document: window.document, Event: window.Event,
   KeyboardEvent: window.KeyboardEvent, MouseEvent: window.MouseEvent,
@@ -18,7 +28,12 @@ Object.assign(globalThis, {
       });
     }
   },
-  FocusEvent: window.FocusEvent, MutationObserver: window.MutationObserver,
+  FocusEvent: window.FocusEvent,
+  // Counted so the harness can fail tests that leave observers connected.
+  MutationObserver: class extends window.MutationObserver {
+    observe(...args) { if (!this.teaObserving) { this.teaObserving = true; probe.observers++; } return super.observe(...args); }
+    disconnect() { if (this.teaObserving) { this.teaObserving = false; probe.observers--; } return super.disconnect(); }
+  },
 });
 window.PointerEvent = globalThis.PointerEvent;
 let frames = [], requests = 0;
@@ -115,20 +130,26 @@ globalThis.teaInstallScrollPlatformMock = (platform, maxTouchPoints) => {
   };
 };
 let watchdog;
+globalThis.setTimeout = trackTimeout;
+globalThis.clearTimeout = untrackTimeout;
 try {
   const tests = await import(pathToFileURL(resolve(process.argv[2])).href);
   if (!tests.completed || typeof tests.completed.then !== 'function') throw new Error('UI tests must export a completed Promise');
   await Promise.race([
     tests.completed,
-    new Promise((_, reject) => { watchdog = setTimeout(() => reject(new Error('UI test timed out')), 10000); }),
+    new Promise((_, reject) => { watchdog = setTimeout_(() => reject(new Error('UI test timed out')), 10000); }),
   ]);
   globalThis.teaFlushFrame();
   globalThis.teaFlushFrame();
+  if (probe.observers) throw new Error('Leaked MutationObservers: ' + probe.observers);
+  if (probe.timers.size) throw new Error('Leaked timeouts: ' + probe.timers.size);
   if (registrations.length) throw new Error('Leaked document/window listeners: ' + registrations.map(r => r.type).join(', '));
   const finalStyles = [window.document.documentElement, window.document.body].map(node => node.getAttribute('style'));
   if (JSON.stringify(initialStyles) !== JSON.stringify(finalStyles)) throw new Error('Leaked document scroll lock/inline styles');
 } finally {
-  clearTimeout(watchdog);
+  clearTimeout_(watchdog);
+  globalThis.setTimeout = setTimeout_;
+  globalThis.clearTimeout = clearTimeout_;
   prototype.addEventListener = add;
   prototype.removeEventListener = remove;
   dom.window.close();

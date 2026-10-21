@@ -1,0 +1,76 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <base href="/">
+  <link rel="icon" href="data:,">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Tea UI · Drag and drop</title>
+  <style>
+    :root { color-scheme: light; font: 16px/1.55 "Trebuchet MS", sans-serif; color: #182e45; background: #eff5fa; }
+    * { box-sizing: border-box; }
+    body { margin: 0; }
+    main { max-width: 68rem; margin: auto; padding: 2rem 2rem 5rem; }
+    header { border-left: .6rem solid #2168a0; padding-left: 1.3rem; margin-bottom: 2rem; }
+    h1 { font-size: clamp(2rem, 4vw, 3.4rem); line-height: 1.12; letter-spacing: -.04em; margin: 0 0 1rem; }
+    h2 { font-size: 1.6rem; line-height: 1.2; margin: 0; }
+    h3 { font-size: 1rem; margin: 0 0 .7rem; }
+    p { max-width: 76ch; }
+    section { margin-top: 2rem; border-top: 2px solid #b6c9da; padding-top: 1.5rem; }
+    .note { margin-bottom: .5rem; }
+    .instructions { font-size: .9rem; color: #344e66; margin-top: 0; }
+    .lists { display: flex; gap: 1rem; align-items: stretch; }
+    .columns .lane { flex: 1; min-width: 0; }
+    .shelves { flex-direction: column; }
+    .lane { background: #dde9f3; padding: 1rem; border-radius: .6rem; }
+    .items { list-style: none; margin: 0; padding: .35rem; min-height: 8rem; border: 2px solid transparent; }
+    .items[data-over] { border-color: #7c3da2; background: #e9dff3; }
+    .items[data-disabled] { background: #d4dfe8; }
+    li { display: flex; flex-direction: column; justify-content: space-between; gap: .6rem; min-height: 7rem; padding: .8rem; margin: 0 0 .6rem; background: #fff; border: 1px solid #9eb5c9; border-radius: .25rem; }
+    li:last-child { margin-bottom: 0; }
+    li[data-dragging] { outline: 3px solid #7c3da2; outline-offset: -3px; background: #f3ecfa; }
+    li[data-disabled] { color: #425b70; background: #e8edf2; border-style: dashed; }
+    .item-label { font-weight: 700; }
+    button { font: inherit; color: #164c78; background: #fff; border: 1px solid #688ba8; border-radius: .25rem; padding: .4rem .65rem; cursor: pointer; }
+    .handle { align-self: flex-start; font-size: .85rem; text-align: start; user-select: none; }
+    button:hover:not(:disabled):not([data-dragging]) { background: #e1eef9; }
+    button[data-dragging] { color: #fff; background: #653583; }
+    button:disabled { color: #425b70; background: #e8edf2; cursor: not-allowed; }
+    :focus-visible { outline: 3px solid #653583; outline-offset: 3px; }
+    .scroll-area { height: 19rem; overflow: auto; overscroll-behavior: contain; }
+    .scroll-area li { min-height: 6.5rem; flex-direction: row; align-items: center; }
+    .shelves .items { display: flex; gap: .7rem; overflow-x: auto; }
+    .shelves li { flex: 0 0 13rem; margin: 0; }
+    .preview { font-size: .9rem; margin-bottom: .3rem; color: #493366; }
+    .live { min-height: 1.6rem; font-weight: 700; }
+    .actions { display: flex; flex-wrap: wrap; gap: 1rem; align-items: center; margin-top: .7rem; }
+    output { font-size: .85rem; color: #344e66; }
+    @media (max-width: 42rem) { main { padding: 1.5rem 1rem 3rem; } .columns { flex-direction: column; } .scroll-area li { flex-direction: column; align-items: start; } }
+  </style>
+</head>
+<body>
+  <div id="app"></div>
+  <script type="importmap">
+{
+  "imports": {
+    "melange/": "./node_modules/melange/",
+    "melange.dom/": "./node_modules/melange.dom/",
+    "melange.js/": "./node_modules/melange.js/",
+    "melange.__private__.melange_mini_stdlib/": "./node_modules/melange.__private__.melange_mini_stdlib/",
+    "tea.browser/": "./node_modules/tea.browser/",
+    "tea.ui/": "./node_modules/tea.ui/",
+    "tea/": "./node_modules/tea/",
+    "tea.core/": "./node_modules/tea.core/",
+    "tea.dom/": "./node_modules/tea.dom/",
+    "tea.effects/": "./node_modules/tea.effects/",
+    "tea.html/": "./node_modules/tea.html/",
+    "tea.http/": "./node_modules/tea.http/",
+    "tea.nav/": "./node_modules/tea.nav/",
+    "tea.url/": "./node_modules/tea.url/",
+    "tea.vdom/": "./node_modules/tea.vdom/"
+  }
+}
+  </script>
+  <script type="module" src="./examples/ui/drag_and_drop/main.mjs"></script>
+</body>
+</html>
