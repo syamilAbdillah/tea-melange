@@ -55,7 +55,7 @@ let wait_pop: unit => Js.Promise.t(unit) = [%mel.raw
     });
   }|}
 ];
-let update = (model, msg) =>
+let update = (msg, model) =>
   switch (msg) {
   | Request(request) => (
       {

@@ -34,7 +34,7 @@ module R = Runtime.Make(Fake);
 
 let counter = {
   Program.init: () => (0, Cmd.none),
-  update: (model, amount) => (model + amount, Cmd.none),
+  update: (amount, model) => (model + amount, Cmd.none),
   view: model => model,
   subscriptions: _ => Sub.none,
 };
@@ -107,7 +107,7 @@ let test_counter = () => {
   let replay =
     List.fold_left(
       (model, (msg, committed)) => {
-        let (next, _) = counter.update(model, msg);
+        let (next, _) = counter.update(msg, model);
         equal("on_msg sees committed model", next, committed);
         next;
       },
@@ -124,9 +124,9 @@ let test_render_dispatch = () => {
   let renders = ref([]);
   let program = {
     ...counter,
-    update: (model, msg) => {
+    update: (msg, model) => {
       check("update never re-enters render", ! rendering^);
-      counter.update(model, msg);
+      counter.update(msg, model);
     },
   };
   let h =
@@ -187,7 +187,7 @@ let test_commands_and_init = () => {
         dispatch(1);
       }),
     ),
-    update: (model, msg) => {
+    update: (msg, model) => {
       add("update " ++ string_of_int(msg));
       (
         model + msg,
@@ -312,7 +312,7 @@ let test_subscriptions = () => {
       },
       Cmd.none,
     ),
-    update: (model, msg) => (
+    update: (msg, model) => (
       switch (msg) {
       | Advance => {
           ...model,
@@ -391,9 +391,9 @@ let test_subscription_start_dispatch = () => {
   let log = ref([]);
   let program = {
     ...counter,
-    update: (model, msg) => {
+    update: (msg, model) => {
       check("subscription start never re-enters update", ! in_start^);
-      counter.update(model, msg);
+      counter.update(msg, model);
     },
     subscriptions: model => {
       let old =
@@ -454,7 +454,7 @@ let test_update_exception = () => {
   let log = ref([]);
   let program = {
     ...counter,
-    update: (model, msg) => {
+    update: (msg, model) => {
       if (msg == (-1)) {
         callback^(5);
         raise(Expected);

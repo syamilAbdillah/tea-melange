@@ -8,7 +8,7 @@ in `src/core` and `src/vdom`.
 ```reason
 type Program.t('flags, 'model, 'msg, 'view) = {
   init: 'flags => ('model, Cmd.t('msg)),
-  update: ('model, 'msg) => ('model, Cmd.t('msg)),   // model first, as in the public API sample
+  update: ('msg, 'model) => ('model, Cmd.t('msg)),   // msg first, as in Elm
   view: 'model => 'view,
   subscriptions: 'model => Sub.t('msg),
 };

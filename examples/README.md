@@ -18,7 +18,7 @@ It works independently of the shell's working directory. Extensionless paths
 fall back to the example's HTML, so /users/1 can be reloaded directly.
 Missing module/assets return 404, not HTML.
 
-- **counter**: the plan's beginner sample, verbatim after `open Tea;`.
+- **counter**: the plan's beginner sample after `open Tea;`, using Elm's `update(msg, model)` order.
 - **todo**: an element program; click “Seed 1,000 items” for the keyed-list
   demo, or start adding to the empty model. Add with the form,
   edit inline, toggle checkboxes, delete, and filter All/Active/Completed.

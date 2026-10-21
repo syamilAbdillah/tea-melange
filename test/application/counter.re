@@ -5,7 +5,7 @@ type msg =
   | Decrement
   | Set(int);
 
-let update = (model, msg) =>
+let update = (msg, model) =>
   switch (msg) {
   | Increment => model + 1
   | Decrement => model - 1

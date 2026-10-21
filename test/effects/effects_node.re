@@ -33,7 +33,7 @@ let program: C.Program.t(unit, model, msg, unit) = {
     },
     C.Cmd.none,
   ),
-  update: (model, msg) => {
+  update: (msg, model) => {
     let model =
       switch (msg) {
       | Tick(n) => {

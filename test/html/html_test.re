@@ -13,7 +13,7 @@ type msg =
   | Decrement
   | Set(int);
 
-let update = (model, msg) =>
+let update = (msg, model) =>
   switch (msg) {
   | Increment => model + 1
   | Decrement => model - 1
@@ -50,9 +50,9 @@ let () = {
   assert(
     event(view(0), Query.Tag("button"), "click", null) == Some(Decrement),
   );
-  assert(update(0, Increment) == 1);
-  assert(update(1, Decrement) == 0);
-  assert(update(0, Set(5)) == 5);
+  assert(update(Increment, 0) == 1);
+  assert(update(Decrement, 1) == 0);
+  assert(update(Set(5), 0) == 5);
   let buttons = Query.find_all(view(0), ~selector=Query.Tag("button"));
   assert(List.length(buttons) == 2);
   assert(

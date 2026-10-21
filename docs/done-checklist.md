@@ -3,7 +3,8 @@
 Maps the seven items in `docs/plan.txt`, “Definisi selesai v0.1.0”, to evidence.
 
 1. **Three runnable browser examples — complete.** `examples/counter/main.re`
-   is the verbatim plan counter after `open Tea;`. `examples/todo/main.re`
+   is the plan counter after `open Tea;` (with Elm's
+   `update(msg, model)` order). `examples/todo/main.re`
    supports add/edit/toggle/delete, all/active/done filters, a “Seed 1,000 items”
    button, `Keyed.ul` and `Html.lazy1`. `examples/fetch_routing/main.re` uses
    Http + Decode + Url.Parser for `/`, `/users`, `/users/:id` and NotFound.

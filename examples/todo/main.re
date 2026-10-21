@@ -34,7 +34,7 @@ let init = () => (
   Cmd.none,
 );
 
-let update = (model, msg) => {
+let update = (msg, model) => {
   let model =
     switch (msg) {
     | Seed => {

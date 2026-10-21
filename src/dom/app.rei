@@ -8,7 +8,7 @@ type document_view('msg) = {
 let beginner:
   (
     ~init: 'model,
-    ~update: ('model, 'msg) => 'model,
+    ~update: ('msg, 'model) => 'model,
     ~view: 'model => Tea_vdom.Vdom.t('msg),
     ~node: string,
     unit
@@ -19,7 +19,7 @@ let beginner:
 let element:
   (
     ~init: 'flags => ('model, Tea_core.Cmd.t('msg)),
-    ~update: ('model, 'msg) => ('model, Tea_core.Cmd.t('msg)),
+    ~update: ('msg, 'model) => ('model, Tea_core.Cmd.t('msg)),
     ~view: 'model => Tea_vdom.Vdom.t('msg),
     ~subscriptions: 'model => Tea_core.Sub.t('msg),
     ~node: string,
@@ -32,7 +32,7 @@ let element:
 let document:
   (
     ~init: 'flags => ('model, Tea_core.Cmd.t('msg)),
-    ~update: ('model, 'msg) => ('model, Tea_core.Cmd.t('msg)),
+    ~update: ('msg, 'model) => ('model, Tea_core.Cmd.t('msg)),
     ~view: 'model => document_view('msg),
     ~subscriptions: 'model => Tea_core.Sub.t('msg),
     ~flags: 'flags,

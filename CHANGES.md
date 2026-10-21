@@ -18,3 +18,7 @@ First release of tea-melange, an original MIT-licensed implementation in Reason.
 - OCaml 5.4 / Melange 6 baseline, Node 22 CI, Reason-only and formatting gates.
 
 No SSR, hydration, JSX, persistence or time-travel debugger in this release.
+
+`update` takes the message first, as in Elm (`update: ('msg, 'model) => …`), so
+replaying a log is a plain fold:
+`List.fold_left((model, msg) => fst(update(msg, model)), init, log)`.

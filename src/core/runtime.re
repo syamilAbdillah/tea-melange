@@ -87,7 +87,7 @@ module Make = (P: Platform.S) => {
           () => {
             while (alive^ && !Queue.is_empty(queue)) {
               let msg = Queue.take(queue);
-              let (next, cmd) = program.update(model^, msg);
+              let (next, cmd) = program.update(msg, model^);
               model := next;
               on_msg(msg, next);
               run_cmd(cmd);

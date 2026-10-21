@@ -65,7 +65,7 @@ let init = ((), url) => (
   },
   fetch_users(),
 );
-let update = (model, msg) =>
+let update = (msg, model) =>
   switch (msg) {
   | UrlRequested(Navigation.Internal(url)) => (
       model,

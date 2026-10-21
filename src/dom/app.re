@@ -69,7 +69,7 @@ let element = (~init, ~update, ~view, ~subscriptions, ~node, ~flags, ()) => {
 let beginner = (~init, ~update, ~view, ~node, ()) =>
   element(
     ~init=() => (init, Cmd.none),
-    ~update=(model, msg) => (update(model, msg), Cmd.none),
+    ~update=(msg, model) => (update(msg, model), Cmd.none),
     ~view,
     ~subscriptions=_ => Sub.none,
     ~node,

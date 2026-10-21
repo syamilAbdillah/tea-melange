@@ -7,7 +7,7 @@
 let application:
   (
     ~init: ('flags, Tea_url.Url.t) => ('model, Tea_core.Cmd.t('msg)),
-    ~update: ('model, 'msg) => ('model, Tea_core.Cmd.t('msg)),
+    ~update: ('msg, 'model) => ('model, Tea_core.Cmd.t('msg)),
     ~view: 'model => Tea_dom.App.document_view('msg),
     ~subscriptions: 'model => Tea_core.Sub.t('msg),
     ~on_url_request: Navigation.url_request => 'msg,

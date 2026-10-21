@@ -36,7 +36,7 @@ module App: {
   let beginner:
     (
       ~init: 'model,
-      ~update: ('model, 'msg) => 'model,
+      ~update: ('msg, 'model) => 'model,
       ~view: 'model => Tea_vdom.Vdom.t('msg),
       ~node: string,
       unit
@@ -47,7 +47,7 @@ module App: {
   let element:
     (
       ~init: 'flags => ('model, Tea_core.Cmd.t('msg)),
-      ~update: ('model, 'msg) => ('model, Tea_core.Cmd.t('msg)),
+      ~update: ('msg, 'model) => ('model, Tea_core.Cmd.t('msg)),
       ~view: 'model => Tea_vdom.Vdom.t('msg),
       ~subscriptions: 'model => Tea_core.Sub.t('msg),
       ~node: string,
@@ -60,7 +60,7 @@ module App: {
   let document:
     (
       ~init: 'flags => ('model, Tea_core.Cmd.t('msg)),
-      ~update: ('model, 'msg) => ('model, Tea_core.Cmd.t('msg)),
+      ~update: ('msg, 'model) => ('model, Tea_core.Cmd.t('msg)),
       ~view: 'model => document_view('msg),
       ~subscriptions: 'model => Tea_core.Sub.t('msg),
       ~flags: 'flags,
@@ -76,7 +76,7 @@ module App: {
   let application:
     (
       ~init: ('flags, Tea_url.Url.t) => ('model, Tea_core.Cmd.t('msg)),
-      ~update: ('model, 'msg) => ('model, Tea_core.Cmd.t('msg)),
+      ~update: ('msg, 'model) => ('model, Tea_core.Cmd.t('msg)),
       ~view: 'model => Tea_dom.App.document_view('msg),
       ~subscriptions: 'model => Tea_core.Sub.t('msg),
       ~on_url_request: Navigation.url_request => 'msg,

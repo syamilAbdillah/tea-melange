@@ -584,7 +584,7 @@ let targeted = () => {
 let batching = () => {
   let view = model =>
     Html.button([Events.on_click(1)], [Html.text(string_of_int(model))]);
-  let update = (model, msg) => model + msg;
+  let update = (msg, model) => model + msg;
   let app = App.beginner(~init=0, ~update, ~view, ~node="#app", ());
   let start = requests();
   let patches = Debug.patch_count();
@@ -609,7 +609,7 @@ let batching = () => {
   let app =
     App.element(
       ~init=flags => (flags, Tea_core.Cmd.msg(2)),
-      ~update=(m, n) => (m + n, Tea_core.Cmd.none),
+      ~update=(n, m) => (m + n, Tea_core.Cmd.none),
       ~view,
       ~subscriptions=_ => Tea_core.Sub.none,
       ~node="#app",
@@ -624,7 +624,7 @@ let batching = () => {
   let doc =
     App.document(
       ~init=() => (0, Tea_core.Cmd.none),
-      ~update=(m, n) => (m + n, Tea_core.Cmd.none),
+      ~update=(n, m) => (m + n, Tea_core.Cmd.none),
       ~view=
         n =>
           {

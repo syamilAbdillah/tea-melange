@@ -20,8 +20,9 @@ remain available for smaller dependency graphs. `tea.test` is native-only.
 
 ## A complete counter
 
-Mount into `<div id="app"></div>`. This is the plan's counter, verbatim after
-`open Tea;`, and is compiled as `examples/counter/main.re`.
+Mount into `<div id="app"></div>`. This is the plan's counter after `open Tea;`, with
+Elm's argument order `update(msg, model)`, and is compiled as
+`examples/counter/main.re`.
 
 ```reason
 open Tea;
@@ -32,7 +33,7 @@ type msg =
   | Decrement
   | Set(int);
 
-let update = (model, msg) =>
+let update = (msg, model) =>
   switch (msg) {
   | Increment => model + 1
   | Decrement => model - 1

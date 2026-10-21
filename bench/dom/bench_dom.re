@@ -100,7 +100,7 @@ let () = {
   let app =
     App.beginner(
       ~init=0,
-      ~update=(model, msg) => model + msg,
+      ~update=(msg, model) => model + msg,
       ~view=
         model =>
           Html.button(
