@@ -56,37 +56,35 @@ let descendants_count: type msg. t(msg) => int =
 
 let text = s => Text(s);
 
+/* One pass over the kid list: no intermediate closures or copies. */
 let node = (~namespace=?, tag, facts, kids) => {
   let kids = Array.of_list(kids);
-  let descendants_count =
-    Array.fold_left(
-      (acc, kid) => acc + 1 + descendants_count(kid),
-      0,
-      kids,
-    );
+  let count = ref(0);
+  for (i in 0 to Array.length(kids) - 1) {
+    count := count^ + 1 + descendants_count(Array.unsafe_get(kids, i));
+  };
   Node({
     tag,
     namespace,
     facts,
     kids,
-    descendants_count,
+    descendants_count: count^,
   });
 };
 
 let keyed = (~namespace=?, tag, facts, kids) => {
   let kids = Array.of_list(kids);
-  let descendants_count =
-    Array.fold_left(
-      (acc, (_, kid)) => acc + 1 + descendants_count(kid),
-      0,
-      kids,
-    );
+  let count = ref(0);
+  for (i in 0 to Array.length(kids) - 1) {
+    let (_, kid) = Array.unsafe_get(kids, i);
+    count := count^ + 1 + descendants_count(kid);
+  };
   Keyed({
     tag,
     namespace,
     facts,
     kids,
-    descendants_count,
+    descendants_count: count^,
   });
 };
 

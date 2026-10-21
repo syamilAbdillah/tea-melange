@@ -53,3 +53,15 @@ external query: (Dom.document, string) => Js.Nullable.t(Dom.node) =
   "querySelector";
 [@mel.get] external body: Dom.document => Dom.node = "body";
 [@mel.set] external title: (Dom.document, string) => unit = "title";
+type js_set('a);
+[@mel.new] external set_make: unit => js_set('a) = "Set";
+[@mel.send] external set_add: (js_set('a), 'a) => unit = "add";
+[@mel.send] external set_delete: (js_set('a), 'a) => unit = "delete";
+[@mel.send] external set_iter: (js_set('a), 'a => unit) => unit = "forEach";
+[@mel.send] external set_clear: js_set('a) => unit = "clear";
+[@mel.send]
+external listen_capture: (Dom.node, string, raw => unit, bool) => unit =
+  "addEventListener";
+[@mel.send]
+external unlisten_capture: (Dom.node, string, raw => unit, bool) => unit =
+  "removeEventListener";

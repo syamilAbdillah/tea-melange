@@ -126,8 +126,10 @@ let styles = () => {
       "hidden",
     ],
   );
+  /* User edits fire input/change; that is what marks a node for restore. */
   put(dom, "value", "typed");
   put(dom, "checked", false);
+  ignore(emit(dom, "input"));
   ignore(patch(dom, old, old));
   equal("unchanged model resets typed value", prop(dom, "value"), "model");
   check("unchanged model resets checkbox", bool_prop(dom, "checked"));
@@ -152,6 +154,7 @@ let styles = () => {
       let before = Vdom.node(tag, [Attr.value("model")], []);
       let element = rendered(before);
       put(element, "value", "edited");
+      ignore(emit(element, "input"));
       ignore(patch(element, before, before));
       equal("controlled " ++ tag, prop(element, "value"), "model");
       Render.dispose(element);
@@ -169,6 +172,7 @@ let styles = () => {
   let select = rendered(select_old);
   equal("select applies value after options", prop(select, "value"), "b");
   put(select, "value", "a");
+  ignore(emit(select, "change"));
   ignore(patch(select, select_old, select_old));
   equal("select value restored", prop(select, "value"), "b");
   Render.dispose(select);
@@ -177,6 +181,32 @@ let styles = () => {
   put(option, "selected", false);
   ignore(patch(option, selected, selected));
   check("selected is controlled", bool_prop(option, "selected"));
+  /* Options and radios change without events of their own: always restored. */
+  let radios =
+    Html.div(
+      [],
+      [
+        Html.input([Attr.type_("radio"), Attr.checked(true)], []),
+        Html.input([Attr.type_("radio"), Attr.checked(false)], []),
+      ],
+    );
+  let group = rendered(radios);
+  put(children(group)[0], "checked", false);
+  ignore(patch(group, radios, radios));
+  check(
+    "radio restored without event",
+    bool_prop(children(group)[0], "checked"),
+  );
+  Render.dispose(group);
+  /* Script edits without an event are restored when the node is patched. */
+  let field = v => Vdom.node("input", [Attr.value(v), Attr.title(v)], []);
+  let input = rendered(field("a"));
+  put(input, "value", "script");
+  ignore(patch(input, field("a"), field("a")));
+  equal("eventless edit kept until patched", prop(input, "value"), "script");
+  ignore(patch(input, field("a"), field("b")));
+  equal("patched node takes model value", prop(input, "value"), "b");
+  Render.dispose(input);
   ignore(patch(option, selected, Vdom.node("option", [], [])));
   check("selected removal", !bool_prop(option, "selected"));
   let a = Svg.svg([Svg.Attr.xlink_href("#a")], [Svg.circle([], [])]);
@@ -319,6 +349,15 @@ let events = () => {
   check("failed decode ignored", List.hd(messages^) == 8);
   ignore(patch(form, fail, Html.form([], [])));
   check("explicit remove detaches", Debug.active_listeners() == before);
+  /* Discarded nodes keep their (inert) DOM listeners: events dispatched on a
+     retained reference to a removed node must not reach the program. */
+  let list = Html.ul([], [Html.li([Events.on_click(55)], [])]);
+  let ul = Render.create(send, list);
+  let removed = children(ul)[0];
+  ignore(patch(ul, list, Html.ul([], [])));
+  ignore(emit(removed, "click"));
+  check("removed node is inert", List.hd(messages^) != 55);
+  Render.dispose(ul);
   Render.dispose(dom);
   Render.dispose(form);
   let bubbling =
@@ -720,12 +759,101 @@ let performance = () => {
      See bench/dom and docs/perf.md for performance-budget measurements. */
   Render.dispose(dom);
 };
+/* Large keyed permutations with inserts/removals: exercises minimal-move
+   reordering, the prefix/suffix fast paths and wholesale clearing. */
+let keyed_permutations = () => {
+  let rng = Random.State.make([|7, 2026|]);
+  let random = n => Random.State.int(rng, n);
+  let row = k => (
+    string_of_int(k),
+    Html.li(
+      [Attr.data("k", string_of_int(k)), Events.on_click(k)],
+      [Html.text(string_of_int(k))],
+    ),
+  );
+  let list = keys => Vdom.keyed("ul", [], List.map(row, keys));
+  let shuffle = a => {
+    for (i in Array.length(a) - 1 downto 1) {
+      let j = random(i + 1);
+      let x = a[i];
+      a[i] = a[j];
+      a[j] = x;
+    };
+    a;
+  };
+  let fresh = ref(1000);
+  let new_key = () => {
+    incr(fresh);
+    fresh^;
+  };
+  let next_keys = keys => {
+    let keys = Array.of_list(keys);
+    let n = Array.length(keys);
+    switch (random(6)) {
+    | 0 => Array.to_list(shuffle(keys))
+    | 1 when n > 1 =>
+      /* Swap two rows. */
+      let i = random(n);
+      let j = random(n);
+      let x = keys[i];
+      keys[i] = keys[j];
+      keys[j] = x;
+      Array.to_list(keys);
+    | 2 =>
+      /* Drop some, insert fresh keys at random positions. */
+      let kept = List.filter(_ => random(3) > 0, Array.to_list(keys));
+      List.concat_map(k => random(4) == 0 ? [new_key(), k] : [k], kept);
+    | 3 => List.init(random(40), _ => new_key())
+    | 4 => Array.to_list(keys) @ List.init(random(5), _ => new_key())
+    | _ => List.filteri((i, _) => i < n - random(3), Array.to_list(keys))
+    };
+  };
+  let base = Debug.active_listeners();
+  let keys = ref(List.init(30, i => i));
+  let old = ref(list(keys^));
+  let dom = ref(rendered(old^));
+  for (step in 1 to 400) {
+    let before = Hashtbl.create(64);
+    Array.iter(
+      n => Hashtbl.replace(before, attr(n, "data-k"), n),
+      children(dom^),
+    );
+    let ks = next_keys(keys^);
+    let next = list(ks);
+    dom := patch(dom^, old^, next);
+    let kids = children(dom^);
+    equal(
+      "keyed permutation " ++ string_of_int(step),
+      String.concat(",", List.map(string_of_int, ks)),
+      String.concat(
+        ",",
+        Array.to_list(Array.map(n => attr(n, "data-k"), kids)),
+      ),
+    );
+    Array.iter(
+      n =>
+        switch (Hashtbl.find_opt(before, attr(n, "data-k"))) {
+        | Some(prev) => check("keyed permutation reuses node", prev === n)
+        | None => ()
+        },
+      kids,
+    );
+    check(
+      "keyed permutation listeners",
+      Debug.active_listeners() == base + List.length(ks),
+    );
+    keys := ks;
+    old := next;
+  };
+  Render.dispose(dom^);
+};
 let () = {
   platform();
   styles();
   attributes();
   events();
   randomized();
+  keyed_permutations();
   targeted();
   batching();
   performance();
