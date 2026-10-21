@@ -15,6 +15,11 @@ let buffer: t => string;
 let last_time_stamp: t => option(float);
 /** Lowercase, NFD without combining marks, plus the documented folds. */
 let normalize: string => string;
+/** Whether a [KeyboardEvent.key] is one Unicode scalar: a single UTF-16
+    unit or a surrogate pair. Named keys ("Enter", "ArrowDown") and
+    multi-character strings are not. Use this to decide which keys start or
+    extend a typeahead; {!feed} additionally ignores lone combining marks. */
+let character: string => bool;
 /** Feed one Unicode scalar key (one UTF-16 unit or a surrogate pair).
     Non-character keys and lone combining marks leave state unchanged.
     A gap >= timeout (default 500ms), or a backwards timestamp, resets.
