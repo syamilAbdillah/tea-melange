@@ -313,10 +313,11 @@ let keyboard = () => {
       repeat: mask land 32 != 0,
       time_stamp: 42.,
     };
-    let available = mask land (2 lor 4 lor 8 lor 16 lor 64) == 0;
+    let available = mask land 16 == 0;
+    check("only composition is withheld", K.available(event) == available);
     check(
-      "protected keyboard combinations",
-      K.available(event) == available,
+      "plain means no ctrl/alt/meta",
+      K.plain(event) == (mask land (2 lor 4 lor 8) == 0),
     );
     let value =
       D.Value.Object([

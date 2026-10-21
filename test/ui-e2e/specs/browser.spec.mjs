@@ -38,7 +38,7 @@ export async function run(context) {
   assert.equal(geometry.rect.height, 40);
   await page.evaluate(async () => {
     const p = window.probe;
-    p.restore = p.start(p.events.restore_focus('probe'));
+    p.restore = p.start(p.events.restore_focus('probe', undefined, undefined));
     await p.run(p.dom.show_modal('probe-dialog'));
   });
   assert.equal(await page.locator('#probe-dialog').evaluate(element => element.matches(':modal')), true);

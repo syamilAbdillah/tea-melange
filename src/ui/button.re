@@ -22,16 +22,19 @@ let parts =
   let key = (down, event: Ui_keyboard.event) => {
     switch (event.key) {
     | "Enter"
+    | " " when !Ui_keyboard.plain(event) => None
+    | "Enter"
     | " " when disabled => Some((None, true))
     | "Enter" when !native && down => Some((Some(on_press), true))
     | " " when !native => Some((down ? None : Some(on_press), true))
     | "Enter"
     | " " => None
-    | key =>
+    | key when Ui_keyboard.plain(event) =>
       Option.map(
         msg => (Some(msg), false),
         down ? on_key_down(key) : on_key_up(key),
       )
+    | _ => None
     };
   };
   {

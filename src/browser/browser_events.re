@@ -251,7 +251,7 @@ let scroll_lock = (~key) =>
         },
     ),
   );
-let restore_focus = (~key) =>
+let restore_focus = (~key, ~within=?, ()) =>
   Sub.filter_map(
     _ => None,
     Sub.make(
@@ -269,7 +269,14 @@ let restore_focus = (~key) =>
                     switch (Js.Nullable.toOption(B.active(B.document))) {
                     | None => true
                     | Some(current) =>
-                      current === B.body(B.document) || !B.connected(current)
+                      current === B.body(B.document)
+                      || !B.connected(current)
+                      || (
+                        switch (Option.bind(within, B.find)) {
+                        | Some(container) => B.contains(container, current)
+                        | None => false
+                        }
+                      )
                     };
                   if (safe
                       && B.connected(element)

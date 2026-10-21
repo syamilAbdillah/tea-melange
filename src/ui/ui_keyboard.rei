@@ -1,5 +1,8 @@
-/** Private keyboard decoders. Never consume Tab, ctrl/alt/meta browser
-    shortcuts, or composing events. Shift is left to the component's APG model. */
+/** Private keyboard decoders. Events during IME composition are never
+    handled. Modifiers are left to each component's APG model: Alt+ArrowDown
+    opens a combobox, Tab closes a menu. Handlers must check {!plain} before
+    claiming a key that browsers or assistive technology bind with
+    ctrl/alt/meta, and must never prevent default on Tab. */
 /** A decoded intent, not a model-dependent navigation result. */
 type event = {
   /** DOM key (Space is " "). */
@@ -21,9 +24,11 @@ type event = {
 };
 /** Decode prototype-backed DOM KeyboardEvent properties. */
 let decoder: Tea_core.Decode.t(event);
-/** Whether a component may handle this event without swallowing a shortcut. */
+/** No ctrl, alt or meta modifier (shift allowed). */
+let plain: event => bool;
+/** Not part of an IME composition; only such events reach handlers. */
 let available: event => bool;
-/** Reject unhandled/protected keys. Successful callbacks choose an optional
+/** Reject unhandled and composing keys. Successful callbacks choose an optional
     message and preventDefault flag. Supports preventing Space scroll without
     dispatch; does not stop propagation. */
 let custom:

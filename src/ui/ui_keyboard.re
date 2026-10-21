@@ -45,17 +45,13 @@ let decoder =
       bool("repeat"),
     ),
   );
-let available = event =>
-  !event.composing
-  && !event.ctrl
-  && !event.alt
-  && !event.meta
-  && !String.equal(event.key, "Tab");
+let plain = event => !event.ctrl && !event.alt && !event.meta;
+let available = event => !event.composing;
 let custom = handle =>
   D.and_then(
     event =>
       if (!available(event)) {
-        D.fail("UI keyboard: protected key");
+        D.fail("UI keyboard: composing");
       } else {
         switch (handle(event)) {
         | None => D.fail("UI keyboard: unhandled key")

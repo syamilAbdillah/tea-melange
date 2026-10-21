@@ -58,7 +58,9 @@ let on_media_query: (~query: string, bool => 'msg) => Tea_core.Sub.t('msg);
     the lock; stop/shutdown release only their own lease. */
 let scroll_lock: (~key: string) => Tea_core.Sub.t('msg);
 /** Remember activeElement on start, before the opening render. After the
-    closing render, refocus it if connected and focus is on body, absent or
-    disconnected. Never steals focus from another connected element.
+    closing render, refocus it if connected and focus is on body, absent,
+    disconnected, or inside the element with id [within] (an overlay that stays
+    mounted while it animates out). Never steals focus from any other element.
     Identity: ("Browser_events.restore_focus", key). */
-let restore_focus: (~key: string) => Tea_core.Sub.t('msg);
+let restore_focus:
+  (~key: string, ~within: string=?, unit) => Tea_core.Sub.t('msg);

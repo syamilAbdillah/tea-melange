@@ -646,7 +646,7 @@ let restoring_focus = () => {
             ],
           ),
       ~subscriptions=
-        opened => opened ? E.restore_focus(~key="overlay") : Sub.none,
+        opened => opened ? E.restore_focus(~key="overlay", ()) : Sub.none,
       ~node="#app",
       ~flags=(),
       (),
@@ -671,6 +671,48 @@ let restoring_focus = () => {
   app.dispatch(false);
   frame();
   check("disconnected remembered element ignored", !has_focus("#other"));
+  app.shutdown();
+  frame();
+  /* An overlay kept mounted while closing (leave animation) still holds focus. */
+  let app =
+    Tea_dom.App.element(
+      ~init=() => (false, Cmd.none),
+      ~update=
+        (opened, _) => (opened, opened ? B.focus_cmd("kept") : Cmd.none),
+      ~view=
+        opened =>
+          Html.div(
+            [],
+            [
+              Html.button([Html.id("opener")], []),
+              Html.button([Html.id("bystander")], []),
+              Html.div(
+                [Html.id("panel"), Html.hidden(!opened)],
+                [Html.button([Html.id("kept")], [])],
+              ),
+            ],
+          ),
+      ~subscriptions=
+        opened =>
+          opened
+            ? E.restore_focus(~key="panel", ~within="panel", ()) : Sub.none,
+      ~node="#app",
+      ~flags=(),
+      (),
+    );
+  focus(node("#opener"));
+  app.dispatch(true);
+  frame();
+  check("kept overlay focused", has_focus("#kept"));
+  app.dispatch(false);
+  frame();
+  check("focus leaves a mounted closed overlay", has_focus("#opener"));
+  app.dispatch(true);
+  frame();
+  focus(node("#bystander"));
+  app.dispatch(false);
+  frame();
+  check("within never steals outside focus", has_focus("#bystander"));
   app.shutdown();
   frame();
 };

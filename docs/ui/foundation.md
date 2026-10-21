@@ -56,7 +56,7 @@ let on_visibility_change: (bool => 'msg) => Sub.t('msg);
 let on_element_resize: (~id: string, element_size => 'msg) => Sub.t('msg);
 let on_media_query: (~query: string, bool => 'msg) => Sub.t('msg);
 let scroll_lock: (~key: string) => Sub.t('msg);
-let restore_focus: (~key: string) => Sub.t('msg);
+let restore_focus: (~key: string, ~within: string=?, unit) => Sub.t('msg);
 ```
 
 Identities and timing are documented individually in
@@ -91,15 +91,19 @@ steal intentional focus on another connected element.
 type event = {key: string, shift: bool, ctrl: bool, alt: bool, meta: bool,
               composing: bool, time_stamp: float, repeat: bool};
 let decoder: Decode.t(event);
-let available: event => bool;
+let plain: event => bool;      /* no ctrl/alt/meta */
+let available: event => bool;  /* not composing */
 let custom:
   (event => option((option('msg), bool))) =>
   Decode.t(Tea_vdom.Vdom.custom(option('msg)));
 let on_key_down: (event => option('msg)) => Html.attr('msg);
 ```
 
-The callback's pair is `(optional_message, prevent_default)`. Never handles Tab,
-ctrl/alt/meta or IME (including keyCode 229). Shift is available to the component.
+The callback's pair is `(optional_message, prevent_default)`. IME composition
+(including keyCode 229) never reaches the callback. Modifiers do, because APG
+models need them (Alt+ArrowDown opens a combobox, Tab closes a menu): check
+`plain` before claiming keys that browsers or assistive technology bind with
+ctrl/alt/meta, and never prevent default on Tab.
 A handled event can prevent default without emitting a synthetic parent message.
 
 ## Private Ui_nav
