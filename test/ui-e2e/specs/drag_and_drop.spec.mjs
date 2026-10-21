@@ -81,6 +81,109 @@ async function dimensions(locator) {
   });
 }
 
+async function realTouch(context) {
+  const page = await openExample(context, 'drag_and_drop');
+  const cdp = await context.newCDPSession(page);
+  await cdp.send('Emulation.setTouchEmulationEnabled', { enabled: true, maxTouchPoints: 1 });
+  await page.evaluate(() => {
+    window.dragTouchEvents = [];
+    for (const type of ['pointerdown', 'pointercancel', 'touchmove', 'touchend']) {
+      // Observe browser input after consumer handlers, without affecting gesture ownership.
+      window.addEventListener(type, event => window.dragTouchEvents.push({
+        type, trusted: event.isTrusted, prevented: event.defaultPrevented,
+        pointerType: event.pointerType, time: performance.now(),
+      }), { passive: true });
+    }
+  });
+  const events = () => page.evaluate(() => window.dragTouchEvents);
+  const resetEvents = () => page.evaluate(() => { window.dragTouchEvents = []; });
+  const send = (type, point) => cdp.send('Input.dispatchTouchEvent', {
+    type, touchPoints: point ? [{ ...point, id: 1 }] : [],
+  });
+  const begin = async locator => {
+    await locator.scrollIntoViewIfNeeded();
+    // No consumer CSS may hide a broken nonpassive touchmove fallback.
+    assert.deepEqual(await locator.evaluate(node => {
+      const values = [];
+      for (; node; node = node.parentElement) values.push(getComputedStyle(node).touchAction);
+      return [...new Set(values)];
+    }), ['auto']);
+    const box = await locator.boundingBox();
+    const point = { x: box.x + box.width / 2, y: box.y + box.height / 2 };
+    await resetEvents();
+    await send('touchStart', point); await frames(page);
+    assert.ok((await events()).some(event => event.type === 'pointerdown' && event.pointerType === 'touch' && event.trusted));
+    return point;
+  };
+  try {
+    // A real short press/click is not a lift or committed move.
+    await begin(handle(page, 'board', 'poster'));
+    await send('touchEnd'); await frames(page);
+    const shortPress = await events();
+    assert.ok(shortPress.find(event => event.type === 'touchend').time - shortPress.find(event => event.type === 'pointerdown').time < 250);
+    await idle(page, 'board'); await state(page, 'board');
+    assert.equal(await live(page, 'board').textContent(), '');
+    assert.equal(await page.locator('#board-moves').textContent(), 'Committed moves: 0');
+
+    // Exercise both the handle and whole-card path with native browser gesture arbitration.
+    let expected = initial.board;
+    for (const source of [handle(page, 'board', 'poster'), item(page, 'board', 'poster').locator('.item-label')]) {
+      const start = await begin(source);
+      // Only the intentional long-press uses real time: readiness has no public DOM state.
+      await page.waitForTimeout(300); // default touch_delay = 250ms
+      await frames(page); await idle(page, 'board');
+      const scrollBefore = await page.evaluate(() => scrollY);
+      const originalBox = await dimensions(item(page, 'board', 'poster'));
+      // The FIRST movement crosses both the 6px module threshold and Chromium's pan slop.
+      await send('touchMove', { x: start.x, y: start.y - 40 }); await frames(page);
+      await lifted(page, 'board', 'poster');
+      assert.equal(await live(page, 'board').textContent(), `Picked up Edition poster. Position ${expected.queue.indexOf('poster') + 1} of 3.`);
+      const firstMove = (await events()).filter(event => event.type === 'touchmove');
+      assert.equal(firstMove.length, 1);
+      assert.ok(firstMove[0].time - (await events()).find(event => event.type === 'pointerdown').time >= 250);
+      assert.ok(firstMove[0].trusted && firstMove[0].prevented, 'The first native touchmove must be owned after the delay');
+      assert.equal((await events()).filter(event => event.type === 'pointercancel').length, 0);
+      assert.equal(await page.evaluate(() => scrollY), scrollBefore);
+      assert.deepEqual(await dimensions(item(page, 'board', 'poster')), originalBox);
+      await state(page, 'board', expected);
+
+      const cover = await item(page, 'board', 'cover').boundingBox();
+      const toEnd = expected.queue[0] === 'poster';
+      await send('touchMove', { x: cover.x + cover.width / 2, y: cover.y + cover.height * (toEnd ? .8 : .2) });
+      await frames(page); await target(page, 'board', 'queue', toEnd ? 2 : 1);
+      await state(page, 'board', expected);
+      await send('touchEnd'); await frames(page);
+      expected = { ...initial.board, queue: toEnd ? ['cover', 'poster', 'proof'] : initial.board.queue };
+      await idle(page, 'board'); await state(page, 'board', expected);
+      assert.equal(await live(page, 'board').textContent(), 'Dropped.');
+      await assertFocus(page, handleSelector('board', 'poster'));
+      const gesture = await events();
+      assert.ok(gesture.filter(event => event.type === 'touchmove').every(event => event.trusted && event.prevented));
+      assert.equal(gesture.filter(event => event.type === 'pointercancel').length, 0);
+      assert.ok(gesture.some(event => event.type === 'touchend' && event.trusted));
+    }
+    assert.equal(await page.locator('#board-moves').textContent(), 'Committed moves: 2');
+
+    // Before the delay, movement abandons the candidate and leaves native scrolling alone.
+    const start = await begin(handle(page, 'board', 'poster'));
+    const scrollBefore = await page.evaluate(() => scrollY);
+    await send('touchMove', { x: start.x, y: start.y - 60 }); await frames(page);
+    await idle(page, 'board');
+    await send('touchMove', { x: start.x, y: start.y - 140 }); await frames(page);
+    await send('touchEnd'); await frames(page);
+    await page.waitForFunction(before => scrollY > before + 20, scrollBefore);
+    const scrolling = await events();
+    assert.ok(scrolling.some(event => event.type === 'touchmove' && event.trusted));
+    assert.ok(scrolling.find(event => event.type === 'touchmove').time - scrolling.find(event => event.type === 'pointerdown').time < 250, 'Movement must occur before the long-press delay');
+    assert.ok(scrolling.filter(event => event.type === 'touchmove').every(event => !event.prevented), 'Pre-delay movement must not suppress native scrolling');
+    assert.ok(scrolling.some(event => event.type === 'pointercancel' && event.trusted), 'Chromium owns the scrolling gesture');
+    await idle(page, 'board'); await state(page, 'board');
+    assert.equal(await page.locator('#board-moves').textContent(), 'Committed moves: 2');
+  } finally {
+    await cdp.detach();
+  }
+}
+
 export async function run(context) {
   const page = await openExample(context, 'drag_and_drop');
   // Record real browser default handling, without replacing any event or collection.
@@ -245,4 +348,6 @@ export async function run(context) {
   await idle(page, 'packing'); await assertFocus(page, handleSelector('packing', 'tissue'));
   await page.mouse.up(); await frames(page);
   await state(page, 'packing');
+
+  await realTouch(context);
 }
