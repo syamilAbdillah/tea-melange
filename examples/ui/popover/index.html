@@ -1,0 +1,65 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <base href="/">
+  <link rel="icon" href="data:,">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Tea UI · Popover</title>
+  <style>
+    :root { font: 17px/1.55 "Trebuchet MS", sans-serif; color: #15394d; background: #eaf4fa; }
+    body { margin: 0; }
+    main { max-width: 56rem; margin: 2rem auto; padding: 1rem 1.5rem 4rem; }
+    h1 { font-size: clamp(2rem, 5vw, 3.2rem); letter-spacing: -.04em; line-height: 1.15; }
+    h2 { font-size: 1.3rem; }
+    p { max-width: 66ch; }
+    section { margin: 1.5rem 0; }
+    button, input, select { font: inherit; }
+    button { background: #fff; color: #15394d; border: 2px solid #286d8f; border-radius: .4rem; padding: .55rem .9rem; cursor: pointer; }
+    button[data-open] { color: #fff; background: #175d7b; }
+    :focus-visible { outline: 3px solid #8a2873; outline-offset: 3px; }
+    a { display: block; padding: .35rem 0; color: #175d7b; }
+    .popover { display: inline-block; margin: .35rem .5rem .35rem 0; }
+    .panel { width: min(21rem, calc(100vw - 2rem)); max-height: var(--tea-available-height); overflow: auto; padding: 1rem; border: 2px solid #286d8f; border-radius: .6rem; background: #fff; color: #15394d; box-shadow: 0 .6rem 1.6rem #15394d28; }
+    .panel p { margin-top: 0; }
+    .panel label { display: block; margin: .4rem 0; }
+    .panel input:not([type=checkbox]), .panel select { width: 100%; box-sizing: border-box; padding: .35rem; border: 1px solid #286d8f; }
+    .panel button { margin-top: .75rem; }
+    .group { display: flex; flex-wrap: wrap; }
+    .clip { overflow: hidden; transform: translateZ(0); height: 4rem; border: 3px dashed #286d8f; padding: .5rem; }
+    .animated { transform: scale(1); transform-origin: center top; }
+    .animated[data-transition] { transition: transform 220ms ease; }
+    .animated[data-closed] { transform: scale(.94); }
+    .arrow { display: block; position: absolute; top: 0; width: 12px; height: 5px; background: #286d8f; }
+    [data-placement^=top] > .arrow { top: auto; bottom: 0; }
+    .controls { display: flex; flex-wrap: wrap; gap: .6rem; margin-top: 2rem; }
+    output { display: block; margin-top: 1rem; padding: .6rem; background: #d3e9f3; border-left: 4px solid #286d8f; }
+    @media (prefers-reduced-motion: reduce) { .animated[data-transition] { transition: none; } }
+  </style>
+</head>
+<body>
+  <div id="app"></div>
+  <script type="importmap">
+{
+  "imports": {
+    "melange/": "./node_modules/melange/",
+    "melange.dom/": "./node_modules/melange.dom/",
+    "melange.js/": "./node_modules/melange.js/",
+    "melange.__private__.melange_mini_stdlib/": "./node_modules/melange.__private__.melange_mini_stdlib/",
+    "tea.browser/": "./node_modules/tea.browser/",
+    "tea.ui/": "./node_modules/tea.ui/",
+    "tea/": "./node_modules/tea/",
+    "tea.core/": "./node_modules/tea.core/",
+    "tea.dom/": "./node_modules/tea.dom/",
+    "tea.effects/": "./node_modules/tea.effects/",
+    "tea.html/": "./node_modules/tea.html/",
+    "tea.http/": "./node_modules/tea.http/",
+    "tea.nav/": "./node_modules/tea.nav/",
+    "tea.url/": "./node_modules/tea.url/",
+    "tea.vdom/": "./node_modules/tea.vdom/"
+  }
+}
+  </script>
+  <script type="module" src="./examples/ui/popover/main.mjs"></script>
+</body>
+</html>

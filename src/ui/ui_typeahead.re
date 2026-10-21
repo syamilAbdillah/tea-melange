@@ -8,114 +8,47 @@ let empty = {
 };
 let buffer = state => state.buffer;
 let last_time_stamp = state => state.last;
+/* Labels and keys are JS (UTF-16) strings. Fold case, then decompose (NFD)
+   and drop combining marks, so precomposed and decomposed accents match.
+   Letters with no canonical decomposition get explicit folds. */
+[@mel.send]
+external to_nfd: (string, [@mel.as "NFD"] _) => string = "normalize";
+[@mel.send] external to_lower: string => string = "toLowerCase";
 let folds = [
-  ("À", "a"),
-  ("Á", "a"),
-  ("Â", "a"),
-  ("Ã", "a"),
-  ("Ä", "a"),
-  ("Å", "a"),
-  ("à", "a"),
-  ("á", "a"),
-  ("â", "a"),
-  ("ã", "a"),
-  ("ä", "a"),
-  ("å", "a"),
-  ("Æ", "ae"),
-  ("æ", "ae"),
-  ("Ç", "c"),
-  ("ç", "c"),
-  ("È", "e"),
-  ("É", "e"),
-  ("Ê", "e"),
-  ("Ë", "e"),
-  ("è", "e"),
-  ("é", "e"),
-  ("ê", "e"),
-  ("ë", "e"),
-  ("Ì", "i"),
-  ("Í", "i"),
-  ("Î", "i"),
-  ("Ï", "i"),
-  ("ì", "i"),
-  ("í", "i"),
-  ("î", "i"),
-  ("ï", "i"),
-  ("Ð", "d"),
-  ("ð", "d"),
-  ("Ñ", "n"),
-  ("ñ", "n"),
-  ("Ò", "o"),
-  ("Ó", "o"),
-  ("Ô", "o"),
-  ("Õ", "o"),
-  ("Ö", "o"),
-  ("Ø", "o"),
-  ("ò", "o"),
-  ("ó", "o"),
-  ("ô", "o"),
-  ("õ", "o"),
-  ("ö", "o"),
-  ("ø", "o"),
-  ("Ù", "u"),
-  ("Ú", "u"),
-  ("Û", "u"),
-  ("Ü", "u"),
-  ("ù", "u"),
-  ("ú", "u"),
-  ("û", "u"),
-  ("ü", "u"),
-  ("Ý", "y"),
-  ("ý", "y"),
-  ("ÿ", "y"),
-  ("Þ", "th"),
-  ("þ", "th"),
-  ("ß", "ss"),
+  ([%re "/[\\u0300-\\u036f]/g"], ""),
+  ([%re "/\\u00e6/g"], "ae"),
+  ([%re "/\\u0153/g"], "oe"),
+  ([%re "/\\u00f8/g"], "o"),
+  ([%re "/\\u00df/g"], "ss"),
+  ([%re "/\\u00fe/g"], "th"),
+  ([%re "/[\\u00f0\\u0111]/g"], "d"),
+  ([%re "/\\u0142/g"], "l"),
+  ([%re "/\\u0131/g"], "i"),
 ];
-let normalize = value => {
-  let out = Buffer.create(String.length(value));
-  let rec loop = i =>
-    if (i < String.length(value)) {
-      switch (
-        List.find_opt(
-          ((letter, _)) =>
-            i
-            + String.length(letter) <= String.length(value)
-            && String.equal(
-                 String.sub(value, i, String.length(letter)),
-                 letter,
-               ),
-          folds,
-        )
-      ) {
-      | Some((letter, folded)) =>
-        Buffer.add_string(out, folded);
-        loop(i + String.length(letter));
-      | None =>
-        Buffer.add_char(out, Char.lowercase_ascii(value.[i]));
-        loop(i + 1);
-      };
-    };
-  loop(0);
-  Buffer.contents(out);
-};
-let character = key => {
-  let n = String.length(key);
-  if (n == 0) {
-    false;
-  } else {
-    let first = Char.code(key.[0]);
-    n == 1
-    || n == 2
-    && first >= 0xd800
-    && first <= 0xdbff
-    || n == (first < 128 ? 1 : first < 224 ? 2 : first < 240 ? 3 : 4);
+let normalize = value =>
+  List.fold_left(
+    (value, (pattern, replacement)) =>
+      Js.String.replaceByRe(~regexp=pattern, ~replacement, value),
+    to_nfd(to_lower(value)),
+    folds,
+  );
+/* One Unicode scalar: a single UTF-16 unit or a surrogate pair. */
+let character = key =>
+  switch (String.length(key)) {
+  | 1 => true
+  | 2 =>
+    let high = Char.code(key.[0]);
+    high >= 0xd800 && high <= 0xdbff;
+  | _ => false
   };
-};
 let feed =
     (~timeout=500., ~time_stamp, ~key, ~from, ~labels, ~disabled, state) =>
-  if (!character(key)) {
-    (state, None);
+  if (!character(key) || String.equal(normalize(key), "")) {
+    (
+      /* A lone combining mark folds to nothing and cannot extend a search. */
+      state,
+      None,
+    );
   } else {
     let key = normalize(key);
     let fresh =

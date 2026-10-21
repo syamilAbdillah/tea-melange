@@ -1,0 +1,64 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <base href="/">
+  <link rel="icon" href="data:,">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Tea UI · Listbox</title>
+  <style>
+    :root { font: 17px/1.55 Verdana, sans-serif; color: #193e36; background: #eef5ee; }
+    body { margin: 0; }
+    main { max-width: 65rem; margin: 3rem auto; padding: 0 1.5rem 4rem; }
+    h1 { font: 600 clamp(2.5rem,7vw,4.5rem)/1.1 Palatino, serif; margin-bottom: 1rem; }
+    p { max-width: 64ch; }
+    .fields { display: grid; grid-template-columns: repeat(auto-fit, minmax(15rem, 1fr)); gap: 1.75rem; margin: 2rem 0; }
+    .field > span { display: block; font-weight: 600; margin-bottom: .4rem; }
+    button { font: inherit; padding: .55rem .8rem; border: 2px solid #386c5d; border-radius: .4rem; background: white; color: #193e36; cursor: pointer; }
+    .field > button { width: 100%; text-align: start; }
+    button[data-open] { border-color: #603baa; }
+    [data-disabled] { color: #59665d; background: #e7ebe7; cursor: not-allowed; }
+    [data-readonly] { border-style: dashed; }
+    [data-invalid] { border-color: #ad2442; }
+    :focus-visible { outline: 3px solid #603baa; outline-offset: 3px; }
+    .popup { max-height: min(17rem, var(--tea-available-height)); overflow: auto; padding: .35rem; border: 2px solid #386c5d; border-radius: .4rem; color: #193e36; background: white; transform: translateY(0); }
+    .popup[data-transition] { transition: transform 120ms ease; }
+    .popup[data-closed] { transform: translateY(-.4rem); }
+    [role=option] { padding: .45rem .6rem; border-radius: .2rem; cursor: pointer; }
+    [role=option][data-active] { outline: 2px solid #603baa; outline-offset: -2px; background: #f0eafa; }
+    [role=option][data-selected] { font-weight: bold; background: #cce9d5; }
+    [role=option][data-disabled] { text-decoration: line-through; }
+    [role=group] > [role=presentation] { font-weight: bold; padding: .6rem; border-bottom: 1px solid #9bafa2; }
+    .tags, .actions { display: flex; flex-wrap: wrap; gap: .5rem; margin-top: .5rem; }
+    form { padding: 1.5rem; background: #d8eadc; border-radius: .65rem; max-width: 28rem; }
+    form > button { margin-top: 1rem; }
+    output { display: block; margin-top: 1rem; }
+    @media (prefers-reduced-motion: reduce) { .popup[data-transition] { transition: none; } }
+  </style>
+</head>
+<body>
+  <div id="app"></div>
+  <script type="importmap">
+{
+  "imports": {
+    "melange/": "./node_modules/melange/",
+    "melange.dom/": "./node_modules/melange.dom/",
+    "melange.js/": "./node_modules/melange.js/",
+    "melange.__private__.melange_mini_stdlib/": "./node_modules/melange.__private__.melange_mini_stdlib/",
+    "tea.browser/": "./node_modules/tea.browser/",
+    "tea.ui/": "./node_modules/tea.ui/",
+    "tea/": "./node_modules/tea/",
+    "tea.core/": "./node_modules/tea.core/",
+    "tea.dom/": "./node_modules/tea.dom/",
+    "tea.effects/": "./node_modules/tea.effects/",
+    "tea.html/": "./node_modules/tea.html/",
+    "tea.http/": "./node_modules/tea.http/",
+    "tea.nav/": "./node_modules/tea.nav/",
+    "tea.url/": "./node_modules/tea.url/",
+    "tea.vdom/": "./node_modules/tea.vdom/"
+  }
+}
+  </script>
+  <script type="module" src="./examples/ui/listbox/main.mjs"></script>
+</body>
+</html>
