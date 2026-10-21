@@ -81,6 +81,53 @@ async function dimensions(locator) {
   });
 }
 
+async function nativeClicks(context) {
+  const page = await openExample(context, 'drag_and_drop');
+  await page.evaluate(() => {
+    window.dropClicks = [];
+    window.dropActions = 0;
+    window.addEventListener('click', event => window.dropClicks.push(event), true);
+    document.querySelector('#board-container-queue').addEventListener('click', () => window.dropActions++);
+    document.querySelector('#board-example [data-key="poster"] .item-label').addEventListener('click', () => window.dropActions++);
+    const link = document.createElement('a');
+    link.id = 'packing-action'; link.href = '#packing-action-destination'; link.textContent = 'Read packing details';
+    link.addEventListener('click', () => window.dropActions++);
+    document.querySelector('#packing-example [data-key="tissue"]').append(link);
+  });
+  const clicks = () => page.evaluate(() => window.dropClicks.map(event => ({ target: event.target.id, prevented: event.defaultPrevented, trusted: event.isTrusted, detail: event.detail })));
+  await beginMouse(page, handle(page, 'board', 'poster'));
+  const cover = await item(page, 'board', 'cover').boundingBox();
+  await moveMouse(page, cover.x + cover.width / 2, cover.y + cover.height / 2);
+  await page.mouse.up(); await frames(page);
+  assert.ok((await clicks()).some(event => event.target === 'board-container-queue' && event.trusted && event.prevented), 'Native ancestor-retargeted drop click is prevented');
+  assert.equal(await page.evaluate(() => window.dropActions), 0, 'Container and delegated actions must not run after dragging');
+  await axe(page);
+
+  const label = item(page, 'board', 'poster').locator('.item-label');
+  const point = await beginMouse(page, label);
+  await moveMouse(page, point.x + 10, point.y + 2);
+  await lifted(page, 'board', 'poster');
+  await pressKeys(page, 'Escape');
+  await idle(page, 'board');
+  await page.mouse.up(); await frames(page);
+  assert.equal(await page.evaluate(() => window.dropActions), 0, 'Escape retains capture suppression until the original pointer release/click');
+  assert.ok((await clicks()).at(-1).prevented);
+  await axe(page);
+
+  const packingStart = await beginMouse(page, handle(page, 'packing', 'tissue'));
+  await moveMouse(page, packingStart.x + 10, packingStart.y + 2);
+  await lifted(page, 'packing', 'tissue');
+  await pressKeys(page, 'Escape');
+  await page.mouse.up(); await frames(page);
+  await idle(page, 'packing');
+  await page.locator('#packing-action').click(); await frames(page);
+  assert.equal(await page.evaluate(() => window.dropActions), 1, 'A later legitimate handle-only card action is never swallowed');
+  assert.equal(new URL(page.url()).hash, '#packing-action-destination');
+  assert.equal((await clicks()).at(-1).prevented, false);
+  await ariaSnapshot(page.locator('#packing-action'), '- link "Read packing details":\n  - /url: "#packing-action-destination"');
+  await axe(page);
+}
+
 async function realTouch(context) {
   const page = await openExample(context, 'drag_and_drop');
   const cdp = await context.newCDPSession(page);
@@ -349,5 +396,6 @@ export async function run(context) {
   await page.mouse.up(); await frames(page);
   await state(page, 'packing');
 
+  await nativeClicks(context);
   await realTouch(context);
 }
