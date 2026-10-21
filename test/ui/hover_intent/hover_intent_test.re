@@ -622,12 +622,51 @@ let completed = {
     !opened("b") && pending() == 1,
   );
   reset("b");
+  /* An open member warms the group regardless of elapsed time, so a sibling
+     opens before the first member's close delay has finished. */
+  let open_a = H.Group.record_open(~key="a", cold_group);
+  check(
+    "record_open is idempotent",
+    H.Group.open_keys(H.Group.record_open(~key="a", open_a)) == ["a"],
+  );
+  app.dispatch(Group(open_a));
+  hover(~stamp=50000., "#b", "pointerenter");
+  frame();
+  check("open member warms sibling", opened("b") && pending() == 0);
+  reset("b");
+  let closed_a = H.Group.record_close(~key="a", ~time_stamp=1000., open_a);
+  check("keyed close removes member", H.Group.open_keys(closed_a) == []);
+  app.dispatch(Group(closed_a));
+  hover(~stamp=1300., "#b", "pointerenter");
+  frame();
+  check(
+    "after keyed close the window applies again",
+    !opened("b") && pending() == 1,
+  );
+  reset("b");
+  app.dispatch(Group(H.Group.forget(~key="a", open_a)));
+  hover(~stamp=50000., "#b", "pointerenter");
+  frame();
+  check("forgotten member no longer warms", !opened("b") && pending() == 1);
+  reset("b");
+  app.dispatch(
+    Group(
+      H.Group.record_open(~key="a", H.Group.init(~skip_delay_ms=0, ())),
+    ),
+  );
+  hover(~stamp=1000., "#b", "pointerenter");
+  frame();
+  check(
+    "zero skip disables warmup even with an open member",
+    !opened("b") && pending() == 1,
+  );
+  reset("b");
   hover("#a", "pointerenter");
   app.dispatch(Remove("a"));
   advance(200);
   check(
     "removing pending trigger cancels timer and listeners",
-    pending() == 0 && count() == 15 && listener_count() == baseline,
+    pending() == 0 && count() == 16 && listener_count() == baseline,
   );
   hover("#b", "pointerenter");
   advance(100);
@@ -645,7 +684,7 @@ let completed = {
   advance(1000);
   check(
     "nothing fires after shutdown",
-    fired^ == before_shutdown && count() == 16,
+    fired^ == before_shutdown && count() == 17,
   );
   /* Single/empty consumer collections, overlapping regions and setters that
      invalidate an already-running close. No component owns a collection. */

@@ -97,16 +97,24 @@ represents one pair; parents store keyed collections, not this component.
 /* One immutable value in the parent model, independent of the members. */
 let group = H.Group.init(~skip_delay_ms=1800, ());
 let (hover, cmd, out) = H.update(~group=model.group, intent, model.hover);
+let group = List.fold_left((group, out) => switch (out) {
+| H.Intent_open => H.Group.record_open(~key, group)
 /* On Intent_close, use the new model, not the previous frame's model: */
-let group = switch (H.last_close_time(hover)) {
-| Some(time_stamp) => H.Group.record_close(~time_stamp, model.group)
-| None => model.group
-};
-/* Commit group; pass it to every member's next update. */
+| H.Intent_close =>
+  switch (H.last_close_time(hover)) {
+  | Some(time_stamp) => H.Group.record_close(~key, ~time_stamp, group)
+  | None => group
+  }
+}, model.group, out);
+/* Commit group; pass it to every member's next update. When a member
+   unmounts or closes programmatically, call H.Group.forget(~key, group). */
 ```
 
-Without a group, or before a recorded close, opening is cold. At entry, a close
-less than `skip_delay_ms` ago skips the open delay. At exactly the boundary it
+Without a group, opening is cold. While any member is recorded open, the group
+is warm: moving the pointer to a sibling opens it immediately, even though the
+first member is still inside its close delay (consumers that show one popup at
+a time close the others, listed by `Group.open_keys`). After the last member
+closes, a close less than `skip_delay_ms` ago skips the open delay. At exactly the boundary it
 is cold; backwards timestamps are cold. Zero/negative skip disables warm-up.
 Groups are passed, never stored in an intent model or mutated. Independent
 groups cannot warm each other. Only record actual closes; the sample above
@@ -125,7 +133,10 @@ change does not retroactively shorten an opening already in progress.
 module Group: {
   type t;
   let init: (~skip_delay_ms: int, unit) => t;
-  let record_close: (~time_stamp: float, t) => t;
+  let record_close: (~key: string=?, ~time_stamp: float, t) => t;
+  let record_open: (~key: string, t) => t;
+  let forget: (~key: string, t) => t;
+  let open_keys: t => list(string);
 };
 type model;
 type msg;

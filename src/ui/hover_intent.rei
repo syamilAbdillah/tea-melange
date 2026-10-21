@@ -22,8 +22,21 @@ module Group: {
       PointerEvent.timeStamp (performance.now in modern browsers). Call after
       Intent_close with [last_close_time], then pass the returned group to all
       members' [update]. Programmatic closes can supply the consumer's timestamp.
-      Warm-up expires at exactly skip_delay_ms; backwards timestamps stay cold. */
-  let record_close: (~time_stamp: float, t) => t;
+      With [~key], also removes that member from the open members.
+      Warm-up expires at exactly skip_delay_ms after the last close, provided no
+      member is still open; backwards timestamps stay cold. */
+  let record_close: (~key: string=?, ~time_stamp: float, t) => t;
+  /** Remember that the member [key] is open. While any member is open the
+      group is warm (unless warm-up is disabled), so moving the pointer to a
+      sibling opens it without waiting for the first member's close delay.
+      Pair with [record_close(~key, ...)] when that member closes. */
+  let record_open: (~key: string, t) => t;
+  /** Drop [key] from the open members without recording a close time, e.g.
+      when a member unmounts or is closed programmatically. */
+  let forget: (~key: string, t) => t;
+  /** Keys currently recorded as open, most recent first. Consumers that show
+      one popup at a time close the others when a member opens. */
+  let open_keys: t => list(string);
 };
 /** Abstract immutable state, one per trigger/content pair. */
 type model;

@@ -108,13 +108,17 @@ let update = (msg, model) => {
           List.iter(
             out =>
               switch (out) {
-              | H.Intent_open => incr(opens)
+              | H.Intent_open =>
+                incr(opens);
+                if (card.grouped) {
+                  group := H.Group.record_open(~key, group^);
+                };
               | H.Intent_close =>
                 incr(closes);
                 if (card.grouped) {
                   Option.iter(
                     time_stamp =>
-                      group := H.Group.record_close(~time_stamp, group^),
+                      group := H.Group.record_close(~key, ~time_stamp, group^),
                     H.last_close_time(hover),
                   );
                 };
