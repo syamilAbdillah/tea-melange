@@ -1,0 +1,60 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <base href="/">
+  <link rel="icon" href="data:,">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Tea UI · Slider</title>
+  <style>
+    :root { font: 17px/1.5 "Trebuchet MS", sans-serif; color: #172f42; background: #eff6fa; }
+    body { margin: 0; }
+    main { max-width: 44rem; margin: 2rem auto; padding: 1.5rem; }
+    h1 { font-size: clamp(2rem, 6vw, 3.5rem); line-height: 1.1; letter-spacing: -.035em; }
+    p { max-width: 62ch; }
+    h2 { font-size: 1.15rem; margin: 0 0 1.25rem; }
+    section { padding: 2rem 0; border-bottom: 1px solid #a0b6c6; }
+    button { font: inherit; color: #fff; background: #164a68; border: 0; padding: .65rem 1rem; border-radius: .4rem; cursor: pointer; }
+    .slider { padding: .8rem 1.1rem; }
+    .track { position: relative; height: 12px; background: #b8cbd7; border-radius: 6px; cursor: pointer; }
+    .fill { position: absolute; left: var(--tea-slider-start); width: calc(var(--tea-slider-end) - var(--tea-slider-start)); height: 100%; background: #206587; border-radius: inherit; pointer-events: none; }
+    .thumb { position: absolute; left: var(--tea-slider-percent); top: 50%; transform: translate(-50%, -50%); min-width: 2.5rem; height: 2.5rem; padding: .1rem; display: grid; place-items: center; border: 2px solid #164a68; border-radius: 50%; background: white; font-size: .8rem; font-weight: bold; user-select: none; }
+    [dir=rtl] .thumb { left: auto; right: var(--tea-slider-percent); transform: translate(50%, -50%); }
+    [dir=rtl] .fill { left: auto; right: var(--tea-slider-start); }
+    .slider[data-orientation=vertical] { height: 180px; padding-left: 2rem; }
+    [data-orientation=vertical] .track { width: 12px; height: 100%; }
+    [data-orientation=vertical] .thumb { top: auto; bottom: var(--tea-slider-percent); left: 50%; transform: translate(-50%, 50%); }
+    [data-orientation=vertical] .fill { left: 0; bottom: var(--tea-slider-start); width: 100%; height: calc(var(--tea-slider-end) - var(--tea-slider-start)); }
+    .thumb[data-dragging] { background: #d1eefa; border-width: 3px; }
+    [data-disabled] .track { background: #cad2d7; cursor: not-allowed; }
+    .thumb[data-disabled] { border-style: dashed; border-color: #566571; }
+    :focus-visible { outline: 3px solid #8b2671; outline-offset: 4px; }
+    output { display: block; margin-top: 1.5rem; }
+  </style>
+</head>
+<body>
+  <div id="app"></div>
+  <script type="importmap">
+{
+  "imports": {
+    "melange/": "./node_modules/melange/",
+    "melange.dom/": "./node_modules/melange.dom/",
+    "melange.js/": "./node_modules/melange.js/",
+    "melange.__private__.melange_mini_stdlib/": "./node_modules/melange.__private__.melange_mini_stdlib/",
+    "tea.browser/": "./node_modules/tea.browser/",
+    "tea.ui/": "./node_modules/tea.ui/",
+    "tea/": "./node_modules/tea/",
+    "tea.core/": "./node_modules/tea.core/",
+    "tea.dom/": "./node_modules/tea.dom/",
+    "tea.effects/": "./node_modules/tea.effects/",
+    "tea.html/": "./node_modules/tea.html/",
+    "tea.http/": "./node_modules/tea.http/",
+    "tea.nav/": "./node_modules/tea.nav/",
+    "tea.url/": "./node_modules/tea.url/",
+    "tea.vdom/": "./node_modules/tea.vdom/"
+  }
+}
+  </script>
+  <script type="module" src="./examples/ui/slider/main.mjs"></script>
+</body>
+</html>
