@@ -225,6 +225,21 @@ let typeahead = () => {
       ("lone combining mark is ignored", {js|\u0301|js}, false),
     ],
   );
+  List.iter(
+    ((key, expected)) =>
+      check("character " ++ key, T.character(key) == expected),
+    [
+      ("a", true),
+      ({js|é|js}, true),
+      ({js|😀|js}, true),
+      (" ", true),
+      ("", false),
+      ("ab", false),
+      ("Enter", false),
+      ("ArrowDown", false),
+      ({js|e\u0301|js}, false),
+    ],
+  );
   for (n in 0 to 6) {
     for (mask in 0 to 1 lsl n - 1) {
       let disabled = Array.init(n, i => mask land 1 lsl i != 0);
