@@ -217,6 +217,21 @@ let rec settle = n =>
       frame();
       Js.Promise.then_(_ => settle(n - 1), tick());
     };
+[@mel.send]
+external listen: (Dom.document, string, Dom.event => unit) => unit =
+  "addEventListener";
+[@mel.send]
+external unlisten: (Dom.document, string, Dom.event => unit) => unit =
+  "removeEventListener";
+/* event.cancelBubble resets after dispatch, so observe from an ancestor. */
+let escape_reaches_document = selector => {
+  let reached = ref(false);
+  let spy = _ => reached := true;
+  listen(document, "keydown", spy);
+  ignore(key(selector, "keydown", "Escape"));
+  unlisten(document, "keydown", spy);
+  reached^;
+};
 let press = key_ => ignore(key("#test-listbox", "keydown", key_));
 let active = (app: Tea_core.Runtime.handle(model, msg), expected) =>
   check(
@@ -393,7 +408,10 @@ let completed = {
     () => {
       active(app, "2");
       press("End");
-      press("Escape");
+      check(
+        "claimed Escape stops propagation to enclosing overlays",
+        !escape_reaches_document("#test-listbox"),
+      );
     },
     () => {
       check(
@@ -402,6 +420,10 @@ let completed = {
       );
       check("Escape focus", has_focus("#test-button"));
       hidden(true);
+      check(
+        "unclaimed Escape propagates",
+        escape_reaches_document("#test-button"),
+      );
       ignore(key("#test-button", "keydown", "b"));
     },
     () => {

@@ -87,7 +87,7 @@ the active option, so scrolling under a stationary pointer does not activate it.
 | List printable character | Typeahead; repeated same letter cycles matching options |
 | List Space during live search | Continue the nonempty search, including spaces inside labels |
 | List Enter / Space outside live search | Single: commit, close, focus trigger. Multiple: toggle, remain open |
-| Escape | Close without changing selection; focus trigger |
+| Escape | Close without changing selection; focus trigger; stops propagation so an enclosing Dialog or overlay is not also dismissed |
 | Tab / Shift+Tab | Close without changing selection; never prevent native traversal |
 | Ctrl/Alt/Meta chords, IME | Unchanged, including optional Alt+Up (not implemented) |
 | Unhandled keys | Unchanged, or optional hook without preventing default |

@@ -10,7 +10,8 @@
     - Home/End: first/last enabled; PageUp/PageDown: ten positions.
     - Enter/Space: commit; single closes, multiple toggles and stays open.
       Space continues an unexpired, nonempty search instead of committing.
-    - Escape: cancel browsing, close and focus trigger.
+    - Escape: cancel browsing, close and focus trigger; the event is stopped
+      so an enclosing Dialog or overlay is not also dismissed.
     - Tab/Shift+Tab: close without committing; never prevent native traversal.
     - Ctrl/Alt/Meta chords and IME: unchanged. No Alt+Up commit shortcut.
     Readonly permits browsing but never commits. Selection never follows focus.
