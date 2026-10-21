@@ -1,0 +1,55 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <base href="/">
+  <link rel="icon" href="data:,">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Tea UI · Dialog</title>
+  <style>
+    :root { color-scheme: light; font: 17px/1.6 "Trebuchet MS", sans-serif; color: #102a43; background: #e9eff8; }
+    body { margin: 0; } main { max-width: 52rem; margin: 3rem auto; padding: 0 1.5rem 4rem; }
+    h1 { font-size: clamp(2rem, 6vw, 3.8rem); line-height: 1.1; max-width: 12ch; }
+    h2 { line-height: 1.3; } p { max-width: 65ch; } button, input { font: inherit; }
+    button { color: #102a43; background: #fff; border: 2px solid #204fa6; border-radius: .25rem; padding: .5rem .85rem; cursor: pointer; margin: .3rem; }
+    input { border: 2px solid #496580; padding: .4rem; max-width: 90%; }
+    :focus-visible { outline: 3px solid #9c2342; outline-offset: 3px; }
+    .controls { display: flex; flex-wrap: wrap; gap: .5rem; } label { display: block; }
+    dialog { color: #102a43; background: #fff; border: 2px solid #204fa6; border-radius: .5rem; padding: 0; width: min(32rem, calc(100vw - 3rem)); max-height: 80vh; }
+    .content { padding: 1.5rem; } dialog::backdrop { background: rgb(16 42 67 / .65); }
+    dialog.animated { transform: translateY(0); }
+    dialog.animated[data-transition] { transition: transform 300ms ease; }
+    dialog.animated[data-closed] { transform: translateY(2rem); }
+    dialog.animated::backdrop { opacity: 1; transition: opacity 300ms ease; }
+    dialog.animated[data-closed]::backdrop { opacity: .8; }
+    output { display: block; background: #fff; border-left: 4px solid #204fa6; padding: 1rem; margin-top: 2rem; }
+    .page-length { min-height: 140vh; padding-top: 3rem; }
+    @media (prefers-reduced-motion: reduce) { dialog.animated[data-transition], dialog.animated::backdrop { transition: none; } }
+  </style>
+</head>
+<body>
+  <div id="app"></div>
+  <script type="importmap">
+{
+  "imports": {
+    "melange/": "./node_modules/melange/",
+    "melange.dom/": "./node_modules/melange.dom/",
+    "melange.js/": "./node_modules/melange.js/",
+    "melange.__private__.melange_mini_stdlib/": "./node_modules/melange.__private__.melange_mini_stdlib/",
+    "tea.browser/": "./node_modules/tea.browser/",
+    "tea.ui/": "./node_modules/tea.ui/",
+    "tea/": "./node_modules/tea/",
+    "tea.core/": "./node_modules/tea.core/",
+    "tea.dom/": "./node_modules/tea.dom/",
+    "tea.effects/": "./node_modules/tea.effects/",
+    "tea.html/": "./node_modules/tea.html/",
+    "tea.http/": "./node_modules/tea.http/",
+    "tea.nav/": "./node_modules/tea.nav/",
+    "tea.url/": "./node_modules/tea.url/",
+    "tea.vdom/": "./node_modules/tea.vdom/"
+  }
+}
+  </script>
+  <script type="module" src="./examples/ui/dialog/main.mjs"></script>
+</body>
+</html>

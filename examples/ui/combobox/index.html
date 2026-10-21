@@ -1,0 +1,58 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <base href="/">
+  <link rel="icon" href="data:,">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Tea UI · Combobox</title>
+  <style>
+:root { font: 17px/1.5 "Trebuchet MS", sans-serif; color: #173b49; background: #edf6fa; }
+body { margin: 0; } main { max-width: 52rem; margin: 3rem auto; padding: 0 1.5rem 4rem; }
+h1 { font: 600 2.8rem/1.15 "Trebuchet MS", sans-serif; letter-spacing: -.07rem; }
+h2 { font-size: 1.2rem; } p { max-width: 65ch; } section { margin: 2rem 0; }
+label { display: block; font-weight: bold; } .wrapper { display: flex; max-width: 30rem; }
+input, button { font: inherit; padding: .55rem .8rem; color: inherit; border: 2px solid #336578; background: white; }
+input { min-width: 0; flex: 1; } button { cursor: pointer; }
+:focus-visible { outline: 3px solid #915000; outline-offset: 3px; }
+[role=listbox] { max-height: min(15rem, var(--tea-available-height)); overflow: auto; padding: .3rem; background: white; color: #173b49; border: 2px solid #336578; }
+[role=option] { padding: .45rem .7rem; cursor: pointer; }
+[data-active] { outline: 2px solid #336578; outline-offset: -2px; background: #ddedf3; }
+[data-selected] { font-weight: bold; } [data-disabled] { color: #52646c; cursor: not-allowed; }
+.chips { display: flex; gap: .5rem; flex-wrap: wrap; margin-top: .6rem; }
+.chips span { background: #d5e8f0; padding-inline-start: .6rem; }
+.chips button { border: 0; background: transparent; } [role=status] { min-height: 1.5em; font-size: .9rem; }
+dialog { padding: 1.5rem; border: 3px solid #336578; width: min(35rem, 80vw); color: inherit; }
+dialog::backdrop { background: rgb(0 30 40 / .45); } output { display: block; margin-top: 2rem; }
+[role=listbox][data-transition] { transition: transform 100ms ease; }
+[role=listbox][data-closed] { transform: translateY(-3px); }
+@media (prefers-reduced-motion: reduce) { [role=listbox][data-transition] { transition: none; } }
+@media (max-width: 40rem) { h1 { font-size: 2rem; } main { margin-top: 1.5rem; } }
+</style>
+</head>
+<body>
+  <div id="app"></div>
+  <script type="importmap">
+{
+  "imports": {
+    "melange/": "./node_modules/melange/",
+    "melange.dom/": "./node_modules/melange.dom/",
+    "melange.js/": "./node_modules/melange.js/",
+    "melange.__private__.melange_mini_stdlib/": "./node_modules/melange.__private__.melange_mini_stdlib/",
+    "tea.browser/": "./node_modules/tea.browser/",
+    "tea.ui/": "./node_modules/tea.ui/",
+    "tea/": "./node_modules/tea/",
+    "tea.core/": "./node_modules/tea.core/",
+    "tea.dom/": "./node_modules/tea.dom/",
+    "tea.effects/": "./node_modules/tea.effects/",
+    "tea.html/": "./node_modules/tea.html/",
+    "tea.http/": "./node_modules/tea.http/",
+    "tea.nav/": "./node_modules/tea.nav/",
+    "tea.url/": "./node_modules/tea.url/",
+    "tea.vdom/": "./node_modules/tea.vdom/"
+  }
+}
+  </script>
+  <script type="module" src="./examples/ui/combobox/main.mjs"></script>
+</body>
+</html>
