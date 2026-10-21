@@ -1,0 +1,7 @@
+(library
+ (name tea_dom)
+ (public_name tea.dom)
+ (modes melange)
+ (preprocess (pps melange.ppx))
+ (private_modules bindings backend)
+ (libraries tea.core tea.vdom tea.html melange.dom melange.js))
