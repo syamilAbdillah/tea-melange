@@ -21,6 +21,10 @@ type handler('msg) =
       Tea_core.Decode.t(('msg, bool)),
     )
   | Custom(Tea_core.Decode.t(custom('msg)))
+  | /** Apply event flags even when [message = None]; no message is dispatched. */
+    Custom_optional(
+      Tea_core.Decode.t(custom(option('msg))),
+    )
 and custom('msg) = {
   message: 'msg,
   stop_propagation: bool,

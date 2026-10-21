@@ -16,6 +16,11 @@ type t('msg) =
   | None
   | Batch(list(t('msg)))
   | Leaf(leaf('a, 'msg)): t('msg)
+  | /** A source whose newest tagger may reject a payload without dispatch. */
+    Filtered(
+      leaf('a, option('msg)),
+    )
+    : t('msg)
 and leaf('a, 'msg) = {
   home: string,
   key: string,
@@ -29,6 +34,9 @@ let none: t('msg);
 let batch: list(t('msg)) => t('msg);
 /** Transform messages without changing source identities. */
 let map: ('a => 'b, t('a)) => t('b);
+/** Transform or reject payloads without restarting sources. Like [map], the
+    newest filter/tagger is used for every retained identity. */
+let filter_map: ('a => option('b), t('a)) => t('b);
 /** [make(~home, ~key, ~start, ~tagger)] builds a leaf. */
 let make:
   (

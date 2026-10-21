@@ -4,15 +4,17 @@ module D = Tea_core.Decode;
 let run = (handler, event) => {
   let decoded =
     switch (handler) {
-    | V.Normal(decoder) => D.run(decoder, event)
+    | V.Normal(decoder) => D.run(D.map(x => Some(x), decoder), event)
     | V.May_stop_propagation(decoder)
     | V.May_prevent_default(decoder) =>
-      D.run(D.map(((msg, _)) => msg, decoder), event)
+      D.run(D.map(((msg, _)) => Some(msg), decoder), event)
     | V.Custom(decoder) =>
+      D.run(D.map(value => Some(value.V.message), decoder), event)
+    | V.Custom_optional(decoder) =>
       D.run(D.map(value => value.V.message, decoder), event)
     };
   switch (decoded) {
-  | Ok(msg) => Some(msg)
+  | Ok(msg) => msg
   | Error(_) => None
   };
 };

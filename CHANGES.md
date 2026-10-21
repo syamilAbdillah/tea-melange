@@ -2,6 +2,17 @@
 
 ## Unreleased
 
+**Behaviour change: render/effect ordering.** After committing an update, the
+runtime now requests its draw before running commands and diffing subscriptions.
+Frame callbacks scheduled by those effects run after the DOM patch, including
+when the animator reuses a spare frame. Initialization still renders synchronously.
+
+- Add `tea.browser` post-render DOM tasks and lifecycle subscriptions, plus
+  `tea.ui` accessible headless foundations and the Button reference component.
+  Ship automatic jsdom/Chromium harnesses and runnable UI examples.
+- Add `Sub.filter_map` for fresh, rejecting subscription taggers, and
+  `Vdom.Custom_optional` for event flags without a synthetic message.
+
 Performance and size. On the lustre-labs TodoMVC benchmark used by Foldkit's
 performance page, an optimized tea-melange TodoMVC now edges out optimized Elm and the
 baseline version beats baseline Elm; that TodoMVC bundle shrank from 26.8 to
