@@ -77,9 +77,10 @@ no manual cleanup; `(home, key)` identities documented per function):
   counted across keys; restores the exact previous inline styles; compensates
   scrollbar width (no layout shift); works on iOS Safari (no body position hack
   unless needed — document what you chose and why).
-- `restore_focus(~key)` — on start remembers `document.activeElement`; on stop
+- `restore_focus(~key, ~within=?, ())` — on start remembers `document.activeElement`; on stop
   (after the next render) refocuses it if it is still connected and focus is on
-  `body` or inside a removed subtree.
+  `body`, inside a removed subtree, or inside the element `within` (an overlay
+  kept mounted while it animates out).
 
 ### 1.3 tea.ui (`src/ui`, `(modes melange)`, public `tea.ui`, wrapped `Tea_ui`)
 
@@ -90,8 +91,9 @@ the foundation task only and listed in `(private_modules ...)`:
 
 - `Ui_keyboard` — keydown decoders reading `key`, `shiftKey`, `ctrlKey`,
   `altKey`, `metaKey`, `isComposing`, `timeStamp`; helpers that prevent default
-  **only** for handled keys (never swallow Tab, browser shortcuts, or keys
-  during IME composition).
+  **only** for handled keys. IME composition never reaches handlers; modifiers
+  do (Alt+ArrowDown, Tab), so handlers check `Ui_keyboard.plain` before claiming
+  shortcut-like keys and never prevent default on Tab.
 - `Ui_nav` — pure roving/active-index math over `array(bool /*disabled*/)`:
   next/prev with and without wrap, first/last enabled, page jumps, all-disabled.
 - `Ui_typeahead` — pure: buffer + last timeStamp (from the event, not a clock)
