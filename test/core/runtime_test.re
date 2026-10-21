@@ -118,6 +118,121 @@ let test_counter = () => {
   h.shutdown();
 };
 
+let test_effect_frame_order = () =>
+  List.iter(
+    state => {
+      Fake.reset();
+      let events = ref([]);
+      let add = event => events := events^ @ [event];
+      let program = {
+        ...counter,
+        update: (amount, model) => (
+          model + amount,
+          amount == 1
+            ? Cmd.effect(_ =>
+                Fake.request_animation_frame(_ => add("effect"))
+              )
+            : Cmd.none,
+        ),
+      };
+      let h =
+        R.start(~program, ~flags=(), ~render=(_, _) => add("draw"), ());
+      switch (state) {
+      | Runtime.Animator.No_request => ()
+      | Runtime.Animator.Pending => h.dispatch(0)
+      | Runtime.Animator.Extra_request =>
+        h.dispatch(0);
+        Fake.flush_frame();
+      };
+      events := [];
+      h.dispatch(1);
+      while (!Queue.is_empty(Fake.frames)) {
+        Fake.flush_frame();
+      };
+      equal(
+        "draw precedes effect callback in every animator state",
+        events^,
+        ["draw", "effect"],
+      );
+      h.shutdown();
+    },
+    [
+      Runtime.Animator.No_request,
+      Runtime.Animator.Pending,
+      Runtime.Animator.Extra_request,
+    ],
+  );
+
+let test_filtered_subscriptions = () => {
+  Fake.reset();
+  let send = ref(_ => ());
+  let starts = ref(0);
+  let stops = ref(0);
+  let source =
+    Sub.make(
+      ~home="filtered",
+      ~key="one",
+      ~start=
+        dispatch => {
+          incr(starts);
+          send := dispatch;
+          () => incr(stops);
+        },
+      ~tagger=x => x,
+    );
+  let h =
+    R.start(
+      ~program={
+        ...counter,
+        subscriptions: model =>
+          Sub.batch([
+            Sub.filter_map(raw => raw > model ? Some(raw) : None, source),
+            Sub.filter_map(
+              _ => failwith("duplicate filter started"),
+              source,
+            ),
+          ]),
+      },
+      ~flags=(),
+      ~render=(_, _) => (),
+      (),
+    );
+  send^(0);
+  equal("rejected payload never updates", h.model(), 0);
+  send^(2);
+  equal("accepted filtered payload", h.model(), 2);
+  send^(1);
+  equal("retained filter is fresh", h.model(), 2);
+  send^(3);
+  equal("new filter accepts", h.model(), 5);
+  equal("filter changes do not restart source", starts^, 1);
+  h.shutdown();
+  equal("filtered source stopped", stops^, 1);
+  send^(100);
+  equal("stopped filtered callback is inert", h.model(), 5);
+  let nested =
+    Sub.filter_map(
+      x => x == 4 ? Some(x + 1) : None,
+      Sub.map(
+        x => x + 1,
+        Sub.filter_map(x => x > 0 ? Some(x + 1) : None, source),
+      ),
+    );
+  switch (nested) {
+  | Sub.Filtered(leaf) =>
+    let observed = ref(Some(-1));
+    let stop = leaf.start(raw => observed := leaf.tagger(raw));
+    send^(0);
+    equal("filter composition rejected", observed^, None);
+    send^(2);
+    equal("filter composition mapped", observed^, Some(5));
+    stop();
+  | _ => failwith("expected filtered leaf")
+  };
+  equal("filter none", Sub.filter_map(x => Some(x), Sub.none), Sub.none);
+  ignore(Sub.map(x => x + 1, Sub.batch([nested])));
+};
+
 let test_render_dispatch = () => {
   Fake.reset();
   let rendering = ref(false);
@@ -611,6 +726,8 @@ let test_tasks = () => {
 let () = {
   test_animator();
   test_counter();
+  test_effect_frame_order();
+  test_filtered_subscriptions();
   test_render_dispatch();
   test_commands_and_init();
   test_subscriptions();

@@ -31,13 +31,16 @@ async; it always enqueues.
 Leaves carry `(home, key, start, tagger)`. After each update the runtime
 flattens the tree and diffs by `(home, key)`:
 - removed → call its stop fn; added → `start(raw_dispatch)`;
-- kept → not restarted; messages go through the **newest** tagger.
+- kept → not restarted; messages go through the **newest** tagger/filter.
+
+`Sub.filter_map` may reject a raw payload without dispatching a message. It
+retains the underlying identity and lifecycle, including when filters change.
 
 ## Queue
 
 Single FIFO. `dispatch` while draining appends; draining is never re-entrant.
-For each msg: `update` → commit → `on_msg(msg, model)` hook → run cmds → diff
-subs. The message log is therefore the complete, replayable history.
+For each msg: `update` → commit → `on_msg(msg, model)` hook → request frame →
+run cmds → diff subs. The message log is therefore the complete, replayable history.
 
 ## Render schedule (ADR-04)
 
@@ -52,6 +55,10 @@ Extra_request --frame-->   No_request (nothing to draw)
 
 `draw` computes `view(model)` and calls `render(view, dispatch)`. N messages in
 one tick ⇒ 1 raf ⇒ 1 patch. The initial render is synchronous inside `start`.
+The frame is requested **before** commands and subscription lifecycle effects.
+Their rAF callbacks run after the draw (FIFO, also for the 16 ms timer fallback)
+in all three animator states. Effects that need the updated DOM must defer their
+work through the same scheduler; running an effect is not itself a render barrier.
 
 ## Platform
 

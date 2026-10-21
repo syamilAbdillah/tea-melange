@@ -19,3 +19,6 @@ module Animation_frame = Tea_effects.Animation_frame;
 module AnimationFrame = Tea_effects.Animation_frame;
 module Random = Tea_random;
 module App = Tea_app;
+module Browser_dom = Tea_browser.Browser_dom;
+module Browser_events = Tea_browser.Browser_events;
+module Ui = Tea_ui;

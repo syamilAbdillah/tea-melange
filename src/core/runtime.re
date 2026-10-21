@@ -46,7 +46,7 @@ type handle('model, 'msg) = {
 /* The existential payload never escapes its source's dispatch closure. */
 type running('msg) = {
   id: (string, string),
-  refresh: Sub.t('msg) => unit,
+  refresh: Sub.t(option('msg)) => unit,
   stop: unit => unit,
 };
 
@@ -104,12 +104,17 @@ module Make = (P: Platform.S) => {
               let (next, cmd) = program.update(msg, model^);
               model := next;
               on_msg(msg, next);
-              run_cmd(cmd);
               if (alive^) {
-                diff_subs(program.subscriptions(model^));
+                /* Commands and subscription lifecycle effects may schedule rAF
+                   callbacks that depend on this update's DOM. Enqueue draw first,
+                   including when reusing the animator's spare frame. */
                 switch (animator^) {
                 | Some(a) => Animator.request(a)
                 | None => ()
+                };
+                run_cmd(cmd);
+                if (alive^) {
+                  diff_subs(program.subscriptions(model^));
                 };
               };
             }
@@ -124,17 +129,26 @@ module Make = (P: Platform.S) => {
     and diff_subs_tree = tree => {
       let seen = String_table.create(16);
       let leaves = ref([]);
+      let add = (id, sub) =>
+        if (!String_table.mem(seen, source_key(id))) {
+          String_table.replace(seen, source_key(id), ());
+          leaves := [(id, sub), ...leaves^];
+        };
       let rec flatten = sub =>
         switch (sub) {
         | Sub.None => ()
         | Sub.Batch(subs) => List.iter(flatten, subs)
         | Sub.Leaf(leaf) =>
-          let id = (leaf.home, leaf.key);
-          /* Duplicate identities use the first depth-first, left-to-right leaf. */
-          if (!String_table.mem(seen, source_key(id))) {
-            String_table.replace(seen, source_key(id), ());
-            leaves := [(id, sub), ...leaves^];
-          };
+          /* Normalize to optional taggers; retained filtered sources can change
+             their decoding policy without restarting the underlying listener. */
+          add(
+            (leaf.home, leaf.key),
+            Sub.Leaf({
+              ...leaf,
+              tagger: raw => Some(leaf.tagger(raw)),
+            }),
+          )
+        | Sub.Filtered(leaf) => add((leaf.home, leaf.key), Sub.Leaf(leaf))
         };
       flatten(tree);
       let leaves = List.rev(leaves^);
@@ -176,7 +190,10 @@ module Make = (P: Platform.S) => {
                 let stop =
                   leaf.start(raw =>
                     if (alive^ && live^) {
-                      dispatch(tagger^(raw));
+                      switch (tagger^(raw)) {
+                      | Some(msg) => dispatch(msg)
+                      | None => ()
+                      };
                     }
                   );
                 let source = {
@@ -189,7 +206,8 @@ module Make = (P: Platform.S) => {
                          the compiler; only this per-leaf tagger cell needs a cast. */
                       tagger := Obj.magic(next.tagger)
                     | Sub.None
-                    | Sub.Batch(_) => ()
+                    | Sub.Batch(_)
+                    | Sub.Filtered(_) => ()
                     },
                   stop: () => {
                     live := false;
@@ -202,7 +220,8 @@ module Make = (P: Platform.S) => {
                   source.stop();
                 };
               | Sub.None
-              | Sub.Batch(_) => ()
+              | Sub.Batch(_)
+              | Sub.Filtered(_) => ()
               }
             };
           },

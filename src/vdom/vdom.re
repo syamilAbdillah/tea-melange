@@ -3,6 +3,7 @@ type handler('msg) =
   | May_stop_propagation(Tea_core.Decode.t(('msg, bool)))
   | May_prevent_default(Tea_core.Decode.t(('msg, bool)))
   | Custom(Tea_core.Decode.t(custom('msg)))
+  | Custom_optional(Tea_core.Decode.t(custom(option('msg))))
 and custom('msg) = {
   message: 'msg,
   stop_propagation: bool,
@@ -136,6 +137,17 @@ let map_handler = (f, h) =>
     May_stop_propagation(Tea_core.Decode.map(((m, b)) => (f(m), b), d))
   | May_prevent_default(d) =>
     May_prevent_default(Tea_core.Decode.map(((m, b)) => (f(m), b), d))
+  | Custom_optional(d) =>
+    Custom_optional(
+      Tea_core.Decode.map(
+        c =>
+          {
+            ...c,
+            message: Option.map(f, c.message),
+          },
+        d,
+      ),
+    )
   | Custom(d) =>
     Custom(
       Tea_core.Decode.map(

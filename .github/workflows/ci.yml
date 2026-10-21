@@ -24,5 +24,7 @@ jobs:
       - run: ./scripts/check-no-ml.sh
       - run: opam exec -- ./scripts/check-fmt.sh
       - run: opam exec -- dune build
+      - run: npx playwright-core install --with-deps chromium
+      - run: npm run test:e2e
       - run: opam exec -- dune build @runtest
       - run: opam exec -- dune build @doc

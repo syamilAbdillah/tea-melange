@@ -92,19 +92,38 @@ let fire = (m, handler, event) => {
       if (prevent_) {
         prevent(event);
       };
-      route(m, message);
+      Option.iter(message => route(m, message), message);
     };
   switch (handler) {
   | Vdom.Normal(d) =>
-    emit(Result.map(x => (x, false, false), Dom_decode.run(d, event)))
+    emit(
+      Result.map(x => (Some(x), false, false), Dom_decode.run(d, event)),
+    )
   | Vdom.May_stop_propagation(d) =>
-    emit(Result.map(((x, b)) => (x, b, false), Dom_decode.run(d, event)))
+    emit(
+      Result.map(
+        ((x, b)) => (Some(x), b, false),
+        Dom_decode.run(d, event),
+      ),
+    )
   | Vdom.May_prevent_default(d) =>
-    emit(Result.map(((x, b)) => (x, false, b), Dom_decode.run(d, event)))
-  | Vdom.Custom(d) =>
+    emit(
+      Result.map(
+        ((x, b)) => (Some(x), false, b),
+        Dom_decode.run(d, event),
+      ),
+    )
+  | Vdom.Custom_optional(d) =>
     emit(
       Result.map(
         x => (x.Vdom.message, x.stop_propagation, x.prevent_default),
+        Dom_decode.run(d, event),
+      ),
+    )
+  | Vdom.Custom(d) =>
+    emit(
+      Result.map(
+        x => (Some(x.Vdom.message), x.stop_propagation, x.prevent_default),
         Dom_decode.run(d, event),
       ),
     )
