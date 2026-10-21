@@ -1,0 +1,336 @@
+
+
+tea-melange — Rencana Teknis
+
+  Rencana teknis · 20 Oktober 2026
+
+  tea-melange
+
+  Framework The Elm Architecture untuk Melange: satu model, satu update, satu view, dirender lewat virtual DOM. Ditulis dalam Reason.
+
+    TargetMelange 6.0.1-54
+OCaml 5.4.x · dune ≥ 3.18
+
+    Ukuran±2.500 LOC
+7 modul
+
+    RendererVirtual DOM
+satu-satunya
+
+    BahasaReason
+.re / .rei
+
+    LisensiMIT
+(dengan atribusi)
+
+  Ringkasan
+
+  Ekosistem Melange tidak punya implementasi TEA yang hidup: satu-satunya port, melange-tea, memaku melange = 2.2.0 dan melange-webapi < 3, sedangkan opam sudah di Melange 6.0.1 (OCaml 5.4). Rencana ini membangun penggantinya dengan lingkup sengaja kecil: TEA yang benar, vdom yang bisa diuji tanpa browser, dan efek yang cukup untuk aplikasi nyata.
+
+  Strategi intinya memisahkan dua hal yang selama ini tercampur di melange-tea. Bagian murni — representasi node, algoritma diff, DSL HTML, runtime pesan — ditulis dalam Reason dan tetap berjalan secara native, sehingga bisa diuji dengan dune test tanpa DOM. Hanya lapisan kontak browser yang memakai Melange dan melange.dom, di balik virtual module. Batas itu yang membuat core bisa diuji, dan yang mencegah FFI merembes ke seluruh kode.
+
+  Prinsip yang mengikat
+
+  Lima aturan ini yang membedakan TEA dari sekadar “state management”. Semuanya bisa ditegakkan lewat tipe dan test, dan tidak ada satu pun yang boleh dilanggar demi kenyamanan.
+
+    Satu model per programTidak ada state kedua di luar model — tidak di DOM, tidak di closure, tidak di modul. Kalau sebuah nilai memengaruhi tampilan, ia ada di model.
+
+    update murnimsg -> model -> model, tanpa efek samping, tanpa akses jam/acak/IO. Semua efek keluar sebagai data.
+
+    view murnimodel -> node. Tidak menyentuh DOM, tidak membaca waktu, tidak menyimpan apa pun antar pemanggilan. Karena itu ia bisa diuji sebagai fungsi biasa.
+
+    Efek adalah dataCmd dan Sub menjelaskan pekerjaan; runtime yang menjalankannya dan mengembalikan hasilnya sebagai msg.
+
+    Pesan adalah satu-satunya jalan masukTidak ada mutasi model dari luar loop. Log pesan yang masuk adalah riwayat lengkap aplikasi dan bisa di-replay.
+
+  Mengapa tidak memakai yang sudah ada
+
+    OpsiAlasan tidak dipakai
+
+    melange-teaDipin ke Melange 2.2.0 dan melange-webapi < 3; tidak terpasang di switch mana pun yang memakai Melange 6. Terakhir disentuh Februari 2024.
+
+    reason-tea / rescript-teaAPI TEA paling lengkap, tapi jalur toolchain ReScript/bsb (npm), bukan Dune + Melange.
+
+    React + ReasonReactBukan MVU: tidak ada Cmd/Sub, view tidak murni, dan state tersebar di komponen.
+
+    ocaml-vdomTEA + vdom yang hidup dan dipakai produksi, tapi untuk js_of_ocaml, bukan Melange.
+
+  Keputusan arsitektur
+
+    ADR-01 · Virtual DOM adalah satu-satunya renderer
+
+    view menghasilkan pohon nilai; runtime membandingkannya dengan pohon sebelumnya dan menambal DOM. Hanya ada satu jalur render. Alasannya urutan eksekusi yang bisa diprediksi — satu siklus update → view → patch per frame, berapa pun pesan yang masuk di dalamnya — dan karena view murni, hasilnya bisa diuji sebagai nilai biasa tanpa menyentuh browser.
+
+    ADR-02 · Port bagian murni, tulis ulang lapisan DOM
+
+    Dari melange-tea: vdom.ml (743 baris), tea_app, tea_html, tea_json layak dipertimbangkan karena algoritmanya tidak bergantung compiler. Yang wajib ditulis ulang adalah web_* (±900 baris) yang memanggil melange-webapi.
+
+    ADR-03 · Reason adalah sumber utama
+
+    Seluruh kode perpustakaan, test, dan contoh ditulis sebagai .re / .rei. Dune sudah membawa dialect reason bawaan dan memanggil refmt untuk menghasilkan AST OCaml sebelum melange.ppx berjalan. Konsekuensinya: jangan menambahkan stanza (dialect ...) untuk reason — Dune menolaknya dengan “dialect reason is already defined” — dan .ml di repo hanya boleh berupa artefak di _build.
+
+    ADR-04 · Render di-batch ke animation frame
+
+    Meniru _Browser_makeAnimator di Elm: state NO_REQUEST → PENDING → EXTRA, satu patch per frame, plus satu frame cadangan untuk pesan yang masuk saat draw berjalan. Beberapa pesan dalam satu tick tidak menghasilkan beberapa patch.
+
+    ADR-05 · DSL fungsi, bukan PPX JSX
+
+    Tidak ada .mlx di v0.1. DSL berupa fungsi biasa (Html.div [] [...]) supaya tidak ada lapisan build tambahan, pesan error tetap dari type checker OCaml, dan contoh bisa disalin ke proyek tanpa konfigurasi PPX. Kalau nanti dibutuhkan, JSX bisa jadi paket terpisah tanpa menyentuh core.
+
+  Lingkup v0.1
+
+      Masuk
+
+        App: beginner, element, document, application
+
+        Sumber, test, dan contoh dalam Reason (.re / .rei)
+
+        Cmd / Sub + manager per home
+
+        Vdom: keyed, lazy (thunk), tagger/map
+
+        DSL Html dan Svg, atribut bertipe
+
+        Backend DOM di melange.dom
+
+        Http (fetch + JSON), Time, Random, AnimationFrame, Navigation
+
+        Test native + jsdom, 3 contoh, odoc
+
+      Di luar lingkup
+
+        Modul .ml tulisan tangan
+
+        SSR dan hydration
+
+        PPX JSX (.mlx)
+
+        API yang kompatibel dengan melange-webapi
+
+        Komponen UI siap pakai
+
+  Arti istilah di daftar atas
+
+    IstilahMaksudnya
+
+    .ml tulisan tanganReason adalah sumber; refmt menghasilkan .ml di _build. Tidak ada .ml yang di-commit.
+
+    SSR / hydrationMerender HTML di server lalu menempelkan event ke DOM yang sudah ada. Elm tidak punya keduanya — Browser.element selalu membangun DOM dari nol. Ditunda karena butuh kontrak tambahan di vdom.
+
+    PPX JSXSintaks <div> yang diubah preprocessor. v0.1 memakai DSL fungsi; JSX bisa jadi paket terpisah nanti.
+
+    API melange-webapiItu binding DOM lama yang dipakai melange-tea. Kita memakai melange.dom, jadi tipe dan nama fungsinya berbeda — kode lama perlu diubah, bukan sekadar ganti dependensi.
+
+    Komponen UIButton, modal, tabel siap pakai. Elm juga tidak menyediakannya; semuanya disusun dari DSL.
+
+  Arsitektur dan modul
+
+  Modul murni dibangun dengan (modes native melange) sehingga CI bisa menjalankan test logika tanpa Node. Modul yang menyentuh browser hanya tea.dom dan tea.nav, dan keduanya mengimplementasikan virtual module yang dideklarasikan core.
+
+    LibraryIsiModeDependensi
+
+    tea.coreApp, Cmd, Sub, Task, Program, antrean pesannative + melangestdlib
+
+    tea.vdomNode, diff, patch plan, keyed, thunknative + melangetea.core
+
+    tea.htmlHtml, Svg, tabel atributnative + melangetea.vdom
+
+    tea.domRender, patch, event, propertimelangemelange.dom
+
+    tea.httpFetch, JSON, errormelangemelange.js
+
+    tea.navHistory, URL, intercept linkmelangemelange.dom
+
+    tea.testRender ke string, assert patchnativetea.vdom
+
+  API publik yang ditargetkan, kira-kira begini bentuknya:
+
+/* counter.re */
+type msg =
+  | Increment
+  | Decrement
+  | Set(int);
+
+let update = (model, msg) =>
+  switch (msg) {
+  | Increment => model + 1
+  | Decrement => model - 1
+  | Set(n) => n
+  };
+
+let view = model =>
+  Html.div(
+    [],
+    [
+      Html.button([Html.on_click(Decrement)], [Html.text("−")]),
+      Html.span([], [Html.text(string_of_int(model))]),
+      Html.button([Html.on_click(Increment)], [Html.text("+")]),
+    ],
+  );
+
+let () = App.beginner(~init=0, ~update, ~view, ~node="#app", ());
+
+  Konfigurasi build-nya minimal, karena tidak ada dialect yang perlu dideklarasikan:
+
+; dune-project
+(lang dune 3.18)
+(using melange 0.1)
+
+; src/dune
+(melange.emit
+ (target js)
+ (alias js)
+ (modules counter)
+ (module_systems es6)
+ (preprocess (pps melange.ppx)))
+
+    Terverifikasi, bukan asumsi
+    Setup di atas sudah dibangun di mesin ini dengan melange 6.0.1-54, dune 3.23.1, dan reason 3.17.3: .re + melange.emit + melange.ppx berhasil menghasilkan JS. Menambahkan stanza (dialect (name reason) ...) justru menggagalkan build dengan “dialect reason is already defined”. Output default-nya CommonJS, jadi (module_systems es6) perlu ditulis eksplisit untuk bundler modern.
+
+  Fase dan ketergantungan
+
+  Urutan ini yang mengikat, bukan kalender. Kolom “Bergantung” menunjukkan apa yang harus selesai lebih dulu: P2 dan P4 bisa berjalan bersamaan begitu P1 selesai, dan P3 bisa dimulai lebih awal karena hanya bergantung pada kontrak runtime di P0.
+
+    FaseIsiBergantungGerbang keluar
+
+      P0 Spike
+      Scaffold, pin Melange, benchmark tiga jalur, audit lisensi
+      —
+      Angka baseline + keputusan go/no-go
+
+      P1 Vdom murni
+      Node, diff pre-order, patch plan, keyed, thunk
+      P0
+      10.000 kasus properti hijau vs referensi naif
+
+      P2 Backend DOM
+      Render, patch, atribut vs properti, event, virtual module
+      P1
+      List 1.000 baris: tidak ada node dibuat ulang
+
+      P3 Runtime
+      App, Cmd/Sub, manager, diffing subscription, rAF
+      P0
+      Counter + timer subscription jalan
+
+      P4 DSL
+      Html/Svg, atribut bertipe, helper keyed/lazy
+      P1
+      Tiga contoh memakai DSL tanpa FFI manual
+
+      P5 Efek
+      Http, Time, Random, AnimationFrame, Navigation
+      P3
+      Demo fetch JSON + routing
+
+      P6 Stabilisasi
+      Test jsdom, benchmark, odoc, contoh, rilis
+      P2 · P4 · P5
+      Checklist §11 terpenuhi
+
+  Setelah v0.1: debugger time-travel
+
+  Elm menyertakan debugger di build --debug: setiap msg dicatat, model disimpan per langkah, dan ada panel untuk mundur ke keadaan sebelumnya. Itu sengaja tidak masuk v0.1 — biayanya ada di runtime dan UI panel, bukan di core. Targetnya v0.2 sebagai paket terpisah, tea.debug: bungkus dispatch, simpan log (msg, model), lalu replay dari indeks. Build produksi tidak menyertakan paket itu sama sekali.
+
+  Detail teknis yang menentukan
+
+  Representasi node
+
+  Varian dengan lima kasus: Text, Node (tag, namespace, facts, kids, key), Keyed, Thunk (lazy), dan Tagger (map pesan). Setiap node menyimpan descendants_count, dipakai saat apply untuk melompati subtree yang tidak punya patch — ini yang membuat apply tidak menelusuri DOM nyata secara membabi buta.
+
+  Diff
+
+  Index pre-order, keluaran berupa array patch. Bail-out REDRAW begitu tag atau namespace berubah, jadi struktur yang berubah bentuk tidak di-diff lebih dalam. Keyed diff menangani insert/remove/move dengan reuse node. Thunk membandingkan array argumen secara fisik (==); kalau sama, subtree dilewati sepenuhnya. Fast path x == y sebelum semua itu.
+
+  Kedalaman pohon
+
+  Diff rekursif sedalam pohon adalah satu-satunya tempat kedalaman benar-benar berbahaya. Batas kedalaman 512 dengan fallback iteratif, plus test 5.000 level bersarang, masuk ke P1 sebagai syarat lulus.
+
+  Lapisan DOM
+
+  Tiga hal yang paling sering salah dan karenanya diuji satu per satu: atribut vs properti (value, checked, selected harus properti), style sebagai objek, dan boolean attribute. Listener dipasang per node dan disimpan di properti node itu sendiri supaya bisa dilepas saat patch — tanpa itu, patch berulang meninggalkan handler yatim.
+
+  Runtime
+
+  Satu antrean pesan, update murni, dan Cmd/Sub sebagai bag yang dikirim ke manager. Subscription di-diff: hanya manager yang daftar sub-nya berubah yang di-restart. Render dijadwalkan ke requestAnimationFrame dengan state machine yang sama seperti Elm.
+
+  Anggaran performa
+
+  Angka di bawah adalah target yang harus divalidasi di P0, bukan klaim. Kalau P0 tidak mencapainya dengan margin yang jelas, proyek berhenti sebelum P1.
+
+    SkenarioTargetCara ukur
+
+    Diff + patch 1 item berubah di list 1.000 baris< 2 msBenchmark Node, 1.000 iterasi, median
+
+    Mount awal 1.000 baris< 40 msBenchmark, sekali jalan
+
+    Pesan berturut-turut dalam satu tick1 patchHitung pemanggilan requestAnimationFrame dan patch
+
+    Node dibuat ulang saat update0Tandai data-uid saat mount, bandingkan setelah update
+
+    Listener menumpuk setelah 1.000 patch0Hitung listener per node sebelum dan sesudah
+
+  Risiko
+
+    RisikoDampakMitigasi
+
+      Lisensi melange-tea ambigu — opam menyebut MIT, tetapi repo membawa COPYING + COPYING.LESSER blocker
+      Vendor kode bisa melanggar lisensi
+      Audit file lisensi dan konfirmasi ke penulis sebelum P1. Fallback: tulis ulang dari algoritma publik, tanpa menyalin kode.
+
+      Tooling Reason lebih tipis daripada OCaml: ocaml-lsp, tautan source di odoc, dan formatir
+      Navigasi kode lebih lambat; contoh di dokumentasi bisa menyimpang dari sumber
+      Pin reason 3.17.x; CI menjalankan refmt --in-place lalu git diff --exit-code; semua contoh ditulis dalam Reason
+
+      Vdom terlalu lambat untuk layar besar
+      60fps tidak tercapai, aplikasi terasa berat
+      Keyed + lazy sejak P1, bukan tambahan belakangan; gate P0; angka anggaran di atas
+
+      FFI DOM salah membedakan atribut/properti
+      Bug halus pada form: nilai tidak muncul, checkbox tidak berubah
+      Tabel atribut eksplisit + test per atribut di jsdom
+
+      Listener bocor saat patch
+      Memori naik, handler terpanggil ganda
+      Simpan handler di node; test 1.000 patch dengan menghitung listener aktif
+
+      Scope merambat (SSR, JSX, komponen UI)
+      Tidak pernah rilis
+      Daftar “di luar lingkup” bersifat mengikat untuk v0.1
+
+  Definisi selesai v0.1.0
+
+    Tiga contoh jalan di browser: counter, todo (keyed, 1.000 item), fetch JSON + routing.
+
+    dune test hijau: diff native (properti) dan patch DOM di jsdom.
+
+    Diff cocok dengan implementasi referensi naif pada 10.000 pohon acak.
+
+    Seluruh anggaran performa §9 terpenuhi, hasilnya dicatat di repo.
+
+    Nol dependensi ke melange-webapi; hanya melange.dom dan melange.js.
+
+    Tidak ada .ml/.mli tulisan tangan di src/; CI menolaknya.
+
+    odoc untuk seluruh API publik, plus README dengan satu contoh utuh.
+
+  Langkah pertama
+
+    Audit lisensi melange-tea. Ini gate pertama: menentukan port atau tulis ulang, dan memengaruhi seluruh isi P1.
+
+    Spike P0: scaffold Dune + Melange 6.0.1, lalu bandingkan tiga jalur pada list 1.000 baris — render ulang penuh, vdom.ml yang di-vendor, dan diff minimal buatan sendiri.
+
+    Kunci kontrak runtime (satu halaman): Program, Cmd, Sub, dan jadwal render. Semua fase berikutnya bergantung pada bentuk ini, dan ia harus selesai sebelum P1 menulis diff.
+
+    Catatan versi: opam saat ini menyediakan melange.6.0.1-54 (OCaml 5.4.x). Upstream sudah merilis 7.x di GitHub, tetapi belum masuk opam-repository, jadi baseline proyek adalah 6.0.1-54 dan matrix CI menambahkan 7.x begitu tersedia.
+
+    Rujukan
+
+      Elm — VirtualDom.js dan Browser.js (algoritma diff dan animator).
+
+      noomly/melange-tea — kandidat sumber bagian murni.
+
+      Dokumentasi Melange, khususnya melange.dom dan interop JS.
+
+      Dune — dialect, termasuk dialect reason bawaan.
+
