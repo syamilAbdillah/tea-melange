@@ -5,11 +5,15 @@
     Keyboard table:
     - Trigger Enter/Space/Down: open first enabled; Up: open last item.
     - Menu Down/Up: wrap through items, including disabled; Home/End: endpoints.
-    - Printable characters: timestamp-based, case/Latin-1-folded typeahead.
+    - Printable characters (including surrogate pairs): timestamp-based,
+      lowercase/NFD/accent-folded typeahead with explicit ligature folds.
     - Enter: activate and close tree; Space: activate, but keep checkbox/radio open.
     - Forward arrow (Right in LTR, Left in RTL), Enter/Space: open submenu.
     - Back arrow or Escape in submenu: close that branch, focus parent menu.
-    - Escape in root: close tree, focus trigger.
+    - Escape in root or open trigger: close tree, focus trigger.
+    - Claimed Escape stops propagation to enclosing overlays; closed-trigger
+      Escape, modifiers, composing events and unhandled keys propagate.
+      Other claimed keys also propagate (arrows, Enter, Space, Tab).
     - Tab/Shift+Tab: close tree, native traversal from trigger; never prevented.
     - Ctrl/Alt/Meta chords and composition: unchanged.
 

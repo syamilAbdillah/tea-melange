@@ -10,7 +10,7 @@ let i = (~disabled=false, key, label, kind): M.item => {
 };
 let items = [|
   i(~disabled=true, "disabled", "Disabled", M.Action),
-  i("alpha", "Álpha", M.Action),
+  i("alpha", {js|Álpha|js}, M.Action),
   i("apple", "Apple", M.Action),
   i("sep", "", M.Separator),
   i("check", "Check", M.Checkbox),
@@ -191,6 +191,21 @@ let step = (promise, f) =>
   );
 let press = (~shift=false, selector, value) =>
   ignore(key(~shift, selector, "keydown", value));
+[@mel.send]
+external listen: (Dom.document, string, Dom.event => unit) => unit =
+  "addEventListener";
+[@mel.send]
+external unlisten: (Dom.document, string, Dom.event => unit) => unit =
+  "removeEventListener";
+/* Observe an ancestor: cancelBubble resets after dispatch. */
+let reaches_document = (~ctrl=false, ~composing=false, selector, value) => {
+  let reached = ref(false);
+  let spy = _ => reached := true;
+  listen(document, "keydown", spy);
+  ignore(key(~ctrl, ~composing, selector, "keydown", value));
+  unlisten(document, "keydown", spy);
+  reached^;
+};
 let completed = {
   let empty = M.init(~id="pure", ());
   let (empty_open, _) = M.open_(~items=[||], empty);
@@ -273,6 +288,11 @@ let completed = {
     && attr("#m-button", "aria-expanded") == Some("false"),
   );
   phase_hidden();
+  check(
+    "closed trigger Escape propagates and is not prevented",
+    reaches_document("#m-button", "Escape")
+    && key("#m-button", "keydown", "Escape"),
+  );
   let run =
     step(
       Js.Promise.resolve(),
@@ -436,12 +456,26 @@ let completed = {
       run,
       () => {
         check("deep submenu focus", has_focus("#m-submenu-item-nested"));
-        press("#m-submenu-item-nested", "Escape");
+        check(
+          "modified submenu Escape propagates",
+          reaches_document(~ctrl=true, "#m-submenu-item-nested", "Escape"),
+        );
+        check(
+          "unknown submenu key propagates",
+          reaches_document("#m-submenu-item-nested", "F2"),
+        );
+        check(
+          "claimed submenu Escape stops at menu",
+          !reaches_document("#m-submenu-item-nested", "Escape"),
+        );
         check(
           "Escape closes only branch",
           M.is_open(app.model().menu) && has_focus("#m-submenu-item-share"),
         );
-        press("#m-submenu-item-share", "ArrowLeft");
+        check(
+          "claimed back arrow still propagates",
+          reaches_document("#m-submenu-item-share", "ArrowLeft"),
+        );
         check(
           "back returns parent active",
           has_focus("#m-menu")
@@ -535,6 +569,73 @@ let completed = {
       run,
       () => {
         check("reopened focus", has_focus("#m-menu"));
+        check("arrows still propagate", reaches_document("#m-menu", "Home"));
+        check("unhandled key propagates", reaches_document("#m-menu", "F2"));
+        check(
+          "modified Escape propagates",
+          reaches_document(~ctrl=true, "#m-menu", "Escape"),
+        );
+        check(
+          "composing Escape propagates",
+          reaches_document(~composing=true, "#m-menu", "Escape"),
+        );
+        check(
+          "root Escape is claimed",
+          !reaches_document("#m-menu", "Escape"),
+        );
+        check(
+          "root Escape closes and focuses trigger",
+          !M.is_open(app.model().menu) && has_focus("#m-button"),
+        );
+        frame();
+        check(
+          "closed trigger Escape propagates",
+          reaches_document("#m-button", "Escape"),
+        );
+        app.dispatch(Open);
+        frame();
+        check(
+          "open trigger Escape is claimed",
+          !reaches_document("#m-button", "Escape"),
+        );
+        app.dispatch(Open);
+        frame();
+        app.dispatch(
+          Items([|
+            i("start", "Start", M.Action),
+            i("accent", {js|Éxport|js}, M.Action),
+          |]),
+        );
+        press("#m-menu", "Home");
+        check("ASCII search is claimed", !key("#m-menu", "keydown", "e"));
+        act("accent");
+        app.dispatch(
+          Items([|
+            i("start", "Start", M.Action),
+            i("export", "Export", M.Action),
+            i("astral", {js|😀 Smile|js}, M.Action),
+            i("cafe", {js|Café|js}, M.Action),
+          |]),
+        );
+        press("#m-menu", "Home");
+        check(
+          "accented key is claimed",
+          !key("#m-menu", "keydown", {js|é|js}),
+        );
+        act("export");
+        press("#m-menu", "Home");
+        check(
+          "astral key is claimed",
+          !key("#m-menu", "keydown", {js|😀|js}),
+        );
+        act("astral");
+        press("#m-menu", "Home");
+        press("#m-menu", "c");
+        act("cafe");
+        press("#m-menu", "a");
+        press("#m-menu", "f");
+        press("#m-menu", {js|é|js});
+        act("cafe");
         app.dispatch(Items([|i("replacement", "Replacement", M.Action)|]));
         press("#m-menu", "ArrowDown");
         act("replacement");

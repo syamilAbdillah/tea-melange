@@ -138,4 +138,27 @@ export async function run(context) {
   await page.locator(button('animated')).click(); await focused(root('animated'));
   await check(); await pressKeys(page, 'Escape'); await closed('animated'); await focused(button('animated')); await check();
   await page.waitForFunction(() => document.querySelectorAll(':popover-open').length === 0);
+
+  // A claimed Escape must not reach an enclosing modal's native cancel action.
+  // Reuse the mounted example inside a real modal dialog, not a dialog polyfill.
+  await page.evaluate(() => {
+    const dialog = document.createElement('dialog');
+    dialog.id = 'menu-modal';
+    dialog.setAttribute('aria-label', 'Menu host');
+    document.body.append(dialog);
+    dialog.append(document.querySelector('#file-button').closest('section'));
+    window.menuEscapeEvents = 0;
+    document.addEventListener('keydown', event => {
+      if (event.key === 'Escape') window.menuEscapeEvents++;
+    });
+    dialog.showModal();
+  });
+  await open(); await ariaSnapshot(page.locator(root('file')), fileSnapshot); await check();
+  await pressKeys(page, 'Escape'); await closed('file'); await focused(button('file'));
+  assert.equal(await page.locator('#menu-modal').evaluate(el => el.open), true);
+  assert.equal(await page.evaluate(() => window.menuEscapeEvents), 0);
+  await check();
+  await pressKeys(page, 'Escape');
+  await page.waitForFunction(() => !document.querySelector('#menu-modal').open);
+  assert.equal(await page.evaluate(() => window.menuEscapeEvents), 1);
 }

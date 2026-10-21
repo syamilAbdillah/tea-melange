@@ -1048,42 +1048,56 @@ let prevent_pointer_focus = () =>
       }),
     ),
   );
-let key_handler = (intent, hook, trigger, to_parent) =>
+let key_handler = (intent, hook, trigger, open_, to_parent) =>
   Html.on(
     "keydown",
     V.Custom_optional(
-      Ui_keyboard.custom(e =>
-        if (!Ui_keyboard.plain(e)) {
-          None;
-        } else {
-          let handled =
-            trigger
-              ? List.mem(e.key, ["Enter", " ", "ArrowDown", "ArrowUp"])
-              : List.mem(
-                  e.key,
-                  [
-                    "Enter",
-                    " ",
-                    "ArrowDown",
-                    "ArrowUp",
-                    "Home",
-                    "End",
-                    "ArrowLeft",
-                    "ArrowRight",
-                    "Escape",
-                    "Tab",
-                  ],
-                )
-                || Js.String.length(e.key) == 1;
-          if (handled) {
-            Some((
-              Some(to_parent(intent(e))),
-              !String.equal(e.key, "Tab"),
-            ));
+      D.map2(
+        (e: Ui_keyboard.event, handled) =>
+          {
+            ...handled,
+            V.stop_propagation:
+              String.equal(e.key, "Escape") && handled.V.prevent_default,
+          },
+        Ui_keyboard.decoder,
+        Ui_keyboard.custom(e =>
+          if (!Ui_keyboard.plain(e)) {
+            None;
           } else {
-            Option.map(msg => (Some(msg), false), hook(e.key));
-          };
-        }
+            let handled =
+              String.equal(e.key, "Escape")
+              || (trigger || open_)
+              && (
+                trigger
+                  ? List.mem(e.key, ["Enter", " ", "ArrowDown", "ArrowUp"])
+                  : List.mem(
+                      e.key,
+                      [
+                        "Enter",
+                        " ",
+                        "ArrowDown",
+                        "ArrowUp",
+                        "Home",
+                        "End",
+                        "ArrowLeft",
+                        "ArrowRight",
+                        "Escape",
+                        "Tab",
+                      ],
+                    )
+                    || Ui_typeahead.character(e.key)
+              );
+            if (handled) {
+              Some((
+                Some(to_parent(intent(e))),
+                !String.equal(e.key, "Tab")
+                && (!String.equal(e.key, "Escape") || open_),
+              ));
+            } else {
+              Option.map(msg => (Some(msg), false), hook(e.key));
+            };
+          }
+        ),
       ),
     ),
   );
@@ -1235,6 +1249,7 @@ let view =
             e => Menu_key(owner, e),
             on_menu_key_down,
             false,
+            p.open_,
             to_parent,
           ),
           event("pointerenter", to_parent(Enter(owner))),
@@ -1267,9 +1282,12 @@ let view =
         Html.aria("controls", panel_id(m, None)),
         Ui_attr.data_flag("open", is_open(m)),
         key_handler(
-          e => Trigger_key(e),
+          e =>
+            String.equal(e.key, "Escape")
+              ? Menu_key(None, e) : Trigger_key(e),
           on_trigger_key_down,
           true,
+          is_open(m),
           to_parent,
         ),
       ],
