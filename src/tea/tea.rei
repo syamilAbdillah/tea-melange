@@ -23,3 +23,9 @@ module Random = Tea_random;
 /** Browser program entry points; see [Tea_app]. A module alias, so programs
     that never call [application] do not bundle the navigation runtime. */
 module App = Tea_app;
+/** Post-render DOM tasks, kept as a tree-shakeable module alias. */
+module Browser_dom = Tea_browser.Browser_dom;
+/** Lifecycle-owned document/window subscriptions. */
+module Browser_events = Tea_browser.Browser_events;
+/** Accessible headless components; new modules appear under this alias. */
+module Ui = Tea_ui;

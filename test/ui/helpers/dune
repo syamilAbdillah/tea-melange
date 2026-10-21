@@ -1,0 +1,15 @@
+; Compile the private pure sources directly; do not expose internals publicly.
+(copy_files ../../../src/ui/ui_*.re)
+(copy_files ../../../src/ui/ui_*.rei)
+
+(melange.emit
+ (target js)
+ (alias melange)
+ (module_systems es6)
+ (libraries tea.core tea.html tea.vdom melange.js)
+ (preprocess (pps melange.ppx)))
+
+(rule
+ (alias runtest)
+ (deps (alias melange) js/test/ui/helpers/helpers_test.js)
+ (action (run node %{dep:js/test/ui/helpers/helpers_test.js})))

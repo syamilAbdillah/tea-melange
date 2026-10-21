@@ -1,0 +1,6 @@
+(library
+ (name ui_test_support)
+ (wrapped false)
+ (modes melange)
+ (preprocess (pps melange.ppx))
+ (libraries tea melange.dom melange.js))
