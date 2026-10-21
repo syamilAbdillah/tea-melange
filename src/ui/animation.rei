@@ -47,8 +47,8 @@ let update: (msg, model) => (model, Tea_core.Cmd.t(msg), list(out_msg));
 /** Required while mounted, including during Leaving. Owns frame handoff and
     animation waits, including initial appear. Identity includes id, generation
     and stage. Stopping suppresses every pending callback; no DOM listeners are
-    installed. Already-started Browser_dom waits retain their bounded cleanup
-    lifetime, but cannot deliver after stopping. */
+    installed. Stopping also cancels an in-flight animation wait, releasing its
+    observer and watchdog immediately. */
 let subscriptions: model => Tea_core.Sub.t(msg);
 /** Parent-message-polymorphic attributes; owns only the four data flags and
     hidden, no events, id, styles or ARIA. Set the element id to [init]'s id.
