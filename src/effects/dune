@@ -1,0 +1,7 @@
+(library
+ (name tea_effects)
+ (public_name tea.effects)
+ (modes melange)
+ (private_modules clock)
+ (libraries tea.core melange.js)
+ (preprocess (pps melange.ppx)))

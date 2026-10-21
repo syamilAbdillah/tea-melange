@@ -1,0 +1,6 @@
+(library
+ (name tea_http)
+ (public_name tea.http)
+ (modes melange)
+ (libraries tea.core melange.js)
+ (preprocess (pps melange.ppx)))

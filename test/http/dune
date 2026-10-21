@@ -1,0 +1,12 @@
+(melange.emit
+ (target js)
+ (alias http-js)
+ (modules http_node)
+ (module_systems es6)
+ (libraries tea.core tea.http melange.js)
+ (preprocess (pps melange.ppx)))
+
+(rule
+ (alias runtest)
+ (deps (alias http-js) js/test/http/http_node.js)
+ (action (run node %{dep:js/test/http/http_node.js})))
