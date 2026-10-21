@@ -36,9 +36,11 @@ Coverage:
 - App beginner/element/document lifecycle, synchronous initialization, init
   commands, body identity, shutdown cleanup and manual-frame batching.
 - Browser scheduler's setTimeout and Date.now fallbacks.
-- Strict jsdom gates: 1,000-sample median diff+patch <2 ms; 1,000-row mount <40 ms;
-  unchanged row/text identities, keyed reorder identity, and zero listener growth
-  across 1,000 patches. Timings can vary with host load; failures are not hidden.
+- Strict structural gates: unchanged row/text identities, keyed reorder identity,
+  and zero listener growth across 1,000 patches. The 1,000-sample median diff+patch
+  and 1,000-row mount timings are reported, not asserted: shared CI host load can
+  exceed the <2 ms / <40 ms targets without a correctness regression. See
+  `docs/perf.md` for benchmark methodology and recorded budget measurements.
 
 Animator semantics follow the runtime contract: a tick of N messages schedules
 one rAF; that frame patches once and schedules one **spare** rAF. Flushing the
