@@ -1,0 +1,23 @@
+(library
+ (name url_cases)
+ (modules url_test)
+ (modes native melange)
+ (libraries tea.url))
+
+(test
+ (name url_native)
+ (modules url_native)
+ (libraries url_cases))
+
+(melange.emit
+ (target js)
+ (alias nav-js)
+ (modules nav_node)
+ (module_systems es6)
+ (libraries tea.core tea.url tea.nav melange.dom url_cases)
+ (preprocess (pps melange.ppx)))
+
+(rule
+ (alias runtest)
+ (deps (alias nav-js) js/test/nav/nav_node.js)
+ (action (run node %{dep:js/test/nav/nav_node.js})))

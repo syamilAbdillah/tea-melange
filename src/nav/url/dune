@@ -1,0 +1,4 @@
+(library
+ (name tea_url)
+ (public_name tea.url)
+ (modes native melange))

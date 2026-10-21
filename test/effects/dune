@@ -1,0 +1,23 @@
+(library
+ (name random_cases)
+ (modules random_test)
+ (modes native melange)
+ (libraries tea.core))
+
+(test
+ (name random_native)
+ (modules random_native)
+ (libraries random_cases))
+
+(melange.emit
+ (target js)
+ (alias effects-js)
+ (modules effects_node)
+ (module_systems es6)
+ (libraries tea.core tea.effects random_cases)
+ (preprocess (pps melange.ppx)))
+
+(rule
+ (alias runtest)
+ (deps (alias effects-js) js/test/effects/effects_node.js)
+ (action (run node %{dep:js/test/effects/effects_node.js})))
