@@ -3,13 +3,22 @@ include Events;
 type t('msg) = Tea_vdom.Vdom.t('msg);
 type attr('msg) = Tea_vdom.Vdom.fact('msg);
 let text = Tea_vdom.Vdom.text;
+let rec has_none =
+  fun
+  | [] => false
+  | [Tea_vdom.Vdom.Attribute("", _), ..._] => true
+  | [_, ...rest] => has_none(rest);
+/* Views rarely contain [none]; keep the list itself when there is nothing
+   to drop. */
 let clean = attrs =>
-  List.filter(
-    fun
-    | Tea_vdom.Vdom.Attribute("", _) => false
-    | _ => true,
-    attrs,
-  );
+  has_none(attrs)
+    ? List.filter(
+        fun
+        | Tea_vdom.Vdom.Attribute("", _) => false
+        | _ => true,
+        attrs,
+      )
+    : attrs;
 let node = (tag, attrs, kids) =>
   Tea_vdom.Vdom.node(tag, clean(attrs), kids);
 let keyed = (tag, attrs, kids) =>

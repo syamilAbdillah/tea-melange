@@ -50,6 +50,20 @@ type running('msg) = {
   stop: unit => unit,
 };
 
+/* Stdlib's Fun.protect registers an exception printer at load time, which
+   pulls Printexc and all of Printf into browser bundles. */
+let protect = (~finally, f) =>
+  switch (f()) {
+  | v =>
+    finally();
+    v;
+  | exception e =>
+    finally();
+    raise(e);
+  };
+let source_key = ((home, key)) => home ++ "\000" ++ key;
+let same_id = ((h: string, k: string), (h', k')) => h == h' && k == k';
+
 module Make = (P: Platform.S) => {
   let start =
       (
@@ -82,7 +96,7 @@ module Make = (P: Platform.S) => {
     and drain = () =>
       if (alive^ && ! draining^) {
         draining := true;
-        Fun.protect(
+        protect(
           ~finally=() => draining := false,
           () => {
             while (alive^ && !Queue.is_empty(queue)) {
@@ -102,8 +116,13 @@ module Make = (P: Platform.S) => {
           },
         );
       }
-    and diff_subs = tree => {
-      let seen = Hashtbl.create(16);
+    and diff_subs = tree =>
+      switch (tree, running^) {
+      | (Sub.None, []) => ()
+      | _ => diff_subs_tree(tree)
+      }
+    and diff_subs_tree = tree => {
+      let seen = String_table.create(16);
       let leaves = ref([]);
       let rec flatten = sub =>
         switch (sub) {
@@ -112,20 +131,24 @@ module Make = (P: Platform.S) => {
         | Sub.Leaf(leaf) =>
           let id = (leaf.home, leaf.key);
           /* Duplicate identities use the first depth-first, left-to-right leaf. */
-          if (!Hashtbl.mem(seen, id)) {
-            Hashtbl.add(seen, id, ());
+          if (!String_table.mem(seen, source_key(id))) {
+            String_table.replace(seen, source_key(id), ());
             leaves := [(id, sub), ...leaves^];
           };
         };
       flatten(tree);
       let leaves = List.rev(leaves^);
       let old = running^;
-      let kept = List.filter(source => Hashtbl.mem(seen, source.id), old);
+      let kept =
+        List.filter(
+          source => String_table.mem(seen, source_key(source.id)),
+          old,
+        );
       /* Publish retained sources before stopping removed ones. */
       running := kept;
       List.iter(
         source =>
-          if (!Hashtbl.mem(seen, source.id)) {
+          if (!String_table.mem(seen, source_key(source.id))) {
             source.stop();
           },
         old,
@@ -134,7 +157,7 @@ module Make = (P: Platform.S) => {
          source's start can synchronously trigger another source's callback. */
       List.iter(
         ((id, sub)) =>
-          switch (List.find_opt(source => source.id == id, kept)) {
+          switch (List.find_opt(source => same_id(source.id, id), kept)) {
           | Some(source) => source.refresh(sub)
           | None => ()
           },
@@ -143,7 +166,7 @@ module Make = (P: Platform.S) => {
       List.iter(
         ((id, sub)) =>
           if (alive^) {
-            switch (List.find_opt(source => source.id == id, kept)) {
+            switch (List.find_opt(source => same_id(source.id, id), kept)) {
             | Some(_) => ()
             | None =>
               switch (sub) {
@@ -189,7 +212,7 @@ module Make = (P: Platform.S) => {
     let draw = () =>
       if (alive^) {
         draining := true;
-        Fun.protect(
+        protect(
           ~finally=
             () => {
               draining := false;
@@ -201,7 +224,7 @@ module Make = (P: Platform.S) => {
     animator := Some(Animator.make(~raf=P.request_animation_frame, ~draw));
     /* Initialization is one protected transaction: render first, then commands,
        then subscriptions, and only then process any messages they emitted. */
-    Fun.protect(
+    protect(
       ~finally=() => draining := false,
       () => {
         render(program.view(model^), dispatch);
