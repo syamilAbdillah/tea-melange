@@ -1,0 +1,12 @@
+(melange.emit
+ (target js)
+ (alias melange)
+ (modules test_dom)
+ (module_systems es6)
+ (preprocess (pps melange.ppx))
+ (libraries tea.dom tea.html tea.vdom tea.core melange.dom melange.js))
+
+(rule
+ (alias runtest)
+ (deps (alias melange) setup.js js/test/dom/test_dom.js)
+ (action (run node %{dep:setup.js} %{dep:js/test/dom/test_dom.js})))
