@@ -75,5 +75,9 @@ let close: string => Tea_core.Task.t(unit, error);
     A 5000 ms watchdog bounds paused, infinite or broken animation promises.
     Observers/timers are released on every completion path; completes once. */
 let wait_for_animations: string => Tea_core.Task.t(unit, error);
+/** [wait_for_animations] that can be abandoned: the returned function cancels
+    it, releasing its observer and watchdog at once and suppressing completion.
+    Subscriptions use this so stopping leaves no timers or observers behind. */
+let watch_animations: (string, result(unit, error) => unit, unit) => unit;
 /** Id of the active element after render; [None] for no element or an empty id. */
 let active_element_id: Tea_core.Task.t(option(string), 'e);

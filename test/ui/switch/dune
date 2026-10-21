@@ -1,0 +1,12 @@
+(melange.emit
+ (target js)
+ (alias melange)
+ (modules switch_test)
+ (module_systems es6)
+ (libraries tea ui_test_support)
+ (preprocess (pps melange.ppx)))
+
+(rule
+ (alias runtest)
+ (deps (alias melange) ../setup.js js/test/ui/switch/switch_test.js)
+ (action (run node %{dep:../setup.js} %{dep:js/test/ui/switch/switch_test.js})))

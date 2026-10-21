@@ -1,0 +1,47 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <base href="/">
+  <link rel="icon" href="data:,">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Tea UI · Virtual list</title>
+  <style>
+    :root { font: 17px/1.5 Verdana, sans-serif; color: #142c3b; background: #eaf3f5; }
+    body { margin: 0; } main { max-width: 52rem; margin: 2rem auto; padding: 0 1rem 3rem; }
+    h1 { font: 600 2.3rem/1.2 Verdana, sans-serif; max-width: 20ch; }
+    h2 { font-size: 1.15rem; margin-top: 2rem; }
+    p { max-width: 65ch; } label { display: block; }
+    input, button { font: inherit; margin: .4rem .5rem .4rem 0; padding: .4rem .7rem; color: #142c3b; background: white; border: 2px solid #426778; }
+    input { width: 8rem; } .window { background: white; border: 2px solid #426778; }
+    .row { padding: 4px 12px; border-bottom: 1px solid #bbcdd5; line-height: 24px; }
+    [data-pinned][aria-selected=true] { color: white; background: #17536b; }
+    :focus-visible { outline: 3px solid #8b286b; outline-offset: 3px; }
+  </style>
+</head>
+<body>
+  <div id="app"></div>
+  <script type="importmap">
+{
+  "imports": {
+    "melange/": "./node_modules/melange/",
+    "melange.dom/": "./node_modules/melange.dom/",
+    "melange.js/": "./node_modules/melange.js/",
+    "melange.__private__.melange_mini_stdlib/": "./node_modules/melange.__private__.melange_mini_stdlib/",
+    "tea.browser/": "./node_modules/tea.browser/",
+    "tea.ui/": "./node_modules/tea.ui/",
+    "tea/": "./node_modules/tea/",
+    "tea.core/": "./node_modules/tea.core/",
+    "tea.dom/": "./node_modules/tea.dom/",
+    "tea.effects/": "./node_modules/tea.effects/",
+    "tea.html/": "./node_modules/tea.html/",
+    "tea.http/": "./node_modules/tea.http/",
+    "tea.nav/": "./node_modules/tea.nav/",
+    "tea.url/": "./node_modules/tea.url/",
+    "tea.vdom/": "./node_modules/tea.vdom/"
+  }
+}
+  </script>
+  <script type="module" src="./examples/ui/virtual_list/main.mjs"></script>
+</body>
+</html>

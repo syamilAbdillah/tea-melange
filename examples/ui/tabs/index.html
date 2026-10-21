@@ -1,0 +1,51 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <base href="/">
+  <link rel="icon" href="data:,">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Tea UI · Tabs</title>
+  <style>
+    :root { font: 17px/1.6 Tahoma, sans-serif; color: #182b44; background: #edf3fa; }
+    body { margin: 0; } main { max-width: 56rem; margin: 2rem auto; padding: 1.5rem; }
+    h1 { font-size: 2.5rem; letter-spacing: -.06rem; } h2 { font-size: 1.25rem; }
+    p { max-width: 68ch; } section, form { margin: 1.5rem 0; }
+    [role=radiogroup], [role=tablist] { display: flex; flex-wrap: wrap; gap: .5rem; padding: .5rem 0; }
+    [data-orientation=vertical] { flex-direction: column; align-items: flex-start; }
+    [role=radio], [role=tab], button { padding: .65rem 1rem; border: 2px solid #305a91; background: white; color: #182b44; cursor: pointer; font: inherit; }
+    [data-checked], [role=tab][data-selected] { background: #214a80; color: white; }
+    [data-disabled] { border-style: dashed; color: #4c5969; background: #e3e8ef; cursor: not-allowed; }
+    [data-readonly] { border-style: double; }
+    [data-invalid] { border-left: 4px solid #a12626; padding-left: 1rem; }
+    [role=tabpanel] { background: white; padding: 1rem; border-bottom: 3px solid #305a91; }
+    :focus-visible { outline: 3px solid #9a3600; outline-offset: 4px; }
+    button { margin: .25rem; } output { display: block; margin: 1rem 0; } a { color: #174e94; }
+  </style>
+</head>
+<body>
+  <div id="app"></div>
+  <script type="importmap">
+{
+  "imports": {
+    "melange/": "./node_modules/melange/",
+    "melange.dom/": "./node_modules/melange.dom/",
+    "melange.js/": "./node_modules/melange.js/",
+    "melange.__private__.melange_mini_stdlib/": "./node_modules/melange.__private__.melange_mini_stdlib/",
+    "tea.browser/": "./node_modules/tea.browser/",
+    "tea.ui/": "./node_modules/tea.ui/",
+    "tea/": "./node_modules/tea/",
+    "tea.core/": "./node_modules/tea.core/",
+    "tea.dom/": "./node_modules/tea.dom/",
+    "tea.effects/": "./node_modules/tea.effects/",
+    "tea.html/": "./node_modules/tea.html/",
+    "tea.http/": "./node_modules/tea.http/",
+    "tea.nav/": "./node_modules/tea.nav/",
+    "tea.url/": "./node_modules/tea.url/",
+    "tea.vdom/": "./node_modules/tea.vdom/"
+  }
+}
+  </script>
+  <script type="module" src="./examples/ui/tabs/main.mjs"></script>
+</body>
+</html>
