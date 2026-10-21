@@ -1,0 +1,55 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <base href="/">
+  <link rel="icon" href="data:,">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Tea UI · Button</title>
+  <style>
+    :root { color-scheme: light; font: 17px/1.6 Arial, sans-serif; color: #20283d; background: #f3f4fc; }
+    body { margin: 0; }
+    main { max-width: 54rem; margin: 3rem auto; padding: 0 1.5rem 4rem; }
+    h1 { font: 600 3rem/1.1 Georgia, serif; margin-bottom: 1rem; }
+    h2 { font-size: 1.2rem; margin: 0 0 .6rem; }
+    p { max-width: 65ch; }
+    section, form { margin-top: 2rem; padding: 1.25rem 0; border-top: 2px solid #c5cbe2; }
+    .controls { display: flex; flex-wrap: wrap; align-items: center; gap: .75rem; }
+    .control { display: inline-block; font: inherit; line-height: 1.5; padding: .6rem 1rem; background: #fff; color: #20283d; border: 2px solid #425898; border-radius: .3rem; cursor: pointer; user-select: none; }
+    .control:hover:not([data-disabled]):not([data-pressed]) { background: #e5ebff; }
+    .control[data-pressed] { background: #273f85; color: #fff; }
+    .control[data-disabled] { border-style: dashed; border-color: #747c93; color: #535c73; background: #e4e7f0; cursor: not-allowed; }
+    :focus-visible { outline: 3px solid #8426a9; outline-offset: 4px; }
+    input { width: 1.2rem; height: 1.2rem; vertical-align: middle; }
+    label { display: inline-block; margin: 1rem 0; }
+    output { display: block; padding: .75rem 1rem; margin-top: 2rem; background: #e1e7f6; border-left: 4px solid #425898; }
+    code { font-size: .9em; }
+    @media (max-width: 40rem) { main { margin-top: 1.5rem; } h1 { font-size: 2.4rem; } }
+  </style>
+</head>
+<body>
+  <div id="app"></div>
+  <script type="importmap">
+{
+  "imports": {
+    "melange/": "./node_modules/melange/",
+    "melange.dom/": "./node_modules/melange.dom/",
+    "melange.js/": "./node_modules/melange.js/",
+    "melange.__private__.melange_mini_stdlib/": "./node_modules/melange.__private__.melange_mini_stdlib/",
+    "tea.browser/": "./node_modules/tea.browser/",
+    "tea.ui/": "./node_modules/tea.ui/",
+    "tea/": "./node_modules/tea/",
+    "tea.core/": "./node_modules/tea.core/",
+    "tea.dom/": "./node_modules/tea.dom/",
+    "tea.effects/": "./node_modules/tea.effects/",
+    "tea.html/": "./node_modules/tea.html/",
+    "tea.http/": "./node_modules/tea.http/",
+    "tea.nav/": "./node_modules/tea.nav/",
+    "tea.url/": "./node_modules/tea.url/",
+    "tea.vdom/": "./node_modules/tea.vdom/"
+  }
+}
+  </script>
+  <script type="module" src="./examples/ui/button/main.mjs"></script>
+</body>
+</html>

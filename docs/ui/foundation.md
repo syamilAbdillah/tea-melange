@@ -1,0 +1,197 @@
+# Foundation APIs and decisions
+
+The `.rei` files are the authoritative API and odoc source. Examples below omit
+`Tea_core.` qualifications on Task/Cmd/Sub/Decode and `Tea_html.` on Html.
+Private UI helpers are available **inside** component implementations, not to
+library consumers. Do not expose them through a component interface.
+
+## Browser_dom
+
+```reason
+type error = Not_found(string);
+type rect = {x: float, y: float, width: float, height: float,
+             top: float, right: float, bottom: float, left: float};
+type element_info = {rect, viewport_width: float, viewport_height: float,
+                     scroll_x: float, scroll_y: float};
+let focus: (~prevent_scroll: bool=?, string) => Task.t(unit, error);
+let blur: string => Task.t(unit, error);
+let focus_cmd: string => Cmd.t('msg);
+let focus_first: (~within: string) => Task.t(unit, error);
+let scroll_into_view:
+  (~block: [ `Nearest | `Center | `Start | `End ]=?, string) => Task.t(unit, error);
+let get_element: string => Task.t(element_info, error);
+let show_modal: string => Task.t(unit, error);
+let show: string => Task.t(unit, error);
+let close: string => Task.t(unit, error);
+let wait_for_animations: string => Task.t(unit, error);
+let active_element_id: Task.t(option(string), 'e);
+```
+
+Every task is lazy and executes after render, even reads. Ids resolve then, not
+when constructing the task. Missing ids return `Not_found`; `focus_first` also
+returns it for an empty candidate set. Native dialog/scroll APIs are detected;
+unsupported dialog methods only manipulate `open` (not a modality polyfill).
+Focus returns success when the id exists; the platform ultimately decides
+whether an element can actually take focus.
+
+`wait_for_animations` takes a subtree snapshot after render. It awaits all-settled
+finished promises, resolves on removal, and has a 5000 ms watchdog for paused,
+infinite or broken animations. This explicit bound implements “never hang”;
+it can cut short an intentional animation longer than five seconds. All completion
+paths release their timer/observer and complete once. No active animations or
+missing getAnimations resolves immediately.
+
+## Browser_events
+
+```reason
+type viewport = {width: float, height: float};
+type element_size = {width: float, height: float};
+let on_key_down:
+  (~key: string, ~capture: bool=?, Decode.t('msg)) => Sub.t('msg);
+let on_pointer_down_outside:
+  (~ids: list(string), ~focus: bool=?, 'msg) => Sub.t('msg);
+let on_resize: (viewport => 'msg) => Sub.t('msg);
+let on_scroll: 'msg => Sub.t('msg);
+let on_visibility_change: (bool => 'msg) => Sub.t('msg);
+let on_element_resize: (~id: string, element_size => 'msg) => Sub.t('msg);
+let on_media_query: (~query: string, bool => 'msg) => Sub.t('msg);
+let scroll_lock: (~key: string) => Sub.t('msg);
+let restore_focus: (~key: string) => Sub.t('msg);
+```
+
+Identities and timing are documented individually in
+`src/browser/browser_events.rei`. Keydown's key is a **subscription identity**,
+not a keyboard key; decoder failure dispatches nothing. The current decoder is
+used even without listener restart. Outside detection listens in capture phase;
+missing ids are outside and nested ids are safe. Focusin is opt-in.
+
+Starts needing nodes are deferred and can be cancelled before installation.
+Listeners/observers stop synchronously; scroll lease release and focus return
+wait for the closing render. Even synchronous initial media delivery that
+unsubscribes itself cannot lose its disposer. Media delivers current match on
+start; unsupported matchMedia delivers false. ResizeObserver is a no-op when
+unsupported or when the id is absent; resubscribe to observe a replaced node.
+
+Scroll leases share a counter across keys and runtimes. The first lease stores
+exact html/body inline style attributes, compensates scrollbar width, and sets
+overflow hidden. Only iOS/iPadOS uses fixed body positioning (platform/touch
+feature heuristic), restoring scroll coordinates afterwards. Other platforms do
+not need that hack. Do not mutate owned inline styles while locked. Restoration
+also flushes Chromium's lazy CSSOM empty-attribute serialization so an absent
+style attribute remains absent, not `style=""`.
+
+Focus return remembers the element on subscription start, before the opening
+render. Stop waits for the closing render, then restores only a connected
+remembered element when current focus is body/absent/disconnected. It does not
+steal intentional focus on another connected element.
+
+## Private Ui_keyboard
+
+```reason
+type event = {key: string, shift: bool, ctrl: bool, alt: bool, meta: bool,
+              composing: bool, time_stamp: float, repeat: bool};
+let decoder: Decode.t(event);
+let available: event => bool;
+let custom:
+  (event => option((option('msg), bool))) =>
+  Decode.t(Tea_vdom.Vdom.custom(option('msg)));
+let on_key_down: (event => option('msg)) => Html.attr('msg);
+```
+
+The callback's pair is `(optional_message, prevent_default)`. Never handles Tab,
+ctrl/alt/meta or IME (including keyCode 229). Shift is available to the component.
+A handled event can prevent default without emitting a synthetic parent message.
+
+## Private Ui_nav
+
+```reason
+type direction = Ltr | Rtl;
+let first: array(bool) => option(int);
+let last: array(bool) => option(int);
+let next: (~wrap: bool=?, ~from: int, array(bool)) => option(int);
+let prev: (~wrap: bool=?, ~from: int, array(bool)) => option(int);
+let page: (~size: int, ~forward: bool, ~from: int, array(bool)) => option(int);
+let repair: (~from: int, array(bool)) => option(int);
+let horizontal: (~dir: direction, string) => option(int);
+```
+
+True flags mean disabled. Empty/all-disabled returns None. Wrapping defaults to
+true; nonwrapping navigation retains an enabled current index at the boundary.
+Invalid indices start before/after the array according to direction. Page sizes
+saturate and search beyond a disabled target, falling back toward the current
+index. Repair keeps an enabled current index or picks the first enabled one.
+Horizontal arrows produce +1/-1, swapping in RTL.
+
+## Private Ui_typeahead
+
+```reason
+type t;
+let empty: t;
+let buffer: t => string;
+let last_time_stamp: t => option(float);
+let normalize: string => string;
+let feed:
+  (~timeout: float=?, ~time_stamp: float, ~key: string, ~from: int,
+   ~labels: array(string), ~disabled: array(bool), t) => (t, option(int));
+```
+
+Uses event timestamps, a 500 ms default reset, repeated-letter cycling and
+case/Latin-1 accent/ligature-insensitive prefixes. Longer prefixes retain the
+current candidate; a failed prefix retries the current character. Noncharacters
+are ignored; missing disabled flags count as disabled. No locale-sensitive/full
+Unicode casefold or combining-mark normalization is attempted.
+
+## Private Ui_attr
+
+```reason
+let data_flag: (string, bool) => Html.attr('msg);
+let aria_bool: (string, bool) => Html.attr('msg);
+let aria_ids: (string, list(string)) => Html.attr('msg);
+let part_id: (string, string) => string;
+let safe_key: string => string;
+let item_id: (string, string) => string;
+```
+
+Names exclude data-/aria-. False presence flags and empty id lists emit
+Attr.none. Part ids are `id-part`; item ids are `id-item-<encoded key>`.
+Melange UTF-16 code units outside letters/digits/hyphen become `_hhhh`.
+Underscores are escaped too: otherwise a literal escape-looking key could
+collide with another key. Empty encodes as `_`. The result uses only the
+specification's safe alphabet, but is deliberately more restrictive to ensure
+injectivity. Consumers should not depend on a particular encoded spelling.
+
+## Existing infrastructure changes
+
+- Runtime requests draw before commands/subscription reconciliation. Native
+  tests exercise No_request, Pending and Extra_request. Initialization remains
+  synchronous-render-first. The runtime contract and Unreleased notes agree.
+- `Sub.filter_map` and its Filtered constructor are additive. Rejected events
+  never enter update, while kept subscriptions use the newest filter. Browser
+  keydown requires both properties; decoding inside a start closure would keep
+  a stale decoder, and fake messages would violate the parent API.
+- `Vdom.Custom_optional` is additive. Space keydown and disabled clicks must
+  prevent defaults without a fake message. Message mapping, DOM interpretation
+  and native Simulate understand it; existing handlers preserve their behavior.
+- Tea adds module aliases and library dependencies, not eager module wrappers.
+- The example server exports reusable ephemeral-port serving while preserving
+  existing example names, MIME types, traversal checks and SPA fallback.
+- Root dev dependencies/lockfile, npm script and CI add only the prescribed
+  accessibility/browser test infrastructure. No runtime npm dependencies.
+
+## Signature clarification
+
+Stateless `Button.view` uses the specification's `~to_view` parts callback,
+with a final unit argument so Reason can erase the optional arguments. This
+corrects the all-labelled illustrative signature in §2.1; `Button.button` is an
+additional native-by-default direct-element convenience, and `Button.parts`
+allows explicit bundle composition. See [button.md](button.md) for all signatures.
+
+## Scope and limitations
+
+Button is the reference component, not a showcase application. Chromium is the
+real-browser gate; iOS fixed-body behavior is feature-detected but not a claim
+of Safari device coverage. Shadow-root traversal and cross-document/iframe focus
+are not provided: ids refer to the current document, and outside containment uses
+ordinary DOM containment. Focus-first visibility is deliberately conservative
+for hidden/inert ancestors and closed details. Applications needing a specific
+initial focus target should use `focus` instead.
