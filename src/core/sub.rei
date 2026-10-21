@@ -19,13 +19,22 @@ type t('msg) =
 and leaf('a, 'msg) = {
   home: string,
   key: string,
-  start: ('a => unit) => (unit => unit),
+  start: ('a => unit, unit) => unit,
   tagger: 'a => 'msg,
 };
 
+/** No active event sources. */
 let none: t('msg);
+/** Combine event sources; duplicate identities keep their first leaf. */
 let batch: list(t('msg)) => t('msg);
+/** Transform messages without changing source identities. */
 let map: ('a => 'b, t('a)) => t('b);
 /** [make(~home, ~key, ~start, ~tagger)] builds a leaf. */
 let make:
-  (~home: string, ~key: string, ~start: ('a => unit) => (unit => unit), ~tagger: 'a => 'msg) => t('msg);
+  (
+    ~home: string,
+    ~key: string,
+    ~start: ('a => unit, unit) => unit,
+    ~tagger: 'a => 'msg
+  ) =>
+  t('msg);

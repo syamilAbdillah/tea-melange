@@ -10,8 +10,11 @@ type t('msg) =
   | Batch(list(t('msg)))
   | Effect(('msg => unit) => unit);
 
+/** No effects. */
 let none: t('msg);
+/** Run commands depth-first, left-to-right. */
 let batch: list(t('msg)) => t('msg);
+/** Transform every emitted message. */
 let map: ('a => 'b, t('a)) => t('b);
 /** Low-level constructor used by effect modules (Http, Time, Random, ...). */
 let effect: (('msg => unit) => unit) => t('msg);

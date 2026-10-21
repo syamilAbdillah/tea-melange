@@ -1,0 +1,42 @@
+{0 tea-melange 0.1.0}
+
+The Elm Architecture in Reason for Melange. Start with the Tea umbrella for
+browser applications, or use tea.core, tea.vdom and tea.html independently for
+native logic and view tests. tea.test is native-only.
+
+{1 Program lifecycle}
+
+A program initializes a model and commands from flags. Its model-first update
+returns the next model and commands. Its pure view produces virtual DOM, and
+subscriptions describe active event sources. Every effect returns through the
+single message queue. Rendering is batched to animation frames; initialization
+renders synchronously.
+
+App.beginner is the unit-returning convenience builder. App.element mounts into
+a selected element. App.document owns body contents and title. App.application
+also delivers link requests and history changes as messages; the update chooses
+whether an internal request should push a URL or an external request should
+load a page. Effectful builders return handles whose shutdown operation stops
+subscriptions and removes managed event listeners.
+
+{1 Modules}
+
+Html, Attr (also Attributes), Events, Keyed and Svg construct pure views.
+Cmd, Sub and Task describe effects. Decode describes portable JSON/event
+decoders. Program defines the program record. Http, Url, Navigation, Time,
+Random and Animation_frame cover browser effects. Tea.Random combines explicit
+seeded generators and the command that obtains a fresh seed.
+
+Runtime.Make takes a Platform.S functor argument. Native tests supply a manual
+scheduler instead of linking a browser implementation. Render, Query and
+Simulate in tea.test support deterministic native view tests.
+
+{1 Design}
+
+Virtual DOM is the sole renderer. The Elm-style keyed diff and animator are
+original Reason implementations of public algorithms, not copied source.
+ADR-02's proposed port is superseded by the license audit; no melange-tea or
+melange-webapi dependency is included. ADR-06 uses a platform functor rather
+than a Dune virtual module. Sources are exclusively Reason, using Dune's
+built-in dialect. JSX, server rendering, hydration and persistence are outside
+v0.1 scope.

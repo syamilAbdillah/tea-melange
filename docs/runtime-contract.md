@@ -14,8 +14,11 @@ type Program.t('flags, 'model, 'msg, 'view) = {
 };
 ```
 
-`App.beginner/element/document/application` (in `tea.dom`, re-exported by `tea`)
-are thin builders around this record.
+`App.beginner/element/document` live in `tea.dom`; `Application.application`
+lives in `tea.nav` to avoid a DOM-to-navigation dependency. All are exposed by
+`Tea.App` and are thin builders around this record. The umbrella beginner
+returns unit for the plan's top-level counter sample; lower-level builders and
+the other umbrella builders retain runtime lifecycle handles.
 
 ## Cmd
 

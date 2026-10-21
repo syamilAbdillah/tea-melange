@@ -1,0 +1,28 @@
+name: CI
+on:
+  push:
+  pull_request:
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    strategy:
+      matrix:
+        ocaml-compiler: ['5.4']
+        # Add Melange 7.x here once it is available in opam-repository.
+    steps:
+      - uses: actions/checkout@v4
+      - uses: ocaml/setup-ocaml@v3
+        with:
+          ocaml-compiler: ${{ matrix.ocaml-compiler }}
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+          cache: npm
+      - run: opam install . --deps-only --with-test --with-doc
+      - run: opam install reason
+      - run: npm ci
+      - run: ./scripts/check-no-ml.sh
+      - run: opam exec -- ./scripts/check-fmt.sh
+      - run: opam exec -- dune build
+      - run: opam exec -- dune build @runtest
+      - run: opam exec -- dune build @doc

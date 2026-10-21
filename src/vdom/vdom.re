@@ -49,32 +49,60 @@ and tagger('a, 'msg) = {
 let descendants_count: type msg. t(msg) => int =
   fun
   | Text(_) => 0
-  | Node({descendants_count, _}) => descendants_count
-  | Keyed({descendants_count, _}) => descendants_count
+  | Node({ descendants_count, _ }) => descendants_count
+  | Keyed({ descendants_count, _ }) => descendants_count
   | Thunk(_) => 0
-  | Tagger({descendants, _}) => descendants;
+  | Tagger({ descendants, _ }) => descendants;
 
 let text = s => Text(s);
 
 let node = (~namespace=?, tag, facts, kids) => {
   let kids = Array.of_list(kids);
   let descendants_count =
-    Array.fold_left((acc, kid) => acc + 1 + descendants_count(kid), 0, kids);
-  Node({tag, namespace, facts, kids, descendants_count});
+    Array.fold_left(
+      (acc, kid) => acc + 1 + descendants_count(kid),
+      0,
+      kids,
+    );
+  Node({
+    tag,
+    namespace,
+    facts,
+    kids,
+    descendants_count,
+  });
 };
 
 let keyed = (~namespace=?, tag, facts, kids) => {
   let kids = Array.of_list(kids);
   let descendants_count =
-    Array.fold_left((acc, (_, kid)) => acc + 1 + descendants_count(kid), 0, kids);
-  Keyed({tag, namespace, facts, kids, descendants_count});
+    Array.fold_left(
+      (acc, (_, kid)) => acc + 1 + descendants_count(kid),
+      0,
+      kids,
+    );
+  Keyed({
+    tag,
+    namespace,
+    facts,
+    kids,
+    descendants_count,
+  });
 };
 
 let map = (tagger, child) =>
-  Tagger({tagger, child, descendants: 1 + descendants_count(child)});
+  Tagger({
+    tagger,
+    child,
+    descendants: 1 + descendants_count(child),
+  });
 
 let lazy1 = (f, a) =>
-  Thunk({refs: [|Obj.repr(f), Obj.repr(a)|], render: () => f(a), node: None});
+  Thunk({
+    refs: [|Obj.repr(f), Obj.repr(a)|],
+    render: () => f(a),
+    node: None,
+  });
 let lazy2 = (f, a, b) =>
   Thunk({
     refs: [|Obj.repr(f), Obj.repr(a), Obj.repr(b)|],

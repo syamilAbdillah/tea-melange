@@ -1,0 +1,21 @@
+(melange.emit
+ (target js)
+ (alias melange)
+ (modules smoke)
+ (module_systems (es6 mjs))
+ (libraries tea)
+ (preprocess (pps melange.ppx)))
+
+(rule
+ (alias runtest)
+ (deps (alias melange) (alias_rec ../../examples/melange)
+  setup.js js/test/examples/smoke.mjs
+  ../../examples/counter/js/examples/counter/main.mjs
+  ../../examples/todo/js/examples/todo/main.mjs
+  ../../examples/fetch_routing/js/examples/fetch_routing/main.mjs
+  ../../examples/fetch_routing/js/users.json)
+ (action
+  (progn
+   (run node %{dep:setup.js} counter ../../examples/counter/js/examples/counter/main.mjs js/test/examples/smoke.mjs)
+   (run node %{dep:setup.js} todo ../../examples/todo/js/examples/todo/main.mjs js/test/examples/smoke.mjs)
+   (run node %{dep:setup.js} fetch_routing ../../examples/fetch_routing/js/examples/fetch_routing/main.mjs js/test/examples/smoke.mjs))))

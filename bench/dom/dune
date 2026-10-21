@@ -1,12 +1,15 @@
 (melange.emit
  (target js)
  (alias melange)
- (modules bench_dom)
+ (modules bench_dom cold_mount)
  (module_systems es6)
  (preprocess (pps melange.ppx))
  (libraries tea.dom tea.vdom tea.html melange.js))
 
 (rule
  (alias bench)
- (deps (alias melange) ../../test/dom/setup.js js/bench/dom/bench_dom.js)
- (action (run node %{dep:../../test/dom/setup.js} %{dep:js/bench/dom/bench_dom.js})))
+ (deps (alias melange) setup.js cold_setup.js js/bench/dom/bench_dom.js js/bench/dom/cold_mount.js)
+ (action
+  (progn
+   (run node %{dep:cold_setup.js} %{dep:js/bench/dom/cold_mount.js})
+   (run node %{dep:setup.js} %{dep:js/bench/dom/bench_dom.js}))))

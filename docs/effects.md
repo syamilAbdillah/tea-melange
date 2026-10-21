@@ -53,8 +53,9 @@ platform implementation, or copied melange-tea code is used.
   an HTTP(S) page. Link interception installs one delegated root listener;
   modified/non-primary/prevented clicks, downloads, and non-self targets retain
   browser behavior. Same-origin HTTP(S) links are Internal, all others External.
-  The returned disposer removes the listener. `tea.dom` still owns the platform
-  and application integration; this task does not introduce Browser_platform.
+  The returned disposer removes the listener. P6 adds `Tea_nav.Application`
+  using `Tea_dom.App.Internal.start`; the Tea umbrella exposes it as
+  `Tea.App.application`. The browser platform remains owned by tea.dom.
 
 Subscription identities follow the binding runtime contract:
 `Time.every` / `string_of_float(ms)`, `AnimationFrame` / `frame` or `delta`,

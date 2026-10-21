@@ -1,3 +1,7 @@
 (executable
  (name bench_vdom)
  (libraries tea.vdom unix))
+
+(rule
+ (alias bench)
+ (action (run %{exe:bench_vdom.exe})))

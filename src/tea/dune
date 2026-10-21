@@ -1,0 +1,5 @@
+(library
+ (name tea)
+ (public_name tea)
+ (modes melange)
+ (libraries tea.core tea.vdom tea.html tea.dom tea.nav tea.url tea.http tea.effects))

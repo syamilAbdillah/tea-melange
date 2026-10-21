@@ -1,0 +1,12 @@
+(melange.emit
+ (target js)
+ (alias application-js)
+ (modules counter application_test)
+ (module_systems es6)
+ (libraries tea melange.dom melange.js)
+ (preprocess (pps melange.ppx)))
+
+(rule
+ (alias runtest)
+ (deps (alias application-js) setup.js js/test/application/application_test.js js/test/application/counter.js)
+ (action (run node %{dep:setup.js} %{dep:js/test/application/application_test.js})))

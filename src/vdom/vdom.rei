@@ -12,10 +12,14 @@
 /** Event handler: what to decode from the DOM event, as data. */
 type handler('msg) =
   | Normal(Tea_core.Decode.t('msg))
-  /** decoded bool = stopPropagation */
-  | May_stop_propagation(Tea_core.Decode.t(('msg, bool)))
-  /** decoded bool = preventDefault */
-  | May_prevent_default(Tea_core.Decode.t(('msg, bool)))
+  | /** decoded bool = stopPropagation */
+    May_stop_propagation(
+      Tea_core.Decode.t(('msg, bool)),
+    )
+  | /** decoded bool = preventDefault */
+    May_prevent_default(
+      Tea_core.Decode.t(('msg, bool)),
+    )
   | Custom(Tea_core.Decode.t(custom('msg)))
 and custom('msg) = {
   message: 'msg,
@@ -65,14 +69,29 @@ and tagger('a, 'msg) = {
   descendants: int,
 };
 
+/** Construct a text leaf. */
 let text: string => t('msg);
-let node: (~namespace: string=?, string, list(fact('msg)), list(t('msg))) => t('msg);
+/** Construct an element and cache its descendant count. */
+let node:
+  (~namespace: string=?, string, list(fact('msg)), list(t('msg))) =>
+  t('msg);
+/** Construct an element whose children have stable keys. */
 let keyed:
-  (~namespace: string=?, string, list(fact('msg)), list((string, t('msg)))) => t('msg);
+  (
+    ~namespace: string=?,
+    string,
+    list(fact('msg)),
+    list((string, t('msg)))
+  ) =>
+  t('msg);
+/** Map all messages through a lexical tagger scope. */
 let map: ('a => 'msg, t('a)) => t('msg);
 
+/** Memoize a view using physical function and argument identity. */
 let lazy1: ('a => t('msg), 'a) => t('msg);
+/** Memoize a two-argument view. */
 let lazy2: (('a, 'b) => t('msg), 'a, 'b) => t('msg);
+/** Memoize a three-argument view. */
 let lazy3: (('a, 'b, 'c) => t('msg), 'a, 'b, 'c) => t('msg);
 
 /** Force a thunk (memoised in [thunk.node]). */
@@ -82,10 +101,17 @@ let force: thunk('msg) => t('msg);
 let descendants_count: t('msg) => int;
 
 /** Fact helpers. */
+/** Describe a string attribute. */
 let attribute: (string, string) => fact('msg);
+/** Describe a qualified attribute in a namespace. */
 let attribute_ns: (string, string, string) => fact('msg);
+/** Describe a live DOM property. */
 let property: (string, prop_value) => fact('msg);
+/** Describe one CSS declaration. */
 let style: (string, string) => fact('msg);
+/** Describe a named event listener. */
 let on: (string, handler('msg)) => fact('msg);
+/** Transform messages within an event fact; preserve other facts. */
 let map_fact: ('a => 'b, fact('a)) => fact('b);
+/** Transform decoded messages while retaining handler flags. */
 let map_handler: ('a => 'b, handler('a)) => handler('b);

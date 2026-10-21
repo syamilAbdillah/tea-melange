@@ -2,5 +2,5 @@
  (name tea_nav)
  (public_name tea.nav)
  (modes melange)
- (libraries tea.core tea.url melange.dom melange.js)
+ (libraries tea.core tea.url tea.dom melange.dom melange.js)
  (preprocess (pps melange.ppx)))
