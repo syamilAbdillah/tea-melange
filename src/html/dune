@@ -1,0 +1,5 @@
+(library
+ (name tea_html)
+ (public_name tea.html)
+ (modes native melange)
+ (libraries tea.core tea.vdom))
