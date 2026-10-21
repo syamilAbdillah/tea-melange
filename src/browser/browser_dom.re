@@ -195,55 +195,88 @@ let close = id =>
       };
     }
   );
-let wait_for_animations = id =>
-  with_element(id, (element, done_) =>
-    if (!B.method_(element, "getAnimations") || !B.connected(element)) {
-      done_(Ok());
-    } else {
-      let animations = B.animations(element, { "subtree": true });
-      if (Array.length(animations) == 0) {
-        done_(Ok());
-      } else {
-        let completed = ref(false);
-        let observer = ref(None);
-        let timer = ref(None);
-        let finish = () =>
-          if (! completed^) {
-            completed := true;
-            Option.iter(B.disconnect, observer^);
-            Option.iter(B.clear_timeout, timer^);
+let watch_animations = (id, done_) => {
+  let cancelled = ref(false);
+  let cleanup = ref(() => ());
+  B.after_render(() =>
+    if (! cancelled^) {
+      switch (B.find(id)) {
+      | None => done_(Error(Not_found(id)))
+      | Some(element) =>
+        if (!B.method_(element, "getAnimations") || !B.connected(element)) {
+          done_(Ok());
+        } else {
+          let animations = B.animations(element, { "subtree": true });
+          if (Array.length(animations) == 0) {
             done_(Ok());
-          };
-        if (B.available("MutationObserver")) {
-          let o =
-            B.mutation_observer(() =>
-              if (!B.connected(element)) {
-                finish();
-              }
+          } else {
+            let completed = ref(false);
+            let observer = ref(None);
+            let timer = ref(None);
+            let release = () => {
+              completed := true;
+              Option.iter(B.disconnect, observer^);
+              Option.iter(B.clear_timeout, timer^);
+            };
+            let finish = () =>
+              if (! completed^) {
+                release();
+                done_(Ok());
+              };
+            cleanup :=
+              (
+                () =>
+                  if (! completed^) {
+                    release();
+                  }
+              );
+            if (B.available("MutationObserver")) {
+              let o =
+                B.mutation_observer(() =>
+                  if (!B.connected(element)) {
+                    finish();
+                  }
+                );
+              observer := Some(o);
+              B.observe_mutations(
+                o,
+                B.root(B.document),
+                {
+                  "childList": true,
+                  "subtree": true,
+                },
+              );
+            };
+            timer := Some(B.timeout(finish, 5000));
+            ignore(
+              Js.Promise.then_(
+                _ => {
+                  finish();
+                  Js.Promise.resolve();
+                },
+                B.all_settled(Array.map(B.finished, animations)),
+              ),
             );
-          observer := Some(o);
-          B.observe_mutations(
-            o,
-            B.root(B.document),
-            {
-              "childList": true,
-              "subtree": true,
-            },
-          );
-        };
-        timer := Some(B.timeout(finish, 5000));
-        ignore(
-          Js.Promise.then_(
-            _ => {
-              finish();
-              Js.Promise.resolve();
-            },
-            B.all_settled(Array.map(B.finished, animations)),
-          ),
-        );
+          };
+        }
       };
     }
   );
+  () =>
+    if (! cancelled^) {
+      cancelled := true;
+      cleanup^();
+    };
+};
+/* Keep the one-argument Task shape: callers (and the JS e2e probe) apply the
+   id first and run the returned task later. */
+let wait_for_animations = id => {
+  let task = done_ => {
+    let _cancel: unit => unit = watch_animations(id, done_);
+    ();
+  };
+  task;
+};
 let active_element_id = done_ =>
   B.after_render(() => {
     let id =

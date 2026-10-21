@@ -138,6 +138,7 @@ let subscriptions = model =>
       ~start=
         dispatch => {
           let live = ref(true);
+          let cancel = ref(() => ());
           let deliver = () =>
             if (live^) {
               dispatch(message);
@@ -158,11 +159,14 @@ let subscriptions = model =>
                must not start an obsolete observer or watchdog. */
             Platform.request_animation_frame(_ =>
               if (live^) {
-                Dom.wait_for_animations(model.id, _ => deliver());
+                cancel := Dom.watch_animations(model.id, _ => deliver());
               }
             );
           };
-          () => live := false;
+          () => {
+            live := false;
+            cancel^();
+          };
         },
     );
   };

@@ -1,0 +1,54 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <base href="/">
+  <link rel="icon" href="data:,">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Tea UI · File drop</title>
+  <style>
+    :root { font: 18px/1.6 "Trebuchet MS", sans-serif; color: #153945; background: #e7f4f7; }
+    body { margin: 0; }
+    main { max-width: 46rem; padding: 3rem 1.5rem; margin: auto; }
+    h1 { font-size: clamp(2.5rem, 8vw, 4rem); line-height: 1.1; margin: 0 0 1rem; letter-spacing: -.05em; }
+    h2 { font-size: 1.35rem; margin: 2.5rem 0 1rem; }
+    p { max-width: 65ch; }
+    .drop-target { margin: 1rem 0; padding: 1.4rem; border: 3px dashed #397187; background: #fff; }
+    .drop-target[data-dragging-over] { border-style: solid; border-color: #17465a; background: #c6ecf4; }
+    .drop-target[data-disabled] { opacity: .7; }
+    .drop-target p { margin-top: 0; }
+    .drop-detail { margin-bottom: 1rem; }
+    button { font: inherit; padding: .6rem 1.1rem; border: 2px solid #17465a; background: #17465a; color: #fff; border-radius: .25rem; cursor: pointer; }
+    button[data-disabled] { cursor: not-allowed; }
+    :focus-visible { outline: 3px solid #8b1860; outline-offset: 4px; }
+    .accepted { border-left: 4px solid #246343; padding-left: 1rem; }
+    .rejected { border-left: 4px solid #9c263d; padding-left: 1rem; color: #852035; }
+    #results { min-height: 4rem; }
+  </style>
+</head>
+<body>
+  <div id="app"></div>
+  <script type="importmap">
+{
+  "imports": {
+    "melange/": "./node_modules/melange/",
+    "melange.dom/": "./node_modules/melange.dom/",
+    "melange.js/": "./node_modules/melange.js/",
+    "melange.__private__.melange_mini_stdlib/": "./node_modules/melange.__private__.melange_mini_stdlib/",
+    "tea.browser/": "./node_modules/tea.browser/",
+    "tea.ui/": "./node_modules/tea.ui/",
+    "tea/": "./node_modules/tea/",
+    "tea.core/": "./node_modules/tea.core/",
+    "tea.dom/": "./node_modules/tea.dom/",
+    "tea.effects/": "./node_modules/tea.effects/",
+    "tea.html/": "./node_modules/tea.html/",
+    "tea.http/": "./node_modules/tea.http/",
+    "tea.nav/": "./node_modules/tea.nav/",
+    "tea.url/": "./node_modules/tea.url/",
+    "tea.vdom/": "./node_modules/tea.vdom/"
+  }
+}
+  </script>
+  <script type="module" src="./examples/ui/file_drop/main.mjs"></script>
+</body>
+</html>

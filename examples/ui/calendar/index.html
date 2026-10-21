@@ -1,0 +1,62 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <base href="/">
+  <link rel="icon" href="data:,">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Tea UI · Calendar</title>
+  <style>
+    :root { font: 16px/1.6 Tahoma, sans-serif; color: #17324d; background: #edf5fa; }
+    body { margin: 0; }
+    main { max-width: 70rem; margin: 2rem auto; padding: 0 1.25rem 3rem; }
+    h1 { font-size: 2.8rem; line-height: 1.15; letter-spacing: -.04em; }
+    h2 { font-size: 1.2rem; margin: 1rem 0; }
+    p { max-width: 76ch; }
+    .options { display: flex; flex-wrap: wrap; gap: 1rem; align-items: center; padding: 1rem 0; }
+    label { display: flex; align-items: center; gap: .5rem; }
+    .calendars { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 2rem; }
+    section { padding: 1rem; background: #fff; border-top: .4rem solid #234d78; }
+    section h2 { font-size: 1.8rem; font-weight: 500; }
+    .navigation { display: flex; flex-wrap: wrap; gap: .35rem; }
+    button { font: inherit; padding: .3rem .6rem; color: #234d78; background: #fff; border: 1px solid #234d78; border-radius: .2rem; cursor: pointer; }
+    button[data-disabled] { color: #5a626a; border-color: #5a626a; cursor: not-allowed; }
+    table { width: 100%; table-layout: fixed; border-spacing: .2rem; }
+    th { font-size: .85rem; font-weight: 500; padding-bottom: .4rem; }
+    td { height: 2.6rem; text-align: center; border: 2px solid transparent; cursor: pointer; font-variant-numeric: tabular-nums; }
+    td[data-selected] { color: #fff; background: #234d78; }
+    td[data-disabled] { color: #5a626a; background: #edf0f2; cursor: not-allowed; text-decoration: line-through; }
+    td[data-today] { border-bottom-color: #855400; }
+    td[data-outside-month] { border-style: dashed; border-color: #5a626a; }
+    [data-readonly] { border-top: 2px dashed #855400; }
+    :focus-visible { outline: 3px solid #855400; outline-offset: 2px; }
+    #activity { font-weight: bold; padding: 1rem 0; }
+    @media (max-width: 52rem) { .calendars { grid-template-columns: 1fr; } main { max-width: 32rem; } }
+  </style>
+</head>
+<body>
+  <div id="app"></div>
+  <script type="importmap">
+{
+  "imports": {
+    "melange/": "./node_modules/melange/",
+    "melange.dom/": "./node_modules/melange.dom/",
+    "melange.js/": "./node_modules/melange.js/",
+    "melange.__private__.melange_mini_stdlib/": "./node_modules/melange.__private__.melange_mini_stdlib/",
+    "tea.browser/": "./node_modules/tea.browser/",
+    "tea.ui/": "./node_modules/tea.ui/",
+    "tea/": "./node_modules/tea/",
+    "tea.core/": "./node_modules/tea.core/",
+    "tea.dom/": "./node_modules/tea.dom/",
+    "tea.effects/": "./node_modules/tea.effects/",
+    "tea.html/": "./node_modules/tea.html/",
+    "tea.http/": "./node_modules/tea.http/",
+    "tea.nav/": "./node_modules/tea.nav/",
+    "tea.url/": "./node_modules/tea.url/",
+    "tea.vdom/": "./node_modules/tea.vdom/"
+  }
+}
+  </script>
+  <script type="module" src="./examples/ui/calendar/main.mjs"></script>
+</body>
+</html>
