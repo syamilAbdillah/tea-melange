@@ -1,7 +1,10 @@
 /** Private pure typeahead. Event timeStamp only; no wall clock.
-    Matching folds ASCII case and Latin-1 accented letters/ligatures.
-    It does not perform full Unicode case folding or normalization; combining
-    sequences and scripts outside Latin-1 are compared as-is. */
+    Matching lowercases, applies Unicode NFD and drops combining marks
+    (U+0300–U+036F), so precomposed and decomposed accents match ("É",
+    "E\u0301" and "e" are equal). Letters without a canonical decomposition
+    are folded explicitly: æ→ae, œ→oe, ø→o, ß→ss, þ→th, ð/đ→d, ł→l, ı→i.
+    Other scripts are compared after lowercasing only; no locale-specific
+    folding is applied. */
 /** Buffer and previous event timestamp. */
 type t;
 /** Empty search state. */
@@ -10,9 +13,15 @@ let empty: t;
 let buffer: t => string;
 /** Last accepted event timestamp, or None. */
 let last_time_stamp: t => option(float);
-/** ASCII lowercase plus the documented Latin-1 fold. */
+/** Lowercase, NFD without combining marks, plus the documented folds. */
 let normalize: string => string;
-/** Feed one Unicode scalar key. Non-character keys leave state unchanged.
+/** Whether a [KeyboardEvent.key] is one Unicode scalar: a single UTF-16
+    unit or a surrogate pair. Named keys ("Enter", "ArrowDown") and
+    multi-character strings are not. Use this to decide which keys start or
+    extend a typeahead; {!feed} additionally ignores lone combining marks. */
+let character: string => bool;
+/** Feed one Unicode scalar key (one UTF-16 unit or a surrogate pair).
+    Non-character keys and lone combining marks leave state unchanged.
     A gap >= timeout (default 500ms), or a backwards timestamp, resets.
     Repeated same characters cycle from the next item; growing prefixes retain
     the current match. Missing disabled flags count as disabled. Searches wrap,
