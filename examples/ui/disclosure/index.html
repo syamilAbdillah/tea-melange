@@ -1,0 +1,54 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <base href="/">
+  <link rel="icon" href="data:,">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Tea UI · disclosure</title>
+  <style>:root {font: 18px/1.55 "Trebuchet MS", sans-serif; color:#16344a; background:#eaf4f8;}
+body {margin:0} main {max-width:50rem; margin:3rem auto; padding:0 1.5rem 4rem;}
+h1 {font-size:clamp(2rem,6vw,3.6rem); line-height:1.1; margin-bottom:1rem; letter-spacing:-.04em}
+h2 {font-size:1.3rem} p {max-width:65ch} section {margin-top:2rem; padding:1.5rem; background:#fff; border-left:.35rem solid #156a92}
+label {display:inline-block; margin:.5rem 1rem .5rem 0}
+button, select, input {font:inherit; color:inherit} button,select {padding:.45rem .8rem; background:#fff; border:2px solid #156a92; border-radius:.25rem}
+button {cursor:pointer} button[data-open],a[data-current] {background:#156a92; color:#fff}
+:focus-visible {outline:3px solid #9c3508; outline-offset:4px}
+.track {height:2.5rem; background:#d4e6ee; margin:1rem 0; position:relative; border:2px solid #476c80}
+.track::before {content:""; display:block; height:100%; width:var(--tea-meter-percent,var(--tea-progress-percent,0%)); background:#156a92}
+.track[data-state=optimum]::before,.track[data-state=complete]::before {background:#276243}
+.track[data-state=suboptimal]::before {background:#996100}
+.track[data-state=critical]::before {background:#a52b37}
+.track[data-state=indeterminate]::before {width:40%; background:repeating-linear-gradient(90deg,#156a92 0 1rem,#d4e6ee 1rem 1.3rem)}
+.reading {font-size:1.2rem} nav ul {display:flex; flex-wrap:wrap; gap:1rem; padding-left:1.5rem}
+a {color:#075681; text-underline-offset:.2em} nav a {display:inline-block; padding:.4rem .7rem}
+[data-closed] + [data-closed] {border-color:#476c80}
+.panel {padding:1rem; border:2px solid #156a92}
+</style>
+</head>
+<body>
+  <div id="app"></div>
+  <script type="importmap">
+{
+  "imports": {
+    "melange/": "./node_modules/melange/",
+    "melange.dom/": "./node_modules/melange.dom/",
+    "melange.js/": "./node_modules/melange.js/",
+    "melange.__private__.melange_mini_stdlib/": "./node_modules/melange.__private__.melange_mini_stdlib/",
+    "tea.browser/": "./node_modules/tea.browser/",
+    "tea.ui/": "./node_modules/tea.ui/",
+    "tea/": "./node_modules/tea/",
+    "tea.core/": "./node_modules/tea.core/",
+    "tea.dom/": "./node_modules/tea.dom/",
+    "tea.effects/": "./node_modules/tea.effects/",
+    "tea.html/": "./node_modules/tea.html/",
+    "tea.http/": "./node_modules/tea.http/",
+    "tea.nav/": "./node_modules/tea.nav/",
+    "tea.url/": "./node_modules/tea.url/",
+    "tea.vdom/": "./node_modules/tea.vdom/"
+  }
+}
+  </script>
+  <script type="module" src="./examples/ui/disclosure/main.mjs"></script>
+</body>
+</html>
