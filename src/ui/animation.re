@@ -12,39 +12,20 @@ type model = {
   id: string,
   phase,
   initial_frame: bool,
-  generation: string,
+  generation: int,
 };
 type msg =
-  | Painted(string)
-  | Finished(string);
+  | Painted(int)
+  | Finished(int);
 type out_msg =
   | Entered
   | Left;
 
-/* Decimal generations never wrap, even on Melange's 32-bit integer backend. */
-let successor = generation => {
-  let digits = Bytes.of_string(generation);
-  let rec carry = index =>
-    if (index < 0) {
-      "1" ++ Bytes.to_string(digits);
-    } else if (Bytes.get(digits, index) == '9') {
-      Bytes.set(digits, index, '0');
-      carry(index - 1);
-    } else {
-      Bytes.set(
-        digits,
-        index,
-        Char.chr(Char.code(Bytes.get(digits, index)) + 1),
-      );
-      Bytes.to_string(digits);
-    };
-  carry(Bytes.length(digits) - 1);
-};
 let init = (~id, ~open_, ~appear=false, ()) => {
   id,
   phase: open_ ? appear ? Entering : Open : Closed,
   initial_frame: open_ && appear,
-  generation: "0",
+  generation: 0,
 };
 let phase = model => model.phase;
 let is_visible = model => model.phase != Closed;
@@ -59,7 +40,7 @@ let show = model =>
         ...model,
         phase: Entering,
         initial_frame: true,
-        generation: successor(model.generation),
+        generation: model.generation + 1,
       },
       Cmd.none,
     )
@@ -74,7 +55,7 @@ let hide = model =>
         ...model,
         phase: Leaving,
         initial_frame: false,
-        generation: successor(model.generation),
+        generation: model.generation + 1,
       },
       Cmd.none,
     )
@@ -83,7 +64,7 @@ let update = (msg, model) =>
   switch (msg) {
   | Painted(generation)
       when
-        String.equal(generation, model.generation)
+        generation == model.generation
         && model.phase == Entering
         && model.initial_frame => (
       {
@@ -93,7 +74,7 @@ let update = (msg, model) =>
       Cmd.none,
       [],
     )
-  | Finished(generation) when String.equal(generation, model.generation) =>
+  | Finished(generation) when generation == model.generation =>
     switch (model.phase) {
     | Entering when !model.initial_frame => (
         {
@@ -132,7 +113,7 @@ let subscriptions = model =>
         ++ ":"
         ++ model.id
         ++ ":"
-        ++ model.generation
+        ++ string_of_int(model.generation)
         ++ (initial ? ":paint" : ":wait"),
       ~tagger=message => message,
       ~start=

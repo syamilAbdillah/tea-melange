@@ -5,30 +5,7 @@ module D = Decode;
 module Browser = Tea_browser.Browser_dom;
 module Events = Tea_browser.Browser_events;
 module Platform = Tea_dom.Browser_platform;
-module B = {
-  type timer;
-  external timeout: (unit => unit, int) => timer = "setTimeout";
-  external clear: timer => unit = "clearTimeout";
-  [@mel.scope "performance"] external now: unit => float = "now";
-  external document: Dom.document = "document";
-  [@mel.get] external hidden: Dom.document => bool = "hidden";
-  [@mel.send]
-  external find: (Dom.document, string) => Js.Nullable.t(Dom.node) =
-    "getElementById";
-  [@mel.send] external contains: (Dom.node, Dom.node) => bool = "contains";
-  [@mel.get] external target: Dom.event => Js.Nullable.t(Dom.node) = "target";
-  [@mel.get]
-  external related: Dom.event => Js.Nullable.t(Dom.node) = "relatedTarget";
-  [@mel.send]
-  external listen: (Dom.document, string, Dom.event => unit, bool) => unit =
-    "addEventListener";
-  [@mel.send]
-  external unlisten: (Dom.document, string, Dom.event => unit, bool) => unit =
-    "removeEventListener";
-  external raw: Dom.event => Tea_dom.Dom_decode.raw = "%identity";
-  [@mel.send] external prevent: Dom.event => unit = "preventDefault";
-  [@mel.send] external stop: Dom.event => unit = "stopPropagation";
-};
+module B = Ui_dom;
 type urgency =
   | Normal
   | Urgent;
@@ -55,8 +32,8 @@ type entry = {
   key: string,
   content_key: string,
   urgency,
-  instance: string,
-  epoch: string,
+  instance: int,
+  epoch: int,
   animation: Animation.model,
   waiting: bool,
   remaining: option(float),
@@ -70,7 +47,7 @@ type model = {
   order,
   hotkey,
   entries: list(entry),
-  serial: string,
+  serial: int,
   ready: bool,
   hovered: bool,
   focused: bool,
@@ -94,22 +71,8 @@ type msg =
   | Visible(bool)
   | Close(string, reason)
   | Activate(string)
-  | Elapsed(string, string, string)
-  | Animate(string, string, Animation.msg);
-let successor = value => {
-  let digits = Bytes.of_string(value);
-  let rec carry = i =>
-    if (i < 0) {
-      "1" ++ Bytes.to_string(digits);
-    } else if (Bytes.get(digits, i) == '9') {
-      Bytes.set(digits, i, '0');
-      carry(i - 1);
-    } else {
-      Bytes.set(digits, i, Char.chr(Char.code(Bytes.get(digits, i)) + 1));
-      Bytes.to_string(digits);
-    };
-  carry(Bytes.length(digits) - 1);
-};
+  | Elapsed(string, int, int)
+  | Animate(string, int, Animation.msg);
 let init =
     (
       ~id,
@@ -131,7 +94,7 @@ let init =
   order,
   hotkey,
   entries: [],
-  serial: "0",
+  serial: 0,
   ready: false,
   hovered: false,
   focused: false,
@@ -208,12 +171,12 @@ let settle_timers = (now, model) => {
               ...e,
               remaining: Some(max(0., remaining -. max(0., now -. since))),
               since: None,
-              epoch: successor(e.epoch),
+              epoch: e.epoch + 1,
             }
           | (Some(_), None, true) => {
               ...e,
               since: Some(now),
-              epoch: successor(e.epoch),
+              epoch: e.epoch + 1,
             }
           | _ => e
           };
@@ -232,14 +195,14 @@ let push =
       content_key,
     ) => {
   let rec fresh = serial => {
-    let candidate = "toast-" ++ serial;
+    let candidate = "toast-" ++ string_of_int(serial);
     Option.is_some(find(model, candidate))
-      ? fresh(successor(serial)) : (candidate, serial);
+      ? fresh(serial + 1) : (candidate, serial);
   };
   let (key, serial) =
     switch (key) {
-    | Some(key) => (key, successor(model.serial))
-    | None => fresh(successor(model.serial))
+    | Some(key) => (key, model.serial + 1)
+    | None => fresh(model.serial + 1)
     };
   let remaining =
     has_actions
@@ -257,7 +220,7 @@ let push =
               remaining,
               since: None,
               reason: None,
-              epoch: successor(e.epoch),
+              epoch: e.epoch + 1,
               animation:
                 Option.is_some(old.reason) && !e.waiting
                   ? fst(Animation.show(e.animation)) : e.animation,
@@ -273,7 +236,7 @@ let push =
           content_key,
           urgency,
           instance: serial,
-          epoch: "0",
+          epoch: 0,
           animation:
             Animation.init(
               ~id=Ui_attr.item_id(model.id, key),
@@ -320,7 +283,7 @@ let close = (model, key, reason) => {
             animation,
             reason: Some(reason),
             since: None,
-            epoch: successor(e.epoch),
+            epoch: e.epoch + 1,
           };
         } else {
           e;
@@ -483,8 +446,8 @@ let update = (message, model) => {
       switch (find(model, key)) {
       | Some(e)
           when
-            String.equal(e.instance, instance)
-            && String.equal(e.epoch, epoch)
+            e.instance == instance
+            && e.epoch == epoch
             && Option.is_some(e.since)
             && !paused(model) =>
         let (model, command) = close(model, key, Timeout);
@@ -493,7 +456,7 @@ let update = (message, model) => {
       }
     | Animate(key, instance, message) =>
       switch (find(model, key)) {
-      | Some(e) when String.equal(e.instance, instance) =>
+      | Some(e) when e.instance == instance =>
         let (animation, command, outs) =
           Animation.update(message, e.animation);
         let left = List.exists(out => out == Animation.Left, outs);
@@ -570,14 +533,7 @@ let rec scoped = (~key, sub) => {
   };
 };
 let subscriptions = model => {
-  let contains = node =>
-    switch (
-      Js.Nullable.toOption(B.find(B.document, model.id)),
-      Js.Nullable.toOption(node),
-    ) {
-    | (Some(root), Some(node)) => B.contains(root, node)
-    | _ => false
-    };
+  let contains = B.within(model.id);
   Sub.batch([
     model.ready
       ? Sub.none
@@ -633,8 +589,7 @@ let subscriptions = model => {
         ~tagger=event => event,
         ~start=
           dispatch => {
-            B.listen(B.document, "keydown", dispatch, true);
-            () => B.unlisten(B.document, "keydown", dispatch, true);
+            B.on(~capture=true, B.document, "keydown", dispatch)
           },
       ),
     ),
@@ -652,11 +607,11 @@ let subscriptions = model => {
             if (contains(B.target(event)) && !contains(B.related(event))) {
               dispatch(false);
             };
-          B.listen(B.document, "focusin", enter, true);
-          B.listen(B.document, "focusout", leave, true);
+          let off_in = B.on(~capture=true, B.document, "focusin", enter);
+          let off_out = B.on(~capture=true, B.document, "focusout", leave);
           () => {
-            B.unlisten(B.document, "focusin", enter, true);
-            B.unlisten(B.document, "focusout", leave, true);
+            off_in();
+            off_out();
           };
         },
     ),
@@ -708,9 +663,9 @@ let subscriptions = model => {
                 ~key=
                   Ui_attr.item_id(model.id, e.key)
                   ++ ":"
-                  ++ e.instance
+                  ++ string_of_int(e.instance)
                   ++ ":"
-                  ++ e.epoch,
+                  ++ string_of_int(e.epoch),
                 ~tagger=() => Elapsed(e.key, e.instance, e.epoch),
                 ~start=
                   dispatch => {
@@ -730,7 +685,7 @@ let subscriptions = model => {
                       );
                     () => {
                       live := false;
-                      B.clear(timer);
+                      B.clear_timeout(timer);
                     };
                   },
               )

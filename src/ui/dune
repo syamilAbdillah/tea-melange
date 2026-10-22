@@ -3,5 +3,5 @@
  (public_name tea.ui)
  (modes melange)
  (preprocess (pps melange.ppx))
- (private_modules ui_keyboard ui_nav ui_typeahead ui_attr)
+ (private_modules ui_keyboard ui_nav ui_typeahead ui_attr ui_dom)
  (libraries tea.core tea.vdom tea.html tea.browser melange.js))
