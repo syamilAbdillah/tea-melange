@@ -7,9 +7,30 @@ runtime now requests its draw before running commands and diffing subscriptions.
 Frame callbacks scheduled by those effects run after the DOM patch, including
 when the animator reuses a spare frame. Initialization still renders synchronously.
 
-- Add `tea.browser` post-render DOM tasks and lifecycle subscriptions, plus
-  `tea.ui` accessible headless foundations and the Button reference component.
-  Ship automatic jsdom/Chromium harnesses and runnable UI examples.
+- Add `tea.ui` accessible headless components, exposed as `Tea.Ui`: Button,
+  Input, Textarea, Checkbox, Fieldset, Switch_ (Switch), Select, Meter, Progress,
+  Nav, Disclosure, Animation, Anchor, Hover_intent, Radio_group, Tabs, Slider,
+  Calendar, Drag_and_drop, File_drop, Virtual_list, Dialog, Popover, Menu,
+  Listbox, Combobox, Tooltip, Toast and Date_picker. Applications own content,
+  styling and parent collections; stateful components expose immutable
+  submodels, mapped commands/subscriptions and semantic output messages.
+- Add `tea.browser` (`Browser_dom`, `Browser_events`, also exposed by `Tea`):
+  lazy post-render focus/blur, geometry, scrolling, native dialog and bounded
+  animation-wait tasks; lifecycle-owned key/outside-pointer, resize/scroll,
+  visibility, media-query and element-resize subscriptions, reference-counted
+  scroll locks and conditional focus restoration.
+- UI behavior: handled Escape stops at the inner overlay; native Tab traversal,
+  IME and unclaimed browser shortcuts are preserved. Modal Dialog requires
+  native `<dialog>` support; anchored top-layer popups use native Popover API
+  where available, without moving DOM nodes. Keep mounted models/subscriptions
+  through enter/leave; animation waits have a 5000 ms watchdog. Use unique ids
+  and documented part elements/handlers. Meter requires a visible label or
+  `aria_label`. Toast has **no swipe-to-dismiss** (no reserved Swipe reason);
+  action toasts persist, and finite durations are at least 5000 ms. Calendar
+  and Date_picker use parent-supplied civil dates, not the device clock.
+- Ship runnable examples for every component, the composed Fieldwork workspace
+  showcase, a complete UI guide, jsdom lifecycle/leak tests and Chromium keyboard/
+  focus/axe coverage, including nested Escape integration in the showcase.
 - Add `Sub.filter_map` for fresh, rejecting subscription taggers, and
   `Vdom.Custom_optional` for event flags without a synthetic message.
 
