@@ -74,13 +74,14 @@ type focus_target =
     readiness and completion tagger refresh for a kept key; [from] is fixed at
     start. A superseding focus movement completes false even before readiness.
     Captures activeElement synchronously on start and never overrides a focus
-    movement before the frame, including moving away and back. Removal of the
-    remembered node by render may leave focus on body and does not cancel.
-    Optional [from] restricts focus to these id subtrees (body is also allowed);
-    use an opening trigger to guard an attempt delayed by layout readiness.
+    movement before the frame, including moving away and back. Removal/recycling
+    of the remembered node by render may leave focus on body and does not cancel;
+    an explicit blur of an intact element does cancel. Optional [from] restricts
+    focus to these id subtrees (body is also allowed), for example a restoring
+    dismissal's overlay. Use [ready] to wait for opening layout readiness.
     [prevent_scroll] defaults to true. Delivers whether the target took focus,
     including false for missing targets or superseded attempts. Remove the
-    source on completion. Removal/shutdown cancels work and removes its focusin
+    source on completion. Removal/shutdown cancels work and removes its focus
     listeners immediately; no DOM state or mutable owner belongs in the model. */
 let focus:
   (

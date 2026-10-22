@@ -7,6 +7,7 @@ type model = {
   pending: bool,
   ready: bool,
   alternate: bool,
+  remove_origin: bool,
   results: list(bool),
 };
 type msg =
@@ -14,6 +15,7 @@ type msg =
   | Cancel
   | Set_ready(bool)
   | Retarget
+  | Remove_origin
   | Completed(bool);
 let start = (~target=E.Element("target"), ~ready=true, ~from=[], ()) =>
   App.element(
@@ -25,6 +27,7 @@ let start = (~target=E.Element("target"), ~ready=true, ~from=[], ()) =>
             pending: false,
             ready,
             alternate: false,
+            remove_origin: false,
             results: [],
           },
           Cmd.none,
@@ -50,6 +53,10 @@ let start = (~target=E.Element("target"), ~ready=true, ~from=[], ()) =>
               ...model,
               alternate: true,
             }
+          | Remove_origin => {
+              ...model,
+              remove_origin: true,
+            }
           | Completed(value) => {
               ...model,
               pending: false,
@@ -63,7 +70,8 @@ let start = (~target=E.Element("target"), ~ready=true, ~from=[], ()) =>
         Html.div(
           [],
           [
-            Html.button([Html.id("before")], []),
+            model.remove_origin
+              ? Html.text("") : Html.button([Html.id("before")], []),
             Html.div(
               [Html.id("root")],
               [
@@ -153,6 +161,31 @@ let completed = {
   check(
     "explicit blur to body supersedes pending focus",
     !has_focus("#target") && app.model().results == [false],
+  );
+  app.shutdown();
+  frame();
+  let app = start();
+  focus(node("#before"));
+  app.dispatch(Request);
+  /* Chrome emits this null-relatedTarget event before disconnecting/recycling
+     a focused cell; jsdom removes it silently. Exercise both phases explicitly. */
+  ignore(
+    dispatch(
+      node("#before"),
+      focus_event(
+        "focusout",
+        {
+          "bubbles": true,
+          "relatedTarget": Js.Nullable.null,
+        },
+      ),
+    ),
+  );
+  app.dispatch(Remove_origin);
+  frame();
+  check(
+    "render-induced blur and removal still repair focus",
+    has_focus("#target") && app.model().results == [true],
   );
   app.shutdown();
   frame();

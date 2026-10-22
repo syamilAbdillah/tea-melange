@@ -270,12 +270,32 @@ let focus =
         dispatch => {
           let live = ref(true);
           let moved = ref(false);
+          let blurred = ref(false);
           let remembered = Js.Nullable.toOption(B.active(B.document));
+          let original_id = Option.map(B.id, remembered);
+          let had_tabindex =
+            Option.fold(
+              ~none=false,
+              ~some=node => B.has_attr(node, "tabindex"),
+              remembered,
+            );
+          let removed_by_render = node =>
+            !B.connected(node)
+            || Option.fold(
+                 ~none=false,
+                 ~some=id => !String.equal(id, B.id(node)),
+                 original_id,
+               )
+            || had_tabindex
+            && !B.has_attr(node, "tabindex")
+            || B.matches(node, ":disabled");
           let same_active = () =>
             switch (remembered, Js.Nullable.toOption(B.active(B.document))) {
             | (None, None) => true
             | (Some(before), Some(now)) =>
-              before === now || now === B.body(B.document)
+              before === now
+              || now === B.body(B.document)
+              && (! blurred^ || removed_by_render(before))
             | _ => false
             };
           let allowed = () =>
@@ -301,7 +321,15 @@ let focus =
           let stop_in =
             listener(B.document, "focusin", true, _ => moved := true);
           let stop_out =
-            listener(B.document, "focusout", true, _ => moved := true);
+            listener(B.document, "focusout", true, event =>
+              if (Js.testAny(B.get(event, "relatedTarget"))) {
+                /* Removal/recycling can blur to body during render. Distinguish
+                   it at the attempt from an explicit blur of an intact node. */
+                blurred := true;
+              } else {
+                moved := true;
+              }
+            );
           let stop = () => {
             stop_in();
             stop_out();

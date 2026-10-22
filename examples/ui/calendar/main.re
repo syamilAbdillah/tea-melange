@@ -285,7 +285,15 @@ let () =
       ~init=() => (initial(), Cmd.none),
       ~update,
       ~view,
-      ~subscriptions=_ => Sub.none,
+      ~subscriptions=
+        m =>
+          Sub.batch([
+            Sub.map(
+              msg => Calendar(false, msg),
+              C.subscriptions(m.calendar),
+            ),
+            Sub.map(msg => Calendar(true, msg), C.subscriptions(m.rtl)),
+          ]),
       ~node="#app",
       ~flags=(),
       (),
