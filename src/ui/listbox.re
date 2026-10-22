@@ -5,21 +5,7 @@ module Sub = Tea_core.Sub;
 module D = Tea_core.Decode;
 module Dom = Tea_browser.Browser_dom;
 module Events = Tea_browser.Browser_events;
-/* Browser_dom.focus has no cancellation handle. These private bindings allow
-   runtime-owned, guarded post-render focus. No runtime cells enter the model. */
-module Native = {
-  type element;
-  type document;
-  external document: document = "document";
-  [@mel.send]
-  external find: (document, string) => Js.Nullable.t(element) =
-    "getElementById";
-  [@mel.send]
-  external focus: (element, {. "preventScroll": bool }) => unit = "focus";
-};
 type focus_lease = {
-  live: ref(bool),
-  epoch: ref(int),
   opened: ref(bool),
   restore: ref(bool),
 };
@@ -32,33 +18,14 @@ let lease_for = id =>
     ((key, lease)) => String.equal(key, id) ? Some(lease) : None,
     focus_leases^,
   );
-let policy = (id, epoch, opened, restore) =>
+let policy = (id, opened, restore) =>
   Cmd.effect(_ =>
     Option.iter(
       lease => {
-        lease.epoch := epoch;
         lease.opened := opened;
         lease.restore := restore;
       },
       lease_for(id),
-    )
-  );
-let focus_if = (owner, epoch, opened, id) =>
-  Cmd.effect(_ =>
-    Option.iter(
-      lease => {
-        /* Capture this actual lease, not just its id: a later mounted instance
-           may reuse the prefix, but cannot revive this stopped callback. */
-        Tea_dom.Browser_platform.request_animation_frame(_ =>
-          if (lease.live^ && lease.epoch^ == epoch && lease.opened^ == opened) {
-            Option.iter(
-              element => Native.focus(element, { "preventScroll": true }),
-              Js.Nullable.toOption(Native.find(Native.document, id)),
-            );
-          }
-        )
-      },
-      lease_for(owner),
     )
   );
 /* restore_focus owns no listeners: its disposer is the restoration itself.
@@ -107,6 +74,7 @@ type model = {
 };
 type msg =
   | Trigger
+  | Focused(int)
   | Key(bool, Ui_keyboard.event)
   | Point(string)
   | Select(string)
@@ -268,19 +236,9 @@ let open_ = (~items, ~last=false, model) =>
     (
       next,
       Cmd.batch([
-        policy(model.id, next.focus_epoch, true, true),
+        policy(model.id, true, true),
         Cmd.map(m => Anchored(m), ac),
         Cmd.map(m => Animated(m), an),
-        /* A retained position is already visible on a leave reversal. Initial
-           opening waits for Positioned so visibility:hidden cannot eat focus. */
-        Option.is_some(Anchor.position(anchor))
-          ? focus_if(
-              model.id,
-              next.focus_epoch,
-              true,
-              part(model, "listbox"),
-            )
-          : Cmd.none,
         scroll(next),
       ]),
     );
@@ -294,22 +252,14 @@ let close = (~return_focus=false, model) =>
       {
         ...model,
         animation,
-        focus_pending: false,
+        focus_pending: return_focus,
         focus_epoch: model.focus_epoch + 1,
         return_focus,
         search: Ui_typeahead.empty,
       },
       Cmd.batch([
-        policy(model.id, model.focus_epoch + 1, false, return_focus),
+        policy(model.id, false, return_focus),
         Cmd.map(m => Animated(m), command),
-        return_focus && is_open(model)
-          ? focus_if(
-              model.id,
-              model.focus_epoch + 1,
-              false,
-              part(model, "button"),
-            )
-          : Cmd.none,
       ]),
     );
   };
@@ -429,36 +379,24 @@ let update = (~items, message, original) => {
         left ? [Closed] : [],
       );
     | Anchored(message) =>
-      let (anchor, command, outs) = Anchor.update(message, model.anchor);
-      let positioned =
-        List.exists(
-          out =>
-            switch (out) {
-            | Anchor.Positioned(position) => !position.reference_hidden
-            | _ => false
-            },
-          outs,
-        );
-      let focus = positioned && model.focus_pending && is_open(model);
+      let (anchor, command, _) = Anchor.update(message, model.anchor);
       (
         {
           ...model,
           anchor,
-          focus_pending: model.focus_pending && !focus,
         },
-        Cmd.batch([
-          Cmd.map(m => Anchored(m), command),
-          focus
-            ? focus_if(
-                model.id,
-                model.focus_epoch,
-                true,
-                part(model, "listbox"),
-              )
-            : Cmd.none,
-        ]),
+        Cmd.map(m => Anchored(m), command),
         [],
       );
+    | Focused(epoch) when epoch == model.focus_epoch => (
+        {
+          ...model,
+          focus_pending: false,
+        },
+        Cmd.none,
+        [],
+      )
+    | Focused(_) => (model, Cmd.none, [])
     | Blur(target)
         when
           !is_open(model)
@@ -577,8 +515,6 @@ let subscriptions = model =>
           ~start=
             _ => {
               let lease = {
-                live: ref(true),
-                epoch: ref(model.focus_epoch),
                 opened: ref(is_open(model)),
                 restore: ref(model.return_focus),
               };
@@ -594,7 +530,6 @@ let subscriptions = model =>
                   ()
                 );
               () => {
-                lease.live := false;
                 focus_leases :=
                   List.filter(
                     ((id, _)) => !String.equal(id, model.id),
@@ -608,6 +543,27 @@ let subscriptions = model =>
                 };
               };
             },
+        )
+      : Sub.none,
+    model.focus_pending
+    && (
+      !is_open(model)
+      || Option.fold(
+           ~none=false,
+           ~some=position => !position.Anchor.reference_hidden,
+           Anchor.position(model.anchor),
+         )
+    )
+      ? Events.focus(
+          ~key=
+            "Listbox:" ++ model.id ++ ":" ++ string_of_int(model.focus_epoch),
+          ~target=
+            Events.Element(
+              part(model, is_open(model) ? "listbox" : "button"),
+            ),
+          ~from=[part(model, "button"), part(model, "listbox")],
+          _ =>
+          Focused(model.focus_epoch)
         )
       : Sub.none,
     is_open(model)

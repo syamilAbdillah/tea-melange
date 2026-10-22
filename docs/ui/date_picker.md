@@ -306,3 +306,10 @@ selection, exact open/closed ARIA snapshots, typed input/errors/constraints,
 confirm/cancel, custom formatting, successful form controls, read-only/disabled,
 nested Escape layering, input-group alignment, viewport-edge flip/shift,
 text-input outside dismissal, unmount and unfiltered axe in each meaningful state.
+
+Initial date focus waits for visible positioning and only proceeds while focus
+remains at the Choose button, date input, existing panel, or body. A focus move
+before the focus frame supersedes it. If initial focus is skipped, the opening
+is dismissed with `Closed(Outside)` and never activates its modal focus boundary.
+The boundary and live instructions become active only after initial focus succeeds.
+Return focus is also cancellable and does not override a later focus destination.

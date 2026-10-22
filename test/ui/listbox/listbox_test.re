@@ -797,6 +797,8 @@ let completed = {
         },
         () => {
           check("shift Tab preserves focus", has_focus("#outside"));
+          /* Explicitly start the next opening from its own trigger. */
+          focus(node("#test-button"));
           app.dispatch(Open(false));
         },
         () => {
@@ -864,6 +866,20 @@ let completed = {
             "replacement cleanup",
             listener_count() == 0 && Tea_dom.Debug.active_listeners() == 0,
           );
+          let fresh = mount(false);
+          focus(node("#test-button"));
+          fresh.dispatch(Open(false));
+          focus(node("#outside"));
+          replacement := Some(fresh);
+        },
+        () => {
+          check(
+            "opening readiness never steals moved focus",
+            has_focus("#outside"),
+          );
+          Option.iter(app => app.Tea_core.Runtime.shutdown(), replacement^);
+        },
+        () => {
           report("listbox");
         },
       ];

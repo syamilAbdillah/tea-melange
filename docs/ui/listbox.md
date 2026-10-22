@@ -275,3 +275,9 @@ and iframe limitations apply. Without Popover API support, fixed-position panels
 cannot escape transformed/clipping ancestors. Animation's 5000ms watchdog bounds
 paused/infinite transitions. The parent supplies missing-opener focus fallbacks,
 form reset and a synchronous active-row pinning contract when virtualizing.
+
+Opening focus waits for a visible Anchor position and is owned by a cancellable
+subscription. It only proceeds from the trigger, the popup, or body, and a focus
+movement before its frame supersedes it. Return-focus requests use the same
+ownership and generation checks. Tab/outside dismissal cancels pending work;
+shutdown restoration retains its separate opener lease.

@@ -1012,6 +1012,46 @@ let completed = {
     P.phase(app.model().picker) == Ui.Animation.Entering,
   );
   stop(app);
+  let app = start();
+  layout();
+  focus(node(trigger));
+  ignore(
+    dispatch(
+      node(trigger),
+      event(
+        "click",
+        {
+          "bubbles": true,
+          "cancelable": true,
+        },
+      ),
+    ),
+  );
+  focus(node("#outside"));
+  settle();
+  check("opening readiness never steals moved focus", has_focus("#outside"));
+  check(
+    "abandoned opening removes modal semantics",
+    !P.is_open(app.model().picker) && latest(app) == P.Closed(P.Outside),
+  );
+  focus(node(trigger));
+  app.dispatch(Open);
+  flush();
+  focus(node("#outside"));
+  settle();
+  check(
+    "opening focus frame never steals moved focus",
+    has_focus("#outside"),
+  );
+  focus(node(trigger));
+  app.dispatch(Open);
+  focus(node(input));
+  settle();
+  check(
+    "opening never steals focus moved back to its input",
+    has_focus(input) && !P.is_open(app.model().picker),
+  );
+  stop(app);
   let app = start(~top_layer=true, ());
   layout();
   check(

@@ -749,6 +749,49 @@ let completed = {
   );
   stop(app);
   let app = start();
+  focus(node("#test-control"));
+  ignore(
+    dispatch(
+      node("#test-toggle"),
+      event(
+        "click",
+        {
+          "bubbles": true,
+          "cancelable": true,
+        },
+      ),
+    ),
+  );
+  focus(node("#outside"));
+  settle();
+  check(
+    "toggle deferred focus never steals moved focus",
+    has_focus("#outside"),
+  );
+  stop(app);
+  let app = start();
+  focus(node("#test-toggle"));
+  ignore(
+    dispatch(
+      node("#test-toggle"),
+      event(
+        "click",
+        {
+          "bubbles": true,
+          "cancelable": true,
+        },
+      ),
+    ),
+  );
+  focus(node("#outside"));
+  focus(node("#test-toggle"));
+  settle();
+  check(
+    "toggle ignores an away-and-back focus journey",
+    has_focus("#test-toggle"),
+  );
+  stop(app);
+  let app = start();
   app.dispatch(Open);
   app.shutdown();
   settle();

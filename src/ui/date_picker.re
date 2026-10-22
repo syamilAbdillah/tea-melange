@@ -62,7 +62,7 @@ type msg =
   | Accept
   | Calendar(Calendar.msg)
   | Popover(Popover.msg)
-  | Focus_finished(int);
+  | Focus_finished(int, bool);
 type model = {
   id: string,
   value: option(date),
@@ -371,28 +371,34 @@ let update =
         outs,
       );
     (model, Cmd.map(message => Popover(message), command), notifications);
-  | Focus_finished(generation) when generation == model.generation => (
-      {
-        ...model,
-        initial_focus: false,
-        return_focus: false,
-        instructions_ready: is_open(model),
-      },
-      Cmd.none,
-      [],
-    )
-  | Focus_finished(_) => (model, Cmd.none, [])
+  | Focus_finished(generation, focused) when generation == model.generation =>
+    if (model.initial_focus && !focused && is_open(model)) {
+      /* A user who left during opening must not acquire a modal focus boundary
+         when positioning catches up. Closing also removes modal semantics. */
+      let (model, command) = close(model);
+      (model, command, [Closed(Outside)]);
+    } else {
+      (
+        {
+          ...model,
+          initial_focus: false,
+          return_focus: false,
+          instructions_ready: is_open(model) && focused,
+        },
+        Cmd.none,
+        [],
+      );
+    }
+  | Focus_finished(_, _) => (model, Cmd.none, [])
   };
-/* Private DOM capability: synchronous boundary focus and cancellable post-render
-   focus. Only subscription-local closures own live flags; the model is immutable. */
+/* Synchronous modal boundary focus. Deferred opening/return requests belong
+   to Browser_events subscriptions; no live runtime state enters the model. */
 module Native = {
   external document: Dom.document = "document";
   external window: Dom.window = "window";
   [@mel.send]
   external by_id: (Dom.document, string) => Js.Nullable.t(Dom.node) =
     "getElementById";
-  [@mel.get]
-  external active: Dom.document => Js.Nullable.t(Dom.node) = "activeElement";
   [@mel.get] external target: Dom.event => Js.Nullable.t(Dom.node) = "target";
   [@mel.get] external local_name: Dom.node => string = "localName";
   [@mel.send] external contains: (Dom.node, Dom.node) => bool = "contains";
@@ -449,42 +455,43 @@ let ready = model =>
        Popover.position(model.popover),
      );
 let focus_effect = model =>
+  Events.focus(
+    ~key="Date_picker:" ++ model.id ++ ":" ++ string_of_int(model.generation),
+    ~target=
+      Events.Element(
+        model.initial_focus
+          ? Ui_attr.item_id(
+              part(model, "calendar"),
+              Date.to_iso(focus_date(model)),
+            )
+          : Popover.trigger_id(model.popover),
+      ),
+    ~from=
+      model.initial_focus
+        ? [
+          Popover.trigger_id(model.popover),
+          part(model, "input-control"),
+          Popover.panel_id(model.popover),
+        ]
+        : [Popover.panel_id(model.popover)],
+    ~prevent_scroll=false,
+    focused =>
+    Focus_finished(model.generation, focused)
+  );
+/* Capture focus moves across allowed opening origins too (for example native
+   Shift+Tab from Choose back to the input) before Anchor becomes ready. Once
+   ready, Browser_events.focus owns the remaining render-to-focus interval. */
+let opening_source = model =>
   Sub.make(
-    ~home="Tea_ui.Date_picker.focus",
+    ~home="Tea_ui.Date_picker.opening",
     ~key=model.id ++ ":" ++ string_of_int(model.generation),
+    ~tagger=() => Dismiss(Outside),
     ~start=
       dispatch => {
-        let live = ref(true);
-        Browser.active_element_id(_ =>
-          if (live^) {
-            if (model.initial_focus) {
-              Option.iter(
-                Native.grid_focus,
-                Native.find(Popover.panel_id(model.popover)),
-              );
-            } else {
-              let allowed =
-                switch (Js.Nullable.toOption(Native.active(Native.document))) {
-                | None => true
-                | Some(node) =>
-                  String.equal(Native.local_name(node), "body")
-                  || Native.within(Popover.panel_id(model.popover), node)
-                };
-              if (allowed) {
-                Option.iter(
-                  Native.focus,
-                  Native.find(Popover.trigger_id(model.popover)),
-                );
-              };
-            };
-            if (live^) {
-              dispatch(Focus_finished(model.generation));
-            };
-          }
-        );
-        () => live := false;
+        let moved = _ => dispatch();
+        Native.add(Native.document, "focusin", moved, true);
+        () => Native.remove(Native.document, "focusin", moved, true);
       },
-    ~tagger=message => message,
   );
 let boundary_source = model =>
   Sub.make(
@@ -536,9 +543,12 @@ let subscriptions = model =>
       message => Popover(message),
       Popover.subscriptions(model.popover),
     ),
+    model.initial_focus && is_open(model) && !ready(model)
+      ? opening_source(model) : Sub.none,
     model.return_focus || model.initial_focus && ready(model)
       ? focus_effect(model) : Sub.none,
-    ready(model) ? boundary_source(model) : Sub.none,
+    ready(model) && model.instructions_ready
+      ? boundary_source(model) : Sub.none,
     model.return_focus
       ? Events.on_pointer_down_outside(
           ~ids=[

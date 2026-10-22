@@ -315,3 +315,9 @@ during an unfinished animation and listener/timer/observer cleanup. Chromium
 drives the actual example, verifies native caret/Tab behavior, full ARIA
 snapshots, large-list scrolling, chips, remote loading, RTL and modal Escape
 layering, with unfiltered axe checks in every meaningful state.
+
+Toggle, chip removal and multiple-selection focus requests are cancellable
+post-render subscriptions. Moving focus before the frame supersedes the request,
+including moving away and back. Close, disable, unmount and shutdown cancel a
+pending request. Inline selection ranges retain their own value/active-element
+checks and do not move focus.

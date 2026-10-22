@@ -333,3 +333,11 @@ widgets, menubars/site navigation, form integration and locale-sensitive text
 segmentation are outside this component. Applications supply focus fallbacks if
 they remove the trigger, and should test their supported screen readers/devices
 in addition to the automated Chromium accessibility checks.
+
+Opening and pointer-driven panel focus is a cancellable post-render subscription.
+It waits for a visible Anchor position, then proceeds only while focus remains
+on the trigger or the relevant parent menu branch. Moving focus elsewhere before
+positioning or before the focus frame leaves that destination alone. Each new
+request has an immutable generation; close and shutdown cancel pending work.
+Tab's synchronous navigation origin and synchronous Escape/activation return
+remain separate so native traversal starts at the correct control.
