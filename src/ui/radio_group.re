@@ -2,60 +2,7 @@ module Html = Tea_html.Html;
 module V = Tea_vdom.Vdom;
 module D = Tea_core.Decode;
 module Cmd = Tea_core.Cmd;
-/* Browser_dom.focus cannot cancel an already queued focus. A private guarded
-   equivalent uses the same post-render scheduler: superseded requests, leaving
-   the group and shutdown must not steal focus back from Tab/pointer navigation.
-   Keep this capability local until tea.browser has cancellable focus tasks. */
-module Focus_effect = {
-  type owner = {
-    serial: int,
-    mutable ticket: int,
-    mutable alive: bool,
-  };
-  let serial = ref(0);
-  let create = () => {
-    incr(serial);
-    {
-      serial: serial^,
-      ticket: 0,
-      alive: true,
-    };
-  };
-  external document: Dom.document = "document";
-  [@mel.send]
-  external by_id: (Dom.document, string) => Js.Nullable.t(Dom.element) =
-    "getElementById";
-  [@mel.send] external focus: Dom.element => unit = "focus";
-  let cancel = owner =>
-    Tea_core.Cmd.effect(_ => owner.ticket = owner.ticket + 1);
-  let command = (owner, id) =>
-    Tea_core.Cmd.effect(_ => {
-      owner.ticket = owner.ticket + 1;
-      let ticket = owner.ticket;
-      Tea_dom.Browser_platform.request_animation_frame(_ =>
-        if (owner.alive && ticket == owner.ticket) {
-          switch (Js.Nullable.toOption(by_id(document, id))) {
-          | None => ()
-          | Some(element) => focus(element)
-          };
-        }
-      );
-    });
-  let subscription = (owner, id) =>
-    Tea_core.Sub.make(
-      ~home="Tea_ui.radio_group.focus",
-      ~key=id ++ "-" ++ string_of_int(owner.serial),
-      ~start=
-        _ => {
-          owner.alive = true;
-          () => {
-            owner.alive = false;
-            owner.ticket = owner.ticket + 1;
-          };
-        },
-      ~tagger=msg => msg,
-    );
-};
+module Events = Tea_browser.Browser_events;
 type direction =
   | Ltr
   | Rtl;
@@ -69,7 +16,8 @@ type item = {
 };
 type model = {
   id: string,
-  focus_owner: Focus_effect.owner,
+  focus_generation: int,
+  focus_request: option(string),
   checked: option(string),
   focused: option(string),
   within: bool,
@@ -83,7 +31,8 @@ type msg =
   | Key(string, string)
   | Click(string)
   | Focus(string)
-  | Leave(option(string));
+  | Leave(option(string))
+  | Focus_finished(int);
 type out_msg =
   | Changed(string);
 type item_parts('parent) = {
@@ -150,7 +99,8 @@ let init =
     ~items,
     {
       id,
-      focus_owner: Focus_effect.create(),
+      focus_generation: 0,
+      focus_request: None,
       checked,
       focused: checked,
       within: false,
@@ -163,14 +113,17 @@ let init =
   );
 let checked = (model: model) => model.checked;
 let focused = (model: model) => model.focused;
-let focus_cmd = (model, key) =>
-  Focus_effect.command(
-    model.focus_owner,
-    switch (key) {
-    | None => model.id
-    | Some(key) => Ui_attr.item_id(model.id, key)
-    },
-  );
+let request_focus = (model, key) => {
+  ...model,
+  focus_generation: model.focus_generation + 1,
+  focus_request:
+    Some(
+      switch (key) {
+      | None => model.id
+      | Some(key) => Ui_attr.item_id(model.id, key)
+      },
+    ),
+};
 let repair_state = (~items, ~force, model) => {
   let repaired = normalize(~items, model);
   let repair_focus =
@@ -180,8 +133,8 @@ let repair_state = (~items, ~force, model) => {
     pending: repair_focus ? repaired.focused : model.pending,
   };
   (
-    repaired,
-    repair_focus ? focus_cmd(repaired, repaired.focused) : Cmd.none,
+    repair_focus ? request_focus(repaired, repaired.focused) : repaired,
+    Cmd.none,
   );
 };
 let reconcile = (~items, model) => repair_state(~items, ~force=true, model);
@@ -209,7 +162,7 @@ let configure =
     focused,
     pending: model.within ? focused : None,
   };
-  (model, model.within ? focus_cmd(model, focused) : Cmd.none);
+  (model.within ? request_focus(model, focused) : model, Cmd.none);
 };
 let set_checked = (~items, key, model) => {
   let model =
@@ -221,7 +174,7 @@ let set_checked = (~items, key, model) => {
         focused: key,
       },
     );
-  (model, model.within ? focus_cmd(model, model.focused) : Cmd.none);
+  (model.within ? request_focus(model, model.focused) : model, Cmd.none);
 };
 let step = (model, key) =>
   switch (key) {
@@ -243,8 +196,8 @@ let update = (~items, msg, original) => {
       checked: changed ? key : model.checked,
     };
     (
-      model,
-      Cmd.batch([repair, move ? focus_cmd(model, key) : Cmd.none]),
+      move ? request_focus(model, key) : model,
+      repair,
       changed
         ? switch (key) {
           | Some(key) => [Changed(key)]
@@ -285,15 +238,14 @@ let update = (~items, msg, original) => {
           ...model,
           within: false,
           pending: None,
+          focus_request: None,
           focused:
             switch (model.checked) {
             | Some(_) => model.checked
             | None => key_at(items, Ui_nav.first(flags(items)))
             },
         },
-      inside
-        ? repair
-        : Cmd.batch([repair, Focus_effect.cancel(model.focus_owner)]),
+      repair,
       [],
     );
   | Key(source, key)
@@ -313,11 +265,35 @@ let update = (~items, msg, original) => {
       choose(~move=false, model.focused)
     | None => (model, repair, [])
     }
+  | Focus_finished(generation) when generation == model.focus_generation => (
+      {
+        ...model,
+        focus_request: None,
+        pending: None,
+      },
+      repair,
+      [],
+    )
   | _ => (model, repair, [])
   };
 };
 let subscriptions = model =>
-  Focus_effect.subscription(model.focus_owner, model.id);
+  switch (model.focus_request) {
+  | Some(target) when model.within =>
+    Events.focus(
+      ~key=
+        string_of_int(String.length(model.id))
+        ++ ":"
+        ++ model.id
+        ++ ":"
+        ++ string_of_int(model.focus_generation),
+      ~target=Events.Element(target),
+      ~from=[model.id],
+      _ =>
+      Focus_finished(model.focus_generation)
+    )
+  | _ => Tea_core.Sub.none
+  };
 let view =
     (
       ~model,

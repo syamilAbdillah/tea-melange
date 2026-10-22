@@ -239,8 +239,14 @@ let completed = {
   );
   /* Intents are dispatched from the same stale rendered node, without a frame. */
   let before = List.length(app.model().out);
+  let prior_model = app.model().group;
+  let prior_snapshot = Js.Json.stringifyAny(prior_model);
   ignore(key("#r-item-a", "keydown", "ArrowRight"));
   ignore(key("#r-item-a", "keydown", "ArrowRight"));
+  check(
+    "updates never mutate a prior model",
+    Js.Json.stringifyAny(prior_model) == prior_snapshot,
+  );
   check(
     "batched latest selection",
     selection() == Some("d") && List.length(app.model().out) == before + 2,

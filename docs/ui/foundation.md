@@ -84,6 +84,10 @@ let on_visibility_change: (bool => 'msg) => Sub.t('msg);
 let on_element_resize: (~id: string, element_size => 'msg) => Sub.t('msg);
 let on_media_query: (~query: string, bool => 'msg) => Sub.t('msg);
 let scroll_lock: (~key: string) => Sub.t('msg);
+type focus_target = Element(string) | First_tabbable(string) | Last_tabbable(string);
+let focus:
+  (~key: string, ~target: focus_target, ~from: list(string)=?,
+   ~prevent_scroll: bool=?, bool => 'msg) => Sub.t('msg);
 let restore_focus: (~key: string, ~within: string=?, unit) => Sub.t('msg);
 ```
 
@@ -107,6 +111,18 @@ feature heuristic), restoring scroll coordinates afterwards. Other platforms do
 not need that hack. Do not mutate owned inline styles while locked. Restoration
 also flushes Chromium's lazy CSSOM empty-attribute serialization so an absent
 style attribute remains absent, not `style=""`.
+
+`focus` performs one cancellable post-render attempt. Put the owner id and an
+immutable request generation in `key`, and remove the subscription on completion.
+It captures focus immediately on start, observes intervening focusin/focusout,
+and will not override an intentional focus movement (including away and back).
+Render-induced loss to body can be repaired. Optional `from` limits the origin
+to the supplied id subtrees or body, so waiting for Anchor readiness cannot steal
+focus after a user has left the opening trigger. The completion boolean says
+whether the resolved target took focus; missing targets complete false. Stopping
+or shutdown removes both listeners immediately and suppresses work/completion.
+Mutable cancellation cells belong only to the source's start closure, never to
+component models. `Radio_group` and `Tabs` use immutable request generations.
 
 Focus return remembers the element on subscription start, before the opening
 render. Stop waits for the closing render, then restores only a connected

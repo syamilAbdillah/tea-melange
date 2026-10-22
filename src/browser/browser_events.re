@@ -251,6 +251,94 @@ let scroll_lock = (~key) =>
         },
     ),
   );
+type focus_target =
+  | Element(string)
+  | First_tabbable(string)
+  | Last_tabbable(string);
+let focus = (~key, ~target, ~from=[], ~prevent_scroll=true, tagger) =>
+  Sub.make(
+    ~home="Browser_events.focus",
+    ~key,
+    ~tagger,
+    ~start=dispatch => {
+      let live = ref(true);
+      let moved = ref(false);
+      let remembered = Js.Nullable.toOption(B.active(B.document));
+      let same_active = () =>
+        switch (remembered, Js.Nullable.toOption(B.active(B.document))) {
+        | (None, None) => true
+        | (Some(before), Some(now)) =>
+          before === now || now === B.body(B.document)
+        | _ => false
+        };
+      let allowed = () =>
+        List.is_empty(from)
+        || (
+          switch (Js.Nullable.toOption(B.active(B.document))) {
+          | None => true
+          | Some(now) =>
+            now === B.body(B.document)
+            || List.exists(
+                 id =>
+                   switch (B.find(id)) {
+                   | Some(root) => B.contains(root, now)
+                   | None => false
+                   },
+                 from,
+               )
+          }
+        );
+      let initially_allowed = allowed();
+      /* Observe before render, not in the deferred callback: even an away-and-
+         back focus journey is an intentional user action that supersedes us. */
+      let stop_in = listener(B.document, "focusin", true, _ => moved := true);
+      let stop_out =
+        listener(B.document, "focusout", true, _ => moved := true);
+      let stop = () => {
+        stop_in();
+        stop_out();
+      };
+      B.after_render(() =>
+        if (live^) {
+          stop();
+          let candidate =
+            if (! moved^ && initially_allowed && same_active() && allowed()) {
+              switch (target) {
+              | Element(id) => B.find(id)
+              | First_tabbable(id) =>
+                Option.bind(B.find(id), root =>
+                  Browser_dom.first_tabbable(root)
+                )
+              | Last_tabbable(id) =>
+                Option.bind(B.find(id), root =>
+                  Browser_dom.last_tabbable(root)
+                )
+              };
+            } else {
+              None;
+            };
+          let focused =
+            switch (candidate) {
+            | Some(element)
+                when B.connected(element) && B.method_(element, "focus") =>
+              B.focus(element, { "preventScroll": prevent_scroll });
+              switch (Js.Nullable.toOption(B.active(B.document))) {
+              | Some(now) => now === element
+              | None => false
+              };
+            | _ => false
+            };
+          if (live^) {
+            dispatch(focused);
+          };
+        }
+      );
+      () => {
+        live := false;
+        stop();
+      };
+    },
+  );
 let restore_focus = (~key, ~within=?, ()) =>
   Sub.filter_map(
     _ => None,

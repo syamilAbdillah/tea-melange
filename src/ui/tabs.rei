@@ -111,13 +111,15 @@ let reconcile: (~items: array(item), model) => (model, Tea_core.Cmd.t(msg));
     focus only when already inside. No Changed output. */
 let set_selected:
   (~items: array(item), string, model) => (model, Tea_core.Cmd.t(msg));
-/** Repair and interpret intent; commands move focus after rendering.
+/** Repair and interpret intent; subscriptions move focus after rendering.
     Emits Changed only for actual user selection changes. */
 let update:
   (~items: array(item), msg, model) =>
   (model, Tea_core.Cmd.t(msg), list(out_msg));
-/** Lifecycle-only subscription, with no global listeners. Always map this
-    subscription into the parent: stopping cancels queued focus effects. */
+/** Execute immutable generation-keyed focus requests after render. Always map
+    this subscription into the parent: stopping cancels queued work. Temporary
+    document focus listeners protect intervening user navigation and are removed
+    on completion, removal or shutdown. */
 let subscriptions: model => Tea_core.Sub.t(msg);
 /** Render through parent-typed parts. By default root references visible label;
     aria_label instead supplies a direct accessible name. Keep_mounted is the

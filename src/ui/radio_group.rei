@@ -105,13 +105,15 @@ let reconcile: (~items: array(item), model) => (model, Tea_core.Cmd.t(msg));
 let set_checked:
   (~items: array(item), option(string), model) =>
   (model, Tea_core.Cmd.t(msg));
-/** Reconcile then interpret intent. All focus commands run after render.
+/** Reconcile then interpret intent. Focus subscriptions run after render.
     Changed is emitted exactly once per actual user selection change. */
 let update:
   (~items: array(item), msg, model) =>
   (model, Tea_core.Cmd.t(msg), list(out_msg));
-/** Lifecycle-only subscription, with no global listeners. Always map this
-    subscription into the parent: stopping cancels queued focus effects. */
+/** Execute immutable generation-keyed focus requests after render. Always map
+    this subscription into the parent: stopping cancels queued work. Temporary
+    document focus listeners protect intervening user navigation and are removed
+    on completion, removal or shutdown. */
 let subscriptions: model => Tea_core.Sub.t(msg);
 /** Render the repaired state through parts. Apply root and visible label.
     description defaults false; required/invalid default false. Required is
