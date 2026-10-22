@@ -39,7 +39,6 @@ type reason =
   | Timeout
   | Close_button
   | Action
-  | Swipe
   | Escape
   | Programmatic;
 type out_msg =

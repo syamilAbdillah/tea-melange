@@ -198,7 +198,6 @@ type reason =
   | Timeout
   | Close_button
   | Action
-  | Swipe
   | Escape
   | Programmatic;
 type out_msg =
@@ -288,8 +287,8 @@ or other component source was changed.
 
 **Swipe is explicitly omitted**, rather than shipping partial pointer capture,
 threshold or cancellation behavior. No data-swipe or --tea-toast-swipe-x/y are
-emitted. Swipe remains a reserved reason for API compatibility; this
-implementation never emits it. Hover-expanded stacking is also omitted.
+emitted, and the reason type contains only implemented dismissal sources.
+Hover-expanded stacking is also omitted.
 DOM ids/focus are document-local, not shadow-root or iframe aware.
 Animation's inherited 5000ms watchdog can end deliberately paused/infinite or
 longer visual transitions; no Animation defect or missing capability was found.
