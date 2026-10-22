@@ -1065,6 +1065,30 @@ let completed = {
     has_focus("body") && !P.is_open(app.model().picker),
   );
   stop(app);
+  let app = start(~readonly=true, ());
+  layout();
+  focus(node(trigger));
+  app.dispatch(Open);
+  settle();
+  ignore(
+    dispatch(
+      node(active_cell),
+      event(
+        "click",
+        {
+          "bubbles": true,
+          "cancelable": true,
+        },
+      ),
+    ),
+  );
+  focus(node("#test-cancel"));
+  settle();
+  check(
+    "calendar selection cannot steal a later Cancel focus",
+    has_focus("#test-cancel") && P.is_open(app.model().picker),
+  );
+  stop(app);
   let app = start();
   layout();
   focus(node("#outside"));

@@ -32,7 +32,11 @@ export async function pressKeys(page, ...keys) {
 }
 
 export async function assertFocus(page, selector) {
-  assert.equal(await page.locator(selector).evaluate(element => element === document.activeElement), true, 'Expected focus: ' + selector);
+  const state = await page.locator(selector).evaluate(element => ({
+    matches: element === document.activeElement,
+    actual: document.activeElement?.outerHTML,
+  }));
+  assert.equal(state.matches, true, 'Expected focus: ' + selector + '; actual: ' + state.actual);
 }
 
 /** Compare exact normalized Playwright YAML, scoped to the supplied locator. */

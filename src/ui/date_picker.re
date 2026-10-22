@@ -514,10 +514,12 @@ let boundary_source = model =>
   );
 let subscriptions = model =>
   Sub.batch([
-    Sub.map(
-      message => Calendar(message),
-      Calendar.subscriptions(model.calendar),
-    ),
+    is_open(model)
+      ? Sub.map(
+          message => Calendar(message),
+          Calendar.subscriptions(model.calendar),
+        )
+      : Sub.none,
     Sub.map(
       message => Popover(message),
       Popover.subscriptions(model.popover),

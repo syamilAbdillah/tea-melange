@@ -314,3 +314,5 @@ or explicit blur before the focus frame supersedes it. If initial focus is skipp
 the opening is dismissed with `Closed(Outside)` and never activates its modal focus boundary.
 The boundary and live instructions become active only after initial focus succeeds.
 Return focus is also cancellable and does not override a later focus destination.
+Calendar navigation/selection focus repairs use the same ownership, so clicking
+an unavailable date cannot steal focus from a later Cancel/OK interaction.

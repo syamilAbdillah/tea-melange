@@ -60,4 +60,20 @@ export async function run(context) {
       await page.close();
     }
   }
+  // Selection of an unavailable cell still repairs grid focus, but its queued
+  // repair must not override a user who has already moved to Cancel.
+  const page = await openExample(context, 'date_picker');
+  await page.locator('#range-trigger').click();
+  await page.waitForFunction(() => document.activeElement.id === 'range-calendar-item-2026-03-05'
+    && document.querySelector('#range-instructions').textContent.length > 0);
+  await page.keyboard.press('ArrowRight'); await frames(page);
+  await page.keyboard.press('ArrowRight'); await frames(page);
+  await holdFrames(page);
+  await page.locator('#range-calendar-item-2026-03-07').evaluate(e => e.dispatchEvent(new MouseEvent('click', {bubbles:true, cancelable:true})));
+  await page.locator('#range-cancel').focus();
+  await releaseFrames(page);
+  await assertFocus(page, '#range-cancel');
+  await page.keyboard.press('Tab'); await frames(page);
+  await assertFocus(page, '#range-calendar-item-2026-03-07');
+  await page.close();
 }
