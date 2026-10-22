@@ -27,13 +27,18 @@ type model = {
   opened: bool,
   hover: Hover_intent.model,
   animation: Animation.model,
+  /* Immediate takeover suppresses the leave without resetting generations. */
+  immediate_closed: bool,
   anchor: Anchor.model,
 };
 let trigger_id = model => Ui_attr.part_id(model.id, "trigger");
 let tooltip_id = model => Ui_attr.part_id(model.id, "tooltip");
 let is_open = model => model.opened;
-let is_visible = model => Animation.is_visible(model.animation);
-let phase = model => Animation.phase(model.animation);
+let is_visible = model =>
+  !model.immediate_closed && Animation.is_visible(model.animation);
+let phase = model =>
+  model.immediate_closed
+    ? Animation.Closed : Animation.phase(model.animation);
 let position = model => Anchor.position(model.anchor);
 let disabled = model => model.disabled;
 let init =
@@ -61,6 +66,7 @@ let init =
   hover: Hover_intent.init(~open_delay_ms, ~close_delay_ms, ()),
   animation:
     Animation.init(~id=Ui_attr.part_id(id, "tooltip"), ~open_=false, ()),
+  immediate_closed: false,
   anchor:
     Anchor.init(
       ~anchor_id=Ui_attr.part_id(id, "trigger"),
@@ -87,6 +93,7 @@ let open_ = model =>
         opened: true,
         anchor,
         animation,
+        immediate_closed: false,
       },
       Cmd.batch([
         Cmd.map(x => Anchor(x), a),
@@ -115,6 +122,28 @@ let close = model => {
     });
   (model, Cmd.batch([Cmd.map(x => Hover(x), command), closing]));
 };
+/* Suppress the leave and stop Anchor synchronously. Retain the animation
+   model: resetting it would reuse generations on reopening, allowing an old
+   queued completion to match a new transition. Reopening reverses the retained
+   leave with a fresh generation; while suppressed, no animation source runs. */
+let close_immediately = model => {
+  let (model, command) = close(model);
+  let (anchor, stopped) = Anchor.stop(model.anchor);
+  (
+    {
+      ...model,
+      immediate_closed: true,
+      anchor,
+    },
+    Cmd.batch([command, Cmd.map(x => Anchor(x), stopped)]),
+  );
+};
+let track = (~key, out, group) =>
+  switch (out) {
+  | Opened => Hover_intent.Group.record_open(~key, group)
+  | Closed(time_stamp) =>
+    Hover_intent.Group.record_close(~key, ~time_stamp, group)
+  };
 let set_disabled = (disabled, model) => {
   let model = {
     ...model,
@@ -193,6 +222,7 @@ let update = (~group=?, message, model) =>
       Cmd.map(x => Anchor(x), command),
       [],
     );
+  | Animation(_) when model.immediate_closed => (model, Cmd.none, [])
   | Animation(message) =>
     let (animation, command, outs) =
       Animation.update(message, model.animation);
@@ -246,7 +276,9 @@ let subscriptions = model =>
       x => Hover(x),
       Hover_intent.subscriptions(~key=model.id, model.hover),
     ),
-    Sub.map(x => Animation(x), Animation.subscriptions(model.animation)),
+    model.immediate_closed
+      ? Sub.none
+      : Sub.map(x => Animation(x), Animation.subscriptions(model.animation)),
     Sub.map(x => Anchor(x), Anchor.subscriptions(model.anchor)),
     Sub.make(
       ~home="Tea_ui.Tooltip.pointer",
@@ -409,7 +441,11 @@ let view = (~model, ~to_parent, ~on_key_down=_ => None, ~to_view, ()) => {
       ],
     tooltip:
       anchor_attrs
-      @ Animation.attrs(model.animation)
+      @ Animation.attrs(
+          model.immediate_closed
+            ? Animation.init(~id=tooltip_id(model), ~open_=false, ())
+            : model.animation,
+        )
       @ hover_attrs(content_hover)
       @ [Html.role("tooltip"), Ui_attr.data_flag("open", model.opened)],
     arrow: [

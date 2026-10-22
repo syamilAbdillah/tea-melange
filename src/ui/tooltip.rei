@@ -25,8 +25,11 @@ type mode =
 type model;
 /** Opaque intent/progress messages; forward through update. */
 type msg;
-/** User-originated requested transitions. Closed carries monotonic milliseconds
-    suitable for Hover_intent.Group.record_close. Setters emit nothing. */
+/** User-originated requested transitions, emitted once each and only on an
+    actual change of requested state. Closed carries monotonic milliseconds in
+    the PointerEvent.timeStamp origin. Both exist for the parent's warm-up
+    group, keyed by the parent's own member key (see [track]). Programmatic
+    [open_], [close], [close_immediately] and [set_disabled] emit nothing. */
 type out_msg =
   | Opened
   | Closed(float);
@@ -64,15 +67,36 @@ let phase: model => Animation.phase;
 let position: model => option(Anchor.position);
 /** Whether tooltip interactions are disabled. */
 let disabled: model => bool;
-/** Open immediately unless disabled; reverse Leaving. No focus movement. */
+/** Open immediately unless disabled; reverse Leaving. No focus movement.
+    Emits nothing: if grouped, record_open with the parent's member key when
+    actually open and immediately close/forget every other visible member. */
 let open_: model => (model, Tea_core.Cmd.t(msg));
 /** Clear hover timers/focus persistence and hide. Keep subscriptions and mounted
     tooltip through Leaving; Anchor stops only after Animation.Left. */
 let close: model => (model, Tea_core.Cmd.t(msg));
+/** Close with no leave: the tooltip is hidden synchronously (phase Closed, no
+    Leaving frame), Anchor stops, hover timers and focus persistence clear. For
+    a group, call it on every other visible member when one opens so only one
+    tooltip is ever shown (an earlier member may still be Leaving, so test
+    [is_visible], not [is_open]). Emits nothing; also call
+    [Hover_intent.Group.forget]. Commit the model before unmounting. */
+let close_immediately: model => (model, Tea_core.Cmd.t(msg));
+/** Fold a notification into the parent's warm-up group for the member [key]:
+    Opened is [Group.record_open ~key], Closed(t) is
+    [Group.record_close ~key ~time_stamp:t] (which removes the member). Pass the
+    result to the next member's [update]. The stable key is unique within the
+    group; it need not equal the tooltip id. An open member warms the group
+    during its close delay; after the last close, the skip window applies.
+    This helper does not enforce exclusivity: on Opened, the parent must also
+    [close_immediately] and forget every other visible member in the same
+    update. Members closed programmatically, disabled or unmounted must be
+    removed with [Hover_intent.Group.forget ~key], which records no timestamp. */
+let track:
+  (~key: string, out_msg, Hover_intent.Group.t) => Hover_intent.Group.t;
 /** Disable atomically, cancelling intent and hiding; enabling does not open. */
 let set_disabled: (bool, model) => (model, Tea_core.Cmd.t(msg));
 /** Resolve intents using the newest state. Optional immutable warm-up group is
-    passed, never stored; record Closed timestamps in the parent's group. */
+    passed, never stored; fold the notifications into it with [track]. */
 let update:
   (~group: Hover_intent.Group.t=?, msg, model) =>
   (model, Tea_core.Cmd.t(msg), list(out_msg));
