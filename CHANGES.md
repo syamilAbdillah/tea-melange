@@ -18,14 +18,18 @@ when the animator reuses a spare frame. Initialization still renders synchronous
   lazy post-render focus/blur, geometry, scrolling, native dialog and bounded
   animation-wait tasks; lifecycle-owned key/outside-pointer, resize/scroll,
   visibility, media-query and element-resize subscriptions, reference-counted
-  scroll locks and conditional focus restoration.
+  scroll locks and conditional focus restoration. `Browser_events.focus` is a
+  generation-keyed, cancellable post-render focus subscription that yields to
+  focus the user moved in the meantime; `Browser_dom.first_tabbable` and
+  `last_tabbable` query sequential tab order synchronously.
 - UI behavior: handled Escape stops at the inner overlay; native Tab traversal,
   IME and unclaimed browser shortcuts are preserved. Modal Dialog requires
   native `<dialog>` support; anchored top-layer popups use native Popover API
   where available, without moving DOM nodes. Keep mounted models/subscriptions
   through enter/leave; animation waits have a 5000 ms watchdog. Use unique ids
-  and documented part elements/handlers. Meter requires a visible label or
-  `aria_label`. Toast has **no swipe-to-dismiss** (no reserved Swipe reason);
+  and documented part elements/handlers. Meter requires a visible label part, or
+  `~has_label=false` with a nonblank `~aria_label`. Calendar's `subscriptions`
+  now carries its focus requests and must be forwarded. Toast has **no swipe-to-dismiss** (no reserved Swipe reason);
   action toasts persist, and finite durations are at least 5000 ms. Calendar
   and Date_picker use parent-supplied civil dates, not the device clock.
 - Ship runnable examples for every component, the composed Fieldwork workspace
