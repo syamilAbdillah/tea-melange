@@ -135,12 +135,14 @@ let view = model => {
       C.view(
         ~id="default",
         ~value=0.5,
+        ~has_label=false,
+        ~aria_label="Default range",
         ~to_view=
           p =>
             Html.section(
               [],
               [
-                Html.h2(p.label, [Html.text("Default range")]),
+                Html.h2([], [Html.text("Default range")]),
                 Html.div(p.root @ [Html.class_("track")], []),
               ],
             ),

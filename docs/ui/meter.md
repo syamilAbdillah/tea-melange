@@ -55,8 +55,15 @@ No supplied thresholds means the entire range is optimum.
 ## ARIA and styling
 
 Root owns id, role=meter, aria-valuemin/max/now, optional aria-valuetext and
-aria-labelledby pointing to the label part. Always render nonempty label text
-**outside** root: range-role descendants are presentational. Do not put interactive
+aria-labelledby pointing to the label part by default (`~has_label=true`).
+This default requires nonempty label text **outside** root: range-role descendants
+are presentational. If there is no visible label, pass `~has_label=false` and
+`~aria_label="Storage used"`; this omits aria-labelledby and names the meter
+without a label element. Missing aria_label in that mode raises Invalid_argument.
+A supplied aria_label is trimmed with JavaScript trim and must be nonblank in
+either mode; empty/whitespace-only names raise Invalid_argument. When both are
+present, the visible label takes precedence. The helper cannot inspect callback
+markup: has_label must match actual label presence. Do not put interactive
 content inside root or override owned attributes. There are no event handlers.
 
 `data-state="optimum|suboptimal|critical"` is the normalized threshold state.
@@ -78,6 +85,8 @@ let parts:
   (
     ~id: string,
     ~value: float,
+    ~has_label: bool=?,
+    ~aria_label: string=?,
     ~min: float=?,
     ~max: float=?,
     ~low: float=?,
@@ -91,6 +100,8 @@ let view:
   (
     ~id: string,
     ~value: float,
+    ~has_label: bool=?,
+    ~aria_label: string=?,
     ~min: float=?,
     ~max: float=?,
     ~low: float=?,

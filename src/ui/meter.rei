@@ -4,13 +4,14 @@
     Data attributes: data-state="optimum|suboptimal|critical".
     CSS custom property --tea-meter-percent is a percentage.
     Apply root to a non-native div/span for unrestricted styling, not <meter>.
-    Render label outside root (range-role descendants are presentational). */
+    Render a nonempty label outside root (range-role descendants are
+    presentational), or set has_label=false and supply a nonblank aria_label. */
 
 /** Message-typed attributes and normalized derived state. */
 type parts('msg) = {
   /** Apply to a neutral noninteractive element; owns id, role, ARIA, state and percentage. */
   root: list(Tea_html.Html.attr('msg)),
-  /** Apply to visible label text; always render this part. */
+  /** Apply to nonempty visible label text; required when has_label=true. */
   label: list(Tea_html.Html.attr('msg)),
   /** Clamped finite value. */
   value: float,
@@ -20,7 +21,12 @@ type parts('msg) = {
   state: string,
 };
 
-/** Build attributes. Defaults: min=0, max=1.
+/** Build attributes. Defaults: min=0, max=1, has_label=true.
+    has_label=true requires rendering the label part with nonempty text outside
+    root. Set has_label=false to omit aria-labelledby; then aria_label is required.
+    aria_label is trimmed and, when supplied, must be nonblank (Invalid_argument
+    otherwise). A visible label takes precedence when both are supplied.
+    Caller markup is not inspected; has_label must match actual label presence.
     Raises Invalid_argument unless bounds are finite and min < max, including
     equal bounds (APG range invariant). NaN value becomes min; infinities clamp.
     Formatter receives the clamped value.
@@ -35,6 +41,8 @@ let parts:
   (
     ~id: string,
     ~value: float,
+    ~has_label: bool=?,
+    ~aria_label: string=?,
     ~min: float=?,
     ~max: float=?,
     ~low: float=?,
@@ -50,6 +58,8 @@ let view:
   (
     ~id: string,
     ~value: float,
+    ~has_label: bool=?,
+    ~aria_label: string=?,
     ~min: float=?,
     ~max: float=?,
     ~low: float=?,

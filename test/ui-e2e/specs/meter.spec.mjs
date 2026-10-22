@@ -2,6 +2,11 @@ import assert from 'node:assert/strict';
 import { openExample, frames, pressKeys, assertFocus, ariaSnapshot, axe } from '../lib.mjs';
 export async function run(context) {
   const page = await openExample(context, 'meter');
+  assert.equal(await page.locator('#reading').getAttribute('aria-labelledby'), 'reading-label');
+  assert.equal(await page.locator('#reading').getAttribute('aria-label'), null);
+  assert.equal(await page.locator('#default').getAttribute('aria-labelledby'), null);
+  assert.equal(await page.locator('#default').getAttribute('aria-label'), 'Default range');
+  assert.equal(await page.locator('#default-label').count(), 0);
   const reading = page.locator('#reading');
   const choose = async (id, value) => { await page.locator(id).selectOption(value); await frames(page); };
   await ariaSnapshot(page.locator('#default'), '- meter "Default range"');
