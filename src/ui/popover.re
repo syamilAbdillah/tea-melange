@@ -3,7 +3,6 @@ module V = Tea_vdom.Vdom;
 module D = Tea_core.Decode;
 module Cmd = Tea_core.Cmd;
 module Sub = Tea_core.Sub;
-module Browser = Tea_browser.Browser_dom;
 module Events = Tea_browser.Browser_events;
 type role =
   | Dialog(string)
@@ -108,8 +107,6 @@ module Native = {
   [@mel.get]
   external related: Dom.event => Js.Nullable.t(Dom.node) = "relatedTarget";
   [@mel.send] external contains: (Dom.node, Dom.node) => bool = "contains";
-  [@mel.send] external focus: Dom.node => unit = "focus";
-  [@mel.get] external local_name: Dom.node => string = "localName";
   [@mel.send]
   external add: (Dom.document, string, Dom.event => unit, bool) => unit =
     "addEventListener";
@@ -129,8 +126,6 @@ module Native = {
         ids,
       )
     };
-  /* Selection stays synchronous inside the subscription's live check. */
-  let first = root => Browser.first_tabbable(root);
 };
 let focus_source = model =>
   Sub.make(
@@ -304,54 +299,37 @@ let update = (message, model) =>
     );
   };
 let focus_effect = (model, policy) =>
-  Sub.make(
-    ~home="Tea_ui.Popover.focus_effect",
-    ~key=model.id ++ ":" ++ string_of_int(model.focus_generation),
-    ~start=
-      dispatch => {
-        let live = ref(true);
-        Browser.active_element_id(_ =>
-          if (live^) {
-            /* A restoring dismissal must not steal a subsequent intentional focus
-               destination. Outside and focus-out dismissals never request this. */
-            let allowed =
-              model.opened
-              || Native.within(
-                   [trigger_id(model), panel_id(model)],
-                   Native.active(Native.document),
-                 )
-              || (
-                switch (Js.Nullable.toOption(Native.active(Native.document))) {
-                | None => true
-                | Some(node) =>
-                  String.equal(Native.local_name(node), "body")
-                }
-              );
-            if (allowed) {
-              let target: option(Dom.node) =
-                switch (policy) {
-                | None => None
-                | Element(id) =>
-                  Js.Nullable.toOption(Native.by_id(Native.document, id))
-                | First_tabbable =>
-                  Option.bind(
-                    Js.Nullable.toOption(
-                      Native.by_id(Native.document, panel_id(model)),
-                    ),
-                    Native.first,
-                  )
-                };
-              Option.iter(Native.focus, target);
-            };
-            if (live^) {
-              dispatch(Focus_finished(model.focus_generation));
-            };
-          }
-        );
-        () => live := false;
-      },
-    ~tagger=message => message,
-  );
+  switch (policy) {
+  | None => Sub.none
+  | Element(id) =>
+    Events.focus(
+      ~key=
+        string_of_int(String.length(model.id))
+        ++ ":"
+        ++ model.id
+        ++ ":"
+        ++ string_of_int(model.focus_generation),
+      ~target=Events.Element(id),
+      ~from=
+        model.opened
+          ? [trigger_id(model)] : [trigger_id(model), panel_id(model)],
+      _ =>
+      Focus_finished(model.focus_generation)
+    )
+  | First_tabbable =>
+    Events.focus(
+      ~key=
+        string_of_int(String.length(model.id))
+        ++ ":"
+        ++ model.id
+        ++ ":"
+        ++ string_of_int(model.focus_generation),
+      ~target=Events.First_tabbable(panel_id(model)),
+      ~from=[trigger_id(model)],
+      _ =>
+      Focus_finished(model.focus_generation)
+    )
+  };
 let subscriptions = model =>
   Sub.batch([
     switch (model.focus_job) {
