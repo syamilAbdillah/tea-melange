@@ -238,6 +238,7 @@ let update = (message, model) =>
       {
         ...model,
         focus_job: None,
+        pending_focus: false,
         restore_focus: !model.opened && should_render(model),
       },
       Cmd.none,
@@ -310,9 +311,8 @@ let focus_effect = (model, policy) =>
         ++ ":"
         ++ string_of_int(model.focus_generation),
       ~target=Events.Element(id),
-      ~from=
-        model.opened
-          ? [trigger_id(model)] : [trigger_id(model), panel_id(model)],
+      ~ready=!model.pending_focus,
+      ~from=model.opened ? [] : [trigger_id(model), panel_id(model)],
       _ =>
       Focus_finished(model.focus_generation)
     )
@@ -325,17 +325,18 @@ let focus_effect = (model, policy) =>
         ++ ":"
         ++ string_of_int(model.focus_generation),
       ~target=Events.First_tabbable(panel_id(model)),
-      ~from=[trigger_id(model)],
+      ~ready=!model.pending_focus,
       _ =>
       Focus_finished(model.focus_generation)
     )
   };
 let subscriptions = model =>
   Sub.batch([
-    switch (model.focus_job) {
-    | None => Sub.none
-    | Some(policy) => focus_effect(model, policy)
-    },
+    focus_effect(
+      model,
+      model.pending_focus
+        ? model.focus_on_open : Option.value(~default=None, model.focus_job),
+    ),
     Sub.map(
       msg => Animation(msg),
       Animation.subscriptions(model.animation),

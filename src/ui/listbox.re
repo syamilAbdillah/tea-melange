@@ -546,14 +546,6 @@ let subscriptions = model =>
         )
       : Sub.none,
     model.focus_pending
-    && (
-      !is_open(model)
-      || Option.fold(
-           ~none=false,
-           ~some=position => !position.Anchor.reference_hidden,
-           Anchor.position(model.anchor),
-         )
-    )
       ? Events.focus(
           ~key=
             "Listbox:" ++ model.id ++ ":" ++ string_of_int(model.focus_epoch),
@@ -561,7 +553,16 @@ let subscriptions = model =>
             Events.Element(
               part(model, is_open(model) ? "listbox" : "button"),
             ),
-          ~from=[part(model, "button"), part(model, "listbox")],
+          ~ready=
+            !is_open(model)
+            || Option.fold(
+                 ~none=false,
+                 ~some=position => !position.Anchor.reference_hidden,
+                 Anchor.position(model.anchor),
+               ),
+          ~from=
+            is_open(model)
+              ? [] : [part(model, "button"), part(model, "listbox")],
           _ =>
           Focused(model.focus_epoch)
         )

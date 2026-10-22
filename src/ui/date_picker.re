@@ -466,36 +466,11 @@ let focus_effect = model =>
             )
           : Popover.trigger_id(model.popover),
       ),
-    ~from=
-      model.initial_focus
-        ? [
-          Popover.trigger_id(model.popover),
-          part(model, "input-control"),
-          Popover.panel_id(model.popover),
-        ]
-        : [Popover.panel_id(model.popover)],
+    ~ready=model.return_focus || ready(model),
+    ~from=model.initial_focus ? [] : [Popover.panel_id(model.popover)],
     ~prevent_scroll=false,
     focused =>
     Focus_finished(model.generation, focused)
-  );
-/* Capture moves across allowed opening origins and explicit blur to body
-   (including native Shift+Tab back to the input) before Anchor is ready. Once
-   ready, Browser_events.focus owns the remaining render-to-focus interval. */
-let opening_source = model =>
-  Sub.make(
-    ~home="Tea_ui.Date_picker.opening",
-    ~key=model.id ++ ":" ++ string_of_int(model.generation),
-    ~tagger=() => Dismiss(Outside),
-    ~start=
-      dispatch => {
-        let moved = _ => dispatch();
-        Native.add(Native.document, "focusin", moved, true);
-        Native.add(Native.document, "focusout", moved, true);
-        () => {
-          Native.remove(Native.document, "focusin", moved, true);
-          Native.remove(Native.document, "focusout", moved, true);
-        };
-      },
   );
 let boundary_source = model =>
   Sub.make(
@@ -547,9 +522,7 @@ let subscriptions = model =>
       message => Popover(message),
       Popover.subscriptions(model.popover),
     ),
-    model.initial_focus && is_open(model) && !ready(model)
-      ? opening_source(model) : Sub.none,
-    model.return_focus || model.initial_focus && ready(model)
+    model.return_focus || model.initial_focus && is_open(model)
       ? focus_effect(model) : Sub.none,
     ready(model) && model.instructions_ready
       ? boundary_source(model) : Sub.none,

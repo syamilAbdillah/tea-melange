@@ -316,9 +316,9 @@ menu and the second closes the enclosing dialog.
 Private browser bindings are confined to Menu: getElementById/focus with
 preventScroll for synchronous native-Tab origin and focus return, activeElement/
 closest/getAttribute for unmount ownership, and cancellable hover timeouts.
-Post-render focus uses a subscription-local live guard; no mutable state or DOM
-handles live in the model. No shared browser capabilities were added, and no
-Animation/Anchor changes are required.
+Post-render focus uses the shared generation-keyed `Browser_events.focus`
+source; no mutable state or DOM handles live in the model. No Animation/Anchor
+changes are required.
 
 Anchor's document-local id, shadow-root/iframe, viewport measurement and
 fixed-position fallback limitations apply. Without native Popover API support,
@@ -335,9 +335,10 @@ they remove the trigger, and should test their supported screen readers/devices
 in addition to the automated Chromium accessibility checks.
 
 Opening and pointer-driven panel focus is a cancellable post-render subscription.
-It waits for a visible Anchor position, then proceeds only while focus remains
-on the trigger or the relevant parent menu branch. Moving focus elsewhere before
-positioning or before the focus frame leaves that destination alone. Each new
+It captures the opening focus before waiting for a visible Anchor position,
+then proceeds only if focus has not moved. Programmatic openers and parent
+submenu panels follow the same rule. Moving away and back before positioning
+or before the focus frame also cancels the attempt. Each new
 request has an immutable generation; close and shutdown cancel pending work.
 Tab's synchronous navigation origin and synchronous Escape/activation return
 remain separate so native traversal starts at the correct control.

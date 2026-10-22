@@ -255,89 +255,126 @@ type focus_target =
   | Element(string)
   | First_tabbable(string)
   | Last_tabbable(string);
-let focus = (~key, ~target, ~from=[], ~prevent_scroll=true, tagger) =>
-  Sub.make(
-    ~home="Browser_events.focus",
-    ~key,
-    ~tagger,
-    ~start=dispatch => {
-      let live = ref(true);
-      let moved = ref(false);
-      let remembered = Js.Nullable.toOption(B.active(B.document));
-      let same_active = () =>
-        switch (remembered, Js.Nullable.toOption(B.active(B.document))) {
-        | (None, None) => true
-        | (Some(before), Some(now)) =>
-          before === now || now === B.body(B.document)
-        | _ => false
-        };
-      let allowed = () =>
-        List.is_empty(from)
-        || (
-          switch (Js.Nullable.toOption(B.active(B.document))) {
-          | None => true
-          | Some(now) =>
-            now === B.body(B.document)
-            || List.exists(
-                 id =>
-                   switch (B.find(id)) {
-                   | Some(root) => B.contains(root, now)
-                   | None => false
-                   },
-                 from,
-               )
-          }
-        );
-      let initially_allowed = allowed();
-      /* Observe before render, not in the deferred callback: even an away-and-
-         back focus journey is an intentional user action that supersedes us. */
-      let stop_in = listener(B.document, "focusin", true, _ => moved := true);
-      let stop_out =
-        listener(B.document, "focusout", true, _ => moved := true);
-      let stop = () => {
-        stop_in();
-        stop_out();
-      };
-      B.after_render(() =>
-        if (live^) {
-          stop();
-          let candidate =
-            if (! moved^ && initially_allowed && same_active() && allowed()) {
-              switch (target) {
-              | Element(id) => B.find(id)
-              | First_tabbable(id) =>
-                Option.bind(B.find(id), root =>
-                  Browser_dom.first_tabbable(root)
-                )
-              | Last_tabbable(id) =>
-                Option.bind(B.find(id), root =>
-                  Browser_dom.last_tabbable(root)
-                )
-              };
-            } else {
-              None;
-            };
-          let focused =
-            switch (candidate) {
-            | Some(element)
-                when B.connected(element) && B.method_(element, "focus") =>
-              B.focus(element, { "preventScroll": prevent_scroll });
-              switch (Js.Nullable.toOption(B.active(B.document))) {
-              | Some(now) => now === element
-              | None => false
-              };
+let focus =
+    (~key, ~target, ~ready=true, ~from=[], ~prevent_scroll=true, tagger) =>
+  /* A retained subscription's filter is refreshed by the runtime. Each frame
+     offers a guarded attempt to that newest filter, so readiness/target can
+     change without discarding the original focus snapshot. */
+  Sub.filter_map(
+    attempt => Option.map(tagger, attempt(ready, target, prevent_scroll)),
+    Sub.make(
+      ~home="Browser_events.focus",
+      ~key,
+      ~tagger=attempt => attempt,
+      ~start=
+        dispatch => {
+          let live = ref(true);
+          let moved = ref(false);
+          let remembered = Js.Nullable.toOption(B.active(B.document));
+          let same_active = () =>
+            switch (remembered, Js.Nullable.toOption(B.active(B.document))) {
+            | (None, None) => true
+            | (Some(before), Some(now)) =>
+              before === now || now === B.body(B.document)
             | _ => false
             };
-          if (live^) {
-            dispatch(focused);
+          let allowed = () =>
+            List.is_empty(from)
+            || (
+              switch (Js.Nullable.toOption(B.active(B.document))) {
+              | None => true
+              | Some(now) =>
+                now === B.body(B.document)
+                || List.exists(
+                     id =>
+                       switch (B.find(id)) {
+                       | Some(root) => B.contains(root, now)
+                       | None => false
+                       },
+                     from,
+                   )
+              }
+            );
+          let initially_allowed = allowed();
+          /* Observe before render, not in the deferred callback: even an away-and-
+             back focus journey is an intentional user action that supersedes us. */
+          let stop_in =
+            listener(B.document, "focusin", true, _ => moved := true);
+          let stop_out =
+            listener(B.document, "focusout", true, _ => moved := true);
+          let stop = () => {
+            stop_in();
+            stop_out();
           };
-        }
-      );
-      () => {
-        live := false;
-        stop();
-      };
-    },
+
+          let finished = ref(false);
+          /* A kept mapper may observe readiness in the same frame that produced
+             its model update, before that update has drawn. Cross one more frame
+             when readiness first becomes true so focus always follows render. */
+          let armed = ref(ready);
+          let rec tick = () =>
+            B.after_render(() =>
+              if (live^ && ! finished^) {
+                dispatch((ready, target, prevent_scroll) =>
+                  if ((!ready || ! armed^)
+                      && ! moved^
+                      && initially_allowed
+                      && same_active()
+                      && allowed()) {
+                    armed := ready;
+                    tick();
+                    None;
+                  } else {
+                    finished := true;
+                    stop();
+                    let candidate =
+                      if (! moved^
+                          && initially_allowed
+                          && same_active()
+                          && allowed()) {
+                        switch (target) {
+                        | Element(id) => B.find(id)
+                        | First_tabbable(id) =>
+                          Option.bind(B.find(id), root =>
+                            Browser_dom.first_tabbable(root)
+                          )
+                        | Last_tabbable(id) =>
+                          Option.bind(B.find(id), root =>
+                            Browser_dom.last_tabbable(root)
+                          )
+                        };
+                      } else {
+                        None;
+                      };
+                    let focused =
+                      switch (candidate) {
+                      | Some(element)
+                          when
+                            B.connected(element)
+                            && B.method_(element, "focus") =>
+                        B.focus(
+                          element,
+                          { "preventScroll": prevent_scroll },
+                        );
+                        switch (Js.Nullable.toOption(B.active(B.document))) {
+                        | Some(now) => now === element
+                        | None => false
+                        };
+                      | _ => false
+                      };
+
+                    live^ ? Some(focused) : None;
+                  }
+                );
+              }
+            );
+          tick();
+          () => {
+            live := false;
+            stop();
+          };
+        },
+    ),
   );
 let restore_focus = (~key, ~within=?, ()) =>
   Sub.filter_map(

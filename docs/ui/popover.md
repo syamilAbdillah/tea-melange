@@ -251,10 +251,11 @@ Focus containment remains a private lifecycle capability in Popover:
   The public outside source conflates pointer/focus reasons when `focus=true`.
 
 Initial/return focus uses the generation-keyed `Browser_events.focus` source.
-Its opening-origin guard permits the trigger (or body), so even with
-`close_on_focus_out=false`, a user moving focus while positioning is pending
-keeps their destination. Intervening movements after scheduling also cancel the
-attempt, including moving away and back. First-tabbable selection uses the
+It captures focus immediately when opening, waits for positioning readiness,
+and only proceeds if that focus has not moved. Arbitrary programmatic openers
+therefore retain the configured policy, while even with
+`close_on_focus_out=false`, moving focus during positioning keeps the new
+destination. Moving away and back also cancels the attempt. First-tabbable selection uses the
 shared synchronous `Browser_dom.first_tabbable` query; ordering and exclusions
 are documented in [foundation.md](foundation.md). No mutable DOM state, refs,
 subscriptions or cancellation handles are stored in the model.

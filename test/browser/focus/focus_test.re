@@ -5,13 +5,17 @@ module E = Browser_events;
 type model = {
   generation: int,
   pending: bool,
+  ready: bool,
+  alternate: bool,
   results: list(bool),
 };
 type msg =
   | Request
   | Cancel
+  | Set_ready(bool)
+  | Retarget
   | Completed(bool);
-let start = (~target=E.Element("target"), ~from=[], ()) =>
+let start = (~target=E.Element("target"), ~ready=true, ~from=[], ()) =>
   App.element(
     ~init=
       () =>
@@ -19,6 +23,8 @@ let start = (~target=E.Element("target"), ~from=[], ()) =>
           {
             generation: 0,
             pending: false,
+            ready,
+            alternate: false,
             results: [],
           },
           Cmd.none,
@@ -36,6 +42,14 @@ let start = (~target=E.Element("target"), ~from=[], ()) =>
               ...model,
               pending: false,
             }
+          | Set_ready(ready) => {
+              ...model,
+              ready,
+            }
+          | Retarget => {
+              ...model,
+              alternate: true,
+            }
           | Completed(value) => {
               ...model,
               pending: false,
@@ -45,7 +59,7 @@ let start = (~target=E.Element("target"), ~from=[], ()) =>
           Cmd.none,
         ),
     ~view=
-      _ =>
+      model =>
         Html.div(
           [],
           [
@@ -53,8 +67,14 @@ let start = (~target=E.Element("target"), ~from=[], ()) =>
             Html.div(
               [Html.id("root")],
               [
-                Html.button([Html.id("target")], []),
-                Html.button([Html.id("last")], []),
+                Html.button(
+                  [Html.id("target"), Html.disabled(!model.ready)],
+                  [],
+                ),
+                Html.button(
+                  [Html.id("last"), Html.disabled(!model.ready)],
+                  [],
+                ),
               ],
             ),
             Html.button([Html.id("outside")], []),
@@ -64,7 +84,11 @@ let start = (~target=E.Element("target"), ~from=[], ()) =>
       model =>
         model.pending
           ? E.focus(
-              ~key=string_of_int(model.generation), ~target, ~from, value =>
+              ~key=string_of_int(model.generation),
+              ~target=model.alternate ? E.Element("last") : target,
+              ~ready=model.ready,
+              ~from,
+              value =>
               Completed(value)
             )
           : Sub.none,
@@ -142,6 +166,51 @@ let completed = {
   );
   app.shutdown();
   frame();
+  let app = start(~ready=false, ());
+  focus(node("#outside"));
+  app.dispatch(Request);
+  frame();
+  check(
+    "unready attempt retains the opening focus snapshot",
+    has_focus("#outside") && app.model().results == [],
+  );
+  app.dispatch(Retarget);
+  app.dispatch(Set_ready(true));
+  frame();
+  check(
+    "kept source uses newest readiness and target",
+    has_focus("#last") && app.model().results == [true],
+  );
+  app.shutdown();
+  frame();
+  let app = start(~ready=false, ());
+  focus(node("#before"));
+  app.dispatch(Request);
+  frame();
+  focus(node("#outside"));
+  focus(node("#before"));
+  frame();
+  check(
+    "pre-readiness away-and-back movement cancels",
+    has_focus("#before") && app.model().results == [false],
+  );
+  app.dispatch(Set_ready(true));
+  frame();
+  check(
+    "later readiness cannot revive an obsolete request",
+    has_focus("#before") && app.model().results == [false],
+  );
+  app.shutdown();
+  frame();
+  let app = start(~ready=false, ());
+  app.dispatch(Request);
+  frame();
+  app.shutdown();
+  frame();
+  check(
+    "shutdown cancels readiness waits and listeners",
+    listener_count() == 0,
+  );
   let app = start(~target=E.Element("missing"), ());
   app.dispatch(Request);
   frame();

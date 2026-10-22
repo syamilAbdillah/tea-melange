@@ -273,9 +273,10 @@ capabilities in Date_picker only:
   at span boundaries. Control selection uses `Browser_dom.first_tabbable` /
   `last_tabbable`, excluding boundary spans: positive tabindex comes first,
   followed by DOM order, with the shared browser exclusions.
-- Subscription-owned, live-guarded post-render initial/return focus, using
-  Browser_dom.active_element_id as the deferred frame handoff. A generation
-  prevents stale completions; no mutable values/DOM nodes are stored in models.
+- Initial/return focus uses the shared generation-keyed `Browser_events.focus`
+  source. It captures the opening element immediately and waits for visible
+  positioning without discarding that snapshot. No mutable values or DOM nodes
+  are stored in models.
 
 Existing Calendar/Popover/Anchor/Animation bounds apply: document-local ids,
 no iframe/shadow-root traversal, no positive-tabindex reordering or generic
@@ -307,8 +308,8 @@ confirm/cancel, custom formatting, successful form controls, read-only/disabled,
 nested Escape layering, input-group alignment, viewport-edge flip/shift,
 text-input outside dismissal, unmount and unfiltered axe in each meaningful state.
 
-Initial date focus waits for visible positioning and only proceeds while focus
-remains at the Choose button, date input, existing panel, or body. A focus move
+Initial date focus captures the current element immediately, including an
+arbitrary programmatic opener, then waits for visible positioning. A focus move
 or explicit blur before the focus frame supersedes it. If initial focus is skipped,
 the opening is dismissed with `Closed(Outside)` and never activates its modal focus boundary.
 The boundary and live instructions become active only after initial focus succeeds.

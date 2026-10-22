@@ -25,7 +25,10 @@ type role =
   | Dialog(string)
   | Region
   | None;
-/** Opening focus policy; defaults to None (retain current focus). */
+/** Opening focus policy; defaults to None (retain current focus). Requests
+    capture focus at opening and wait for positioning; any intervening movement
+    cancels them even when close_on_focus_out=false. Programmatic openers work
+    from any connected control when focus remains there. */
 type focus_on_open =
   | None
   | First_tabbable

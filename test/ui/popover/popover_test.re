@@ -658,6 +658,17 @@ let completed = {
   let app =
     start(~focus_on_open=P.First_tabbable, ~close_on_focus_out=false, ());
   layout();
+  focus(node("#outside"));
+  app.dispatch(Open);
+  settle();
+  check(
+    "programmatic opening retains focus policy from an external control",
+    has_focus("#first"),
+  );
+  stop(app);
+  let app =
+    start(~focus_on_open=P.First_tabbable, ~close_on_focus_out=false, ());
+  layout();
   focus(node("#test-trigger"));
   app.dispatch(Open);
   await_position(app, 20);
@@ -676,7 +687,7 @@ let completed = {
   focus(node("#outside"));
   settle();
   check(
-    "opening origin guard survives delayed positioning",
+    "opening snapshot survives delayed positioning",
     has_focus("#outside") && P.is_open(app.model().popover),
   );
   stop(app);

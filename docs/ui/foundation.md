@@ -86,7 +86,7 @@ let on_media_query: (~query: string, bool => 'msg) => Sub.t('msg);
 let scroll_lock: (~key: string) => Sub.t('msg);
 type focus_target = Element(string) | First_tabbable(string) | Last_tabbable(string);
 let focus:
-  (~key: string, ~target: focus_target, ~from: list(string)=?,
+  (~key: string, ~target: focus_target, ~ready: bool=?, ~from: list(string)=?,
    ~prevent_scroll: bool=?, bool => 'msg) => Sub.t('msg);
 let restore_focus: (~key: string, ~within: string=?, unit) => Sub.t('msg);
 ```
@@ -116,9 +116,14 @@ style attribute remains absent, not `style=""`.
 immutable request generation in `key`, and remove the subscription on completion.
 It captures focus immediately on start, observes intervening focusin/focusout,
 and will not override an intentional focus movement (including away and back).
-Render-induced loss to body can be repaired. Optional `from` limits the origin
-to the supplied id subtrees or body, so waiting for Anchor readiness cannot steal
-focus after a user has left the opening trigger. The completion boolean says
+Render-induced loss to body can be repaired. Start the source immediately on
+opening with `ready=false`, then update `ready` after Anchor reports visibility.
+The retained source keeps the original focus snapshot and reads the latest target
+and readiness without restarting. A false-to-true readiness transition crosses
+one additional frame so its render precedes focus. Thus arbitrary programmatic
+openers still work, while moving focus during positioning cancels the request.
+Optional `from` additionally limits the origin to supplied id subtrees or body;
+its configuration is fixed for the lifetime of a key. The completion boolean says
 whether the resolved target took focus; missing targets complete false. Stopping
 or shutdown removes both listeners immediately and suppresses work/completion.
 Mutable cancellation cells belong only to the source's start closure, never to

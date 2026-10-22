@@ -67,7 +67,12 @@ type focus_target =
     Last_tabbable(string);
 /** One cancellable focus attempt after the next render. Identity:
     [("Browser_events.focus", key)]. Include an immutable generation in [key]
-    for each new request; changing configuration alone does not restart it.
+    for each new request. [ready] defaults to true; while false, each render-frame
+    checks the latest readiness without losing the opening focus snapshot. A
+    false-to-true readiness transition crosses another frame so its render lands
+    before focus. Target,
+    readiness and completion tagger refresh for a kept key; [from] is fixed at
+    start. A superseding focus movement completes false even before readiness.
     Captures activeElement synchronously on start and never overrides a focus
     movement before the frame, including moving away and back. Removal of the
     remembered node by render may leave focus on body and does not cancel.
@@ -81,6 +86,7 @@ let focus:
   (
     ~key: string,
     ~target: focus_target,
+    ~ready: bool=?,
     ~from: list(string)=?,
     ~prevent_scroll: bool=?,
     bool => 'msg

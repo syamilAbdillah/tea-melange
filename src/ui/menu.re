@@ -937,34 +937,19 @@ let subscriptions = m =>
               msg => Anchored(p.owner, msg),
               Anchor.subscriptions(p.anchor),
             ),
-            p.open_
-            && p.focus_pending
-            && (
-              switch (Anchor.position(p.anchor)) {
-              | Some(position) => !position.reference_hidden
-              | None => false
-              }
-            )
+            p.open_ && p.focus_pending
               ? Events.focus(
                   ~key=
                     panel_id(m, p.owner)
                     ++ ":"
                     ++ string_of_int(m.focus_epoch),
                   ~target=Events.Element(panel_id(m, p.owner)),
-                  ~from=
-                    [
-                      switch (p.owner) {
-                      | None => trigger_id(m)
-                      | Some(_) => panel_id(m, p.parent)
-                      },
-                    ]
-                    @ List.map(
-                        panel => panel_id(m, panel.owner),
-                        List.filter(
-                          panel => belongs(m, panel.owner, p.parent),
-                          m.panels,
-                        ),
-                      ),
+                  ~ready=
+                    Option.fold(
+                      ~none=false,
+                      ~some=position => !position.Anchor.reference_hidden,
+                      Anchor.position(p.anchor),
+                    ),
                   _ =>
                   Focused(p.owner, m.focus_epoch)
                 )

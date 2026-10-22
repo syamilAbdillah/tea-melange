@@ -1065,6 +1065,16 @@ let completed = {
     has_focus("body") && !P.is_open(app.model().picker),
   );
   stop(app);
+  let app = start();
+  layout();
+  focus(node("#outside"));
+  app.dispatch(Open);
+  settle();
+  check(
+    "programmatic opening from an external control still focuses the calendar",
+    has_focus(active_cell) && P.is_open(app.model().picker),
+  );
+  stop(app);
   let app = start(~top_layer=true, ());
   layout();
   check(
