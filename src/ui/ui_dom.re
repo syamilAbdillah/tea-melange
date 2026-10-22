@@ -13,7 +13,33 @@ let find = id => Js.Nullable.toOption(by_id(document, id));
 [@mel.get]
 external active_: Dom.document => Js.Nullable.t(Dom.node) = "activeElement";
 let active = () => Js.Nullable.toOption(active_(document));
+[@mel.get_index] external get: ('a, string) => Js.Json.t;
+let has_method = (value, name) => Js.typeof(get(value, name)) == "function";
+[@mel.get] external body: Dom.document => Dom.node = "body";
+[@mel.get] external connected: Dom.node => bool = "isConnected";
+[@mel.get] external pixel_ratio: Dom.window => float = "devicePixelRatio";
+[@mel.send] external show_popover: Dom.node => unit = "showPopover";
+[@mel.send] external hide_popover: Dom.node => unit = "hidePopover";
 [@mel.send] external contains: (Dom.node, Dom.node) => bool = "contains";
+[@mel.send] external matches: (Dom.node, string) => bool = "matches";
+[@mel.send]
+external focus_: (Dom.node, {. "preventScroll": bool }) => unit = "focus";
+let focus = (~prevent_scroll=false, node) =>
+  focus_(node, { "preventScroll": prevent_scroll });
+let is_active = node =>
+  switch (active()) {
+  | Some(active) => active === node
+  | None => false
+  };
+type rect = {
+  left: float,
+  right: float,
+  top: float,
+  bottom: float,
+  width: float,
+  height: float,
+};
+[@mel.send] external rect: Dom.node => rect = "getBoundingClientRect";
 /** Whether [node] is inside the element with [id]; false when either is missing. */
 let within = (id, node) =>
   switch (find(id), node) {
