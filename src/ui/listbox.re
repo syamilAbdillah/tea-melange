@@ -80,16 +80,10 @@ let should_render = model => Animation.should_render(model.animation);
 let selected_keys = model => model.selected;
 let active_key = model => model.active;
 let phase = model => Animation.phase(model.animation);
-let unique = keys =>
-  List.fold_left(
-    (acc, key) => List.exists(String.equal(key), acc) ? acc : acc @ [key],
-    [],
-    keys,
-  );
 let selection_keys = (multiple, keys) =>
-  switch (unique(keys)) {
-  | [] => []
-  | [first, ...rest] => multiple ? [first, ...rest] : [first]
+  switch (Ui_attr.unique_keys(keys)) {
+  | [first, _, ..._] when !multiple => [first]
+  | keys => keys
   };
 let set_selected = (keys, model) => {
   ...model,

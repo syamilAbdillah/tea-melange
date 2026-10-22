@@ -43,3 +43,12 @@ let without = (name, attrs) =>
       },
     attrs,
   );
+let unique_keys = keys =>
+  List.rev(
+    List.fold_left(
+      (seen, key) =>
+        List.exists(String.equal(key), seen) ? seen : [key, ...seen],
+      [],
+      keys,
+    ),
+  );

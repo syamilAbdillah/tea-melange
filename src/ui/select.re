@@ -44,15 +44,7 @@ let normalize = (~items, selection) => {
   | Multiple(values) =>
     Multiple(
       Array.of_list(
-        List.rev(
-          Array.fold_left(
-            (acc, key) =>
-              exists(key) && !List.exists(String.equal(key), acc)
-                ? [key, ...acc] : acc,
-            [],
-            values,
-          ),
-        ),
+        Ui_attr.unique_keys(List.filter(exists, Array.to_list(values))),
       ),
     )
   };

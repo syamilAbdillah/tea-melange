@@ -93,18 +93,9 @@ type msg =
   | Announce(string)
   | Focused(int);
 let part = (model, name) => Ui_attr.part_id(model.id, name);
-let unique = keys =>
-  List.rev(
-    List.fold_left(
-      (acc, key) =>
-        List.exists(String.equal(key), acc) ? acc : [key, ...acc],
-      [],
-      keys,
-    ),
-  );
 let selection = (~multiple, keys) =>
   multiple
-    ? unique(keys)
+    ? Ui_attr.unique_keys(keys)
     : (
       switch (keys) {
       | [] => []
@@ -356,7 +347,8 @@ let choose = (~items, key, model) =>
   switch (find(~items, key)) {
   | Some(item)
       when !item.disabled && !model.disabled && !model.readonly && model.open_ =>
-    let selected = model.multiple ? unique(model.selected @ [key]) : [key];
+    let selected =
+      model.multiple ? Ui_attr.unique_keys(model.selected @ [key]) : [key];
     let value = model.multiple ? "" : item.label;
     let outs =
       [Selected(key)]

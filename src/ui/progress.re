@@ -7,35 +7,11 @@ type parts('msg) = {
   percent: option(float),
   state: string,
 };
-let finite = value =>
-  switch (classify_float(value)) {
-  | FP_nan
-  | FP_infinite => false
-  | _ => true
-  };
 let busy = loading => Ui_attr.aria_bool("busy", loading);
 let parts = (~id, ~value=?, ~min=0., ~max=100., ~format=?, ()) => {
-  if (!finite(min) || !finite(max) || min >= max) {
-    invalid_arg("Progress: expected finite min < max");
-  };
-  let value =
-    Option.map(
-      value =>
-        classify_float(value) == FP_nan
-          ? min : value < min ? min : value > max ? max : value,
-      value,
-    );
-  let percent =
-    Option.map(
-      value =>
-        100.
-        *. (
-          finite(max -. min)
-            ? (value -. min) /. (max -. min)
-            : (value /. 2. -. min /. 2.) /. (max /. 2. -. min /. 2.)
-        ),
-      value,
-    );
+  Ui_number.check_range(~component="Progress", ~min, ~max);
+  let value = Option.map(Ui_number.clamp(~min, ~max), value);
+  let percent = Option.map(Ui_number.percent(~min, ~max), value);
   let state =
     switch (value) {
     | None => "indeterminate"

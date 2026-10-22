@@ -18,3 +18,5 @@ let item_id: (string, string) => string;
 let without:
   (string, list(Tea_html.Html.attr('msg))) =>
   list(Tea_html.Html.attr('msg));
+/** Keys without duplicates, keeping each first occurrence in order. */
+let unique_keys: list(string) => list(string);
