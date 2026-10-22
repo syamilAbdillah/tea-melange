@@ -164,11 +164,14 @@ one and restore focus into the first.
 
 ## Focus and scroll
 
-Initial focus begins immediately after showModal, not after entering completes:
+Initial focus is applied synchronously in the same frame as `showModal()`, not
+after entering completes and not in a later frame, so a Tab or click right after
+opening is never pulled back:
 
 1. Alertdialog's required least-destructive-action id takes priority.
 2. Modal's `initial_focus` id, when supplied and inside root.
-3. First tabbable, through `Browser_dom.focus_first`.
+3. First tabbable in sequential tab order (positive tabindex first, then DOM
+   order), skipping hidden, inert, disabled and unchecked radio-group members.
 4. Root itself (`tabindex=-1`) if no tabbable exists.
 
 A missing/outside/unfocusable explicit target falls back. Alertdialog callers

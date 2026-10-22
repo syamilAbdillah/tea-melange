@@ -66,7 +66,13 @@ module Browser = {
       }
     );
   };
-  let last_tabbable = root => {
+  [@mel.send]
+  external focus_without_scroll:
+    (Dom.node, {. "preventScroll": bool }) => unit =
+    "focus";
+  /* Sequential tab order: positive tabindex ascending, then tabindex 0 in DOM
+     order. [backwards] picks the last stop instead of the first. */
+  let tabbable = (~backwards, root) => {
     let radios = query_all(root, "input[type=radio]");
     let chosen = ref(None);
     Array.iter(
@@ -91,7 +97,9 @@ module Browser = {
             && visible(node)) {
           let priority = tab > 0 ? tab : max_int;
           switch (chosen^) {
-          | Some((_, previous)) when previous > priority => ()
+          | Some((_, previous))
+              when backwards ? previous > priority : previous <= priority =>
+            ()
           | _ => chosen := Some((node, priority))
           };
         };
@@ -101,11 +109,10 @@ module Browser = {
         "a[href],area[href],button,input,select,textarea,iframe,summary,[tabindex],[contenteditable]:not([contenteditable=false]),audio[controls],video[controls]",
       ),
     );
-    switch (chosen^) {
-    | Some((node, _)) => node
-    | None => root
-    };
+    Option.map(((node, _)) => node, chosen^);
   };
+  let last_tabbable = root =>
+    Option.value(~default=root, tabbable(~backwards=true, root));
   let repair_tab = (id, backwards, live) =>
     Tea_dom.Browser_platform.request_animation_frame(_ =>
       switch (
@@ -123,14 +130,8 @@ module Browser = {
         if (backwards) {
           focus(last_tabbable(root));
         } else {
-          Tea_browser.Browser_dom.focus_first(~within=id, result =>
-            switch (result) {
-            | Ok () => ()
-            | Error(_) =>
-              if (live^) {
-                focus(root);
-              }
-            }
+          focus(
+            Option.value(~default=root, tabbable(~backwards=false, root)),
           );
         }
       | _ => ()
@@ -390,34 +391,42 @@ let update = (message, model) =>
     };
     dismiss ? request(Backdrop, model) : (model, Cmd.none, []);
   };
-let initial_focus = (model, live) => {
-  let id = root_id(model);
-  let fallback = () =>
-    if (live^) {
-      Dom.focus_first(~within=id, result =>
-        if (live^) {
-          switch (result) {
-          | Ok () => ()
-          | Error(_) => Dom.focus(~prevent_scroll=true, id, _ => ())
+/* Runs synchronously in the same frame as showModal(). Deferring to a later
+   frame let a Tab pressed in between move focus, which this then stole back. */
+let initial_focus = (model, live) =>
+  if (live^) {
+    let id = root_id(model);
+    switch (Js.Nullable.toOption(Browser.find(Browser.document, id))) {
+    | None => ()
+    | Some(root) =>
+      let focus = node =>
+        Browser.focus_without_scroll(node, { "preventScroll": true });
+      let fallback = () =>
+        focus(
+          Option.value(
+            ~default=root,
+            Browser.tabbable(~backwards=false, root),
+          ),
+        );
+      let target =
+        switch (model.kind) {
+        | Alertdialog(id) => Some(id)
+        | Modal => model.initial_focus
+        };
+      switch (target) {
+      | Some(target) when Browser.inside(id, target) =>
+        switch (Js.Nullable.toOption(Browser.find(Browser.document, target))) {
+        | Some(node) =>
+          focus(node);
+          if (!Browser.focused(target)) {
+            fallback();
           };
+        | None => fallback()
         }
-      );
+      | _ => fallback()
+      };
     };
-  let target =
-    switch (model.kind) {
-    | Alertdialog(id) => Some(id)
-    | Modal => model.initial_focus
-    };
-  switch (target) {
-  | Some(target) when Browser.inside(id, target) =>
-    Dom.focus(~prevent_scroll=true, target, _ =>
-      if (live^ && !Browser.focused(target)) {
-        fallback();
-      }
-    )
-  | _ => fallback()
   };
-};
 let subscriptions = model => {
   let id = root_id(model);
   Sub.batch([

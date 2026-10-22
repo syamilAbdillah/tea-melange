@@ -593,6 +593,25 @@ let completed = {
       ("missing", "#test-dialog", false, true),
     ],
   );
+  /* Initial focus lands in the same frame as showModal(), so a Tab or click
+     right after opening is never stolen back by a deferred focus. */
+  let early = start();
+  focus(node("#opener"));
+  early.dispatch(Show);
+  let rec until_open = remaining =>
+    if (remaining > 0 && !get(node("#test-dialog"), "open")) {
+      flush();
+      until_open(remaining - 1);
+    };
+  until_open(14);
+  check(
+    "initial focus applied in the showModal frame",
+    get(node("#test-dialog"), "open") && has_focus("#first"),
+  );
+  focus(node("#save"));
+  settle();
+  check("focus moved right after opening is kept", has_focus("#save"));
+  stop(early);
   let optout = start(~close_on_backdrop=false, ());
   opened(optout);
   point("#test-dialog", "pointerdown", 5, 5);
