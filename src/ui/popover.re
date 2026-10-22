@@ -93,40 +93,8 @@ let init =
       (),
     ),
 };
-/* Focus containment cannot be expressed by tea.browser's outside source:
-   its focus=true option conflates pointerdown and focusin, losing the reason,
-   and does not observe blur() to body. This private source preserves both. */
-module Native = {
-  external document: Dom.document = "document";
-  [@mel.send]
-  external by_id: (Dom.document, string) => Js.Nullable.t(Dom.node) =
-    "getElementById";
-  [@mel.get]
-  external active: Dom.document => Js.Nullable.t(Dom.node) = "activeElement";
-  [@mel.get] external target: Dom.event => Js.Nullable.t(Dom.node) = "target";
-  [@mel.get]
-  external related: Dom.event => Js.Nullable.t(Dom.node) = "relatedTarget";
-  [@mel.send] external contains: (Dom.node, Dom.node) => bool = "contains";
-  [@mel.send]
-  external add: (Dom.document, string, Dom.event => unit, bool) => unit =
-    "addEventListener";
-  [@mel.send]
-  external remove: (Dom.document, string, Dom.event => unit, bool) => unit =
-    "removeEventListener";
-  let within = (ids, node) =>
-    switch (Js.Nullable.toOption(node)) {
-    | None => false
-    | Some(node) =>
-      List.exists(
-        id =>
-          switch (Js.Nullable.toOption(by_id(document, id))) {
-          | None => false
-          | Some(root) => contains(root, node)
-          },
-        ids,
-      )
-    };
-};
+/* Browser_events.on_pointer_down_outside(~focus=true) would conflate pointer
+   and focus departures and miss blur() to body, so focus has its own source. */
 let focus_source = model =>
   Sub.make(
     ~home="Tea_ui.Popover.focus",
@@ -137,23 +105,25 @@ let focus_source = model =>
         let ids =
           [trigger_id(model), panel_id(model)] @ model.group_triggers;
         let check = () =>
-          if (live^ && !Native.within(ids, Native.active(Native.document))) {
+          if (live^ && !Ui_dom.within_any(ids, Ui_dom.active())) {
             dispatch(Dismiss(Focus_out));
           };
         let on_in = event =>
-          if (live^ && !Native.within(ids, Native.target(event))) {
+          if (live^ && !Ui_dom.within_any(ids, Ui_dom.target(event))) {
             dispatch(Dismiss(Focus_out));
           };
         let on_out = event =>
-          if (Js.Nullable.isNullable(Native.related(event))) {
+          if (Option.is_none(Ui_dom.related(event))) {
             Tea_dom.Browser_platform.request_animation_frame(_ => check());
           };
-        Native.add(Native.document, "focusin", on_in, true);
-        Native.add(Native.document, "focusout", on_out, true);
+        let off_in =
+          Ui_dom.on(~capture=true, Ui_dom.document, "focusin", on_in);
+        let off_out =
+          Ui_dom.on(~capture=true, Ui_dom.document, "focusout", on_out);
         () => {
           live := false;
-          Native.remove(Native.document, "focusin", on_in, true);
-          Native.remove(Native.document, "focusout", on_out, true);
+          off_in();
+          off_out();
         };
       },
     ~tagger=message => message,
@@ -299,37 +269,28 @@ let update = (message, model) =>
       [],
     );
   };
-let focus_effect = (model, policy) =>
-  switch (policy) {
-  | None => Sub.none
-  | Element(id) =>
-    Events.focus(
-      ~key=
-        string_of_int(String.length(model.id))
-        ++ ":"
-        ++ model.id
-        ++ ":"
-        ++ string_of_int(model.focus_generation),
-      ~target=Events.Element(id),
-      ~ready=!model.pending_focus,
-      ~from=model.opened ? [] : [trigger_id(model), panel_id(model)],
-      _ =>
-      Focus_finished(model.focus_generation)
-    )
-  | First_tabbable =>
-    Events.focus(
-      ~key=
-        string_of_int(String.length(model.id))
-        ++ ":"
-        ++ model.id
-        ++ ":"
-        ++ string_of_int(model.focus_generation),
-      ~target=Events.First_tabbable(panel_id(model)),
-      ~ready=!model.pending_focus,
-      _ =>
-      Focus_finished(model.focus_generation)
-    )
-  };
+let focus_effect = (model, policy) => {
+  let target: option(Events.focus_target) =
+    switch ((policy: focus_on_open)) {
+    | None => None
+    | Element(id) => Some(Events.Element(id))
+    | First_tabbable => Some(Events.First_tabbable(panel_id(model)))
+    };
+  Ui_focus.sub(
+    ~home="Popover",
+    ~id=model.id,
+    ~ready=!model.pending_focus,
+    ~from=
+      model.opened || policy == First_tabbable
+        ? [] : [trigger_id(model), panel_id(model)],
+    {
+      generation: model.focus_generation,
+      target,
+    },
+    (generation, _) =>
+    Focus_finished(generation)
+  );
+};
 let subscriptions = model =>
   Sub.batch([
     focus_effect(

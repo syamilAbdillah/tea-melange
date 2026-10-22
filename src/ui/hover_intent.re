@@ -3,23 +3,6 @@ module Cmd = Tea_core.Cmd;
 module Sub = Tea_core.Sub;
 module D = Tea_core.Decode;
 module V = Tea_vdom.Vdom;
-module B = {
-  type timer;
-  external timeout: (unit => unit, int) => timer = "setTimeout";
-  external clear: timer => unit = "clearTimeout";
-  external window: Dom.window = "window";
-  external document: Dom.document = "document";
-  [@mel.scope "performance"] external now: unit => float = "now";
-  [@mel.send]
-  external listen: ('a, string, Dom.event => unit, bool) => unit =
-    "addEventListener";
-  [@mel.send]
-  external unlisten: ('a, string, Dom.event => unit, bool) => unit =
-    "removeEventListener";
-  [@mel.get]
-  external related: Dom.event => Js.Nullable.t(Dom.node) = "relatedTarget";
-  [@mel.get] external pointer_type: Dom.event => string = "pointerType";
-};
 module Group = {
   type t = {
     skip_delay_ms: int,
@@ -254,11 +237,11 @@ let update = (~disabled=false, ~group=?, msg, model) =>
 let delay = (~ms, ~cancel, done_: result(float, unit) => unit) => {
   let live = ref(true);
   let timer =
-    B.timeout(
+    Ui_dom.timeout(
       () =>
         if (live^) {
           live := false;
-          done_(Ok(B.now()));
+          done_(Ok(Ui_dom.now()));
         },
       ms,
     );
@@ -266,30 +249,9 @@ let delay = (~ms, ~cancel, done_: result(float, unit) => unit) => {
     (
       () => {
         live := false;
-        B.clear(timer);
+        Ui_dom.clear_timeout(timer);
       }
     );
-};
-/* Browser_events' global identities otherwise deduplicate across independent
-   submodels in one parent subscription tree. Scope the public Sub description
-   so every instance receives visibility changes and owns its own disposer. */
-let rec scoped = (~key, sub) => {
-  let scope = source_key =>
-    string_of_int(String.length(key)) ++ ":" ++ key ++ source_key;
-  switch (sub) {
-  | Sub.None => Sub.none
-  | Sub.Batch(subs) => Sub.batch(List.map(scoped(~key), subs))
-  | Sub.Leaf(leaf) =>
-    Sub.Leaf({
-      ...leaf,
-      key: scope(leaf.key),
-    })
-  | Sub.Filtered(leaf) =>
-    Sub.Filtered({
-      ...leaf,
-      key: scope(leaf.key),
-    })
-  };
 };
 let subscriptions = (~key, model) => {
   let timer =
@@ -298,12 +260,7 @@ let subscriptions = (~key, model) => {
     | Some(phase) =>
       Sub.make(
         ~home="Hover_intent.timer",
-        ~key=
-          string_of_int(String.length(key))
-          ++ ":"
-          ++ key
-          ++ ":"
-          ++ string_of_int(model.generation),
+        ~key=Ui_sub.prefix(key) ++ ":" ++ string_of_int(model.generation),
         ~tagger=time_stamp => Elapsed(model.generation, time_stamp),
         ~start=
           dispatch => {
@@ -341,17 +298,18 @@ let subscriptions = (~key, model) => {
           ~tagger=time_stamp => Window_left(time_stamp),
           ~start=
             dispatch => {
-              let blur = _ => dispatch(B.now());
+              let blur = _ => dispatch(Ui_dom.now());
               let out = event =>
-                if (!String.equal(B.pointer_type(event), "touch")
-                    && Js.Nullable.isNullable(B.related(event))) {
-                  dispatch(B.now());
+                if (!String.equal(Ui_dom.pointer_type(event), "touch")
+                    && Option.is_none(Ui_dom.related(event))) {
+                  dispatch(Ui_dom.now());
                 };
-              B.listen(B.window, "blur", blur, false);
-              B.listen(B.document, "pointerout", out, true);
+              let off_blur = Ui_dom.on(Ui_dom.window, "blur", blur);
+              let off_out =
+                Ui_dom.on(~capture=true, Ui_dom.document, "pointerout", out);
               () => {
-                B.unlisten(B.window, "blur", blur, false);
-                B.unlisten(B.document, "pointerout", out, true);
+                off_blur();
+                off_out();
               };
             },
         );
@@ -360,8 +318,8 @@ let subscriptions = (~key, model) => {
     window,
     watching
       ? Sub.filter_map(
-          visible => visible ? None : Some(Hidden(B.now())),
-          scoped(
+          visible => visible ? None : Some(Hidden(Ui_dom.now())),
+          Ui_sub.scoped(
             ~key,
             Tea_browser.Browser_events.on_visibility_change(x => x),
           ),

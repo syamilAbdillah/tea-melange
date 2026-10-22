@@ -5,7 +5,6 @@ module D = Decode;
 module Browser = Tea_browser.Browser_dom;
 module Events = Tea_browser.Browser_events;
 module Platform = Tea_dom.Browser_platform;
-module B = Ui_dom;
 type urgency =
   | Normal
   | Urgent;
@@ -252,7 +251,7 @@ let push =
     };
   (
     settle_timers(
-      B.now(),
+      Ui_dom.now(),
       promote({
         ...model,
         entries,
@@ -316,7 +315,7 @@ let focus_target = model => {
   };
 };
 let update = (message, model) => {
-  let now = B.now();
+  let now = Ui_dom.now();
   let (model, command, outs) =
     switch (message) {
     | Ready(hidden) => (
@@ -514,26 +513,8 @@ let update = (message, model) => {
     };
   (settle_timers(now, model), command, outs);
 };
-let rec scoped = (~key, sub) => {
-  let scope = source =>
-    string_of_int(String.length(key)) ++ ":" ++ key ++ source;
-  switch (sub) {
-  | Sub.None => Sub.none
-  | Sub.Batch(subs) => Sub.batch(List.map(scoped(~key), subs))
-  | Sub.Leaf(leaf) =>
-    Sub.Leaf({
-      ...leaf,
-      key: scope(leaf.key),
-    })
-  | Sub.Filtered(leaf) =>
-    Sub.Filtered({
-      ...leaf,
-      key: scope(leaf.key),
-    })
-  };
-};
 let subscriptions = model => {
-  let contains = B.within(model.id);
+  let contains = Ui_dom.within(model.id);
   Sub.batch([
     model.ready
       ? Sub.none
@@ -548,7 +529,7 @@ let subscriptions = model => {
                 if (live^) {
                   Platform.request_animation_frame(_ =>
                     if (live^) {
-                      dispatch(B.hidden(B.document));
+                      dispatch(Ui_dom.hidden(Ui_dom.document));
                     }
                   );
                 }
@@ -556,7 +537,7 @@ let subscriptions = model => {
               () => live := false;
             },
         ),
-    scoped(
+    Ui_sub.scoped(
       ~key=model.id,
       Events.on_visibility_change(visible => Visible(visible)),
     ),
@@ -565,7 +546,7 @@ let subscriptions = model => {
        but consumes only the explicitly configured hotkey (including modifiers). */
     Sub.filter_map(
       raw =>
-        switch (Tea_dom.Dom_decode.run(Ui_keyboard.decoder, B.raw(raw))) {
+        switch (Tea_dom.Dom_decode.run(Ui_keyboard.decoder, Ui_dom.raw(raw))) {
         | Ok(event) =>
           let h = model.hotkey;
           if (Ui_keyboard.available(event)
@@ -575,8 +556,8 @@ let subscriptions = model => {
               && h.alt == event.alt
               && h.meta == event.meta
               && h.shift == event.shift) {
-            B.prevent(raw);
-            B.stop(raw);
+            Ui_dom.prevent(raw);
+            Ui_dom.stop(raw);
             Some(Hotkey);
           } else {
             None;
@@ -588,7 +569,9 @@ let subscriptions = model => {
         ~key=model.id,
         ~tagger=event => event,
         ~start=
-          dispatch => {B.on(~capture=true, B.document, "keydown", dispatch)},
+          dispatch => {
+            Ui_dom.on(~capture=true, Ui_dom.document, "keydown", dispatch)
+          },
       ),
     ),
     Sub.make(
@@ -598,15 +581,19 @@ let subscriptions = model => {
       ~start=
         dispatch => {
           let enter = event =>
-            if (contains(B.target(event)) && !contains(B.related(event))) {
+            if (contains(Ui_dom.target(event))
+                && !contains(Ui_dom.related(event))) {
               dispatch(true);
             };
           let leave = event =>
-            if (contains(B.target(event)) && !contains(B.related(event))) {
+            if (contains(Ui_dom.target(event))
+                && !contains(Ui_dom.related(event))) {
               dispatch(false);
             };
-          let off_in = B.on(~capture=true, B.document, "focusin", enter);
-          let off_out = B.on(~capture=true, B.document, "focusout", leave);
+          let off_in =
+            Ui_dom.on(~capture=true, Ui_dom.document, "focusin", enter);
+          let off_out =
+            Ui_dom.on(~capture=true, Ui_dom.document, "focusout", leave);
           () => {
             off_in();
             off_out();
@@ -669,7 +656,7 @@ let subscriptions = model => {
                   dispatch => {
                     let live = ref(true);
                     let timer =
-                      B.timeout(
+                      Ui_dom.timeout(
                         () =>
                           if (live^) {
                             live := false;
@@ -677,13 +664,16 @@ let subscriptions = model => {
                           },
                         int_of_float(
                           ceil(
-                            max(0., remaining -. max(0., B.now() -. since)),
+                            max(
+                              0.,
+                              remaining -. max(0., Ui_dom.now() -. since),
+                            ),
                           ),
                         ),
                       );
                     () => {
                       live := false;
-                      B.clear_timeout(timer);
+                      Ui_dom.clear_timeout(timer);
                     };
                   },
               )

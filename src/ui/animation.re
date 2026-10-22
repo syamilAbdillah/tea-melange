@@ -107,11 +107,8 @@ let subscriptions = model =>
       initial ? Painted(model.generation) : Finished(model.generation);
     Sub.make(
       ~home="Tea_ui.Animation",
-      /* Length-prefix the caller id: arbitrary ids cannot alias another leaf. */
       ~key=
-        string_of_int(String.length(model.id))
-        ++ ":"
-        ++ model.id
+        Ui_sub.prefix(model.id)
         ++ ":"
         ++ string_of_int(model.generation)
         ++ (initial ? ":paint" : ":wait"),

@@ -20,6 +20,7 @@ let within = (id, node) =>
   | (Some(root), Some(node)) => contains(root, node)
   | _ => false
   };
+let within_any = (ids, node) => List.exists(id => within(id, node), ids);
 
 [@mel.get] external target_: Dom.event => Js.Nullable.t(Dom.node) = "target";
 let target = event => Js.Nullable.toOption(target_(event));
@@ -27,7 +28,9 @@ let target = event => Js.Nullable.toOption(target_(event));
 external related_: Dom.event => Js.Nullable.t(Dom.node) = "relatedTarget";
 let related = event => Js.Nullable.toOption(related_(event));
 [@mel.send] external prevent: Dom.event => unit = "preventDefault";
+[@mel.get] external prevented: Dom.event => bool = "defaultPrevented";
 [@mel.send] external stop: Dom.event => unit = "stopPropagation";
+[@mel.get] external pointer_type: Dom.event => string = "pointerType";
 external raw: Dom.event => Tea_dom.Dom_decode.raw = "%identity";
 
 [@mel.send]

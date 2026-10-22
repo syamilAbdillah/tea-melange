@@ -31,13 +31,7 @@ let sub = (~home, ~id, ~from=?, ~ready=?, ~prevent_scroll=?, t, tagger) =>
     let generation = t.generation;
     Events.focus(
       ~key=
-        home
-        ++ ":"
-        ++ string_of_int(String.length(id))
-        ++ ":"
-        ++ id
-        ++ ":"
-        ++ string_of_int(generation),
+        home ++ ":" ++ Ui_sub.prefix(id) ++ ":" ++ string_of_int(generation),
       ~target,
       ~from?,
       ~ready?,

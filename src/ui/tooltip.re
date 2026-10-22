@@ -242,34 +242,8 @@ let update = (~group=?, message, model) =>
       [],
     );
   };
-/* tea.browser has no general pointer-modality source or claimed global Escape
-   source. These bindings are private and their listeners are subscription-owned.
-   No mutable values enter the model. Keyboard decoding uses Ui_keyboard. */
-module Native = {
-  external document: Dom.document = "document";
-  [@mel.send]
-  external listen: (Dom.document, string, Js.Json.t => unit, bool) => unit =
-    "addEventListener";
-  [@mel.send]
-  external unlisten: (Dom.document, string, Js.Json.t => unit, bool) => unit =
-    "removeEventListener";
-  [@mel.send]
-  external by_id: (Dom.document, string) => Js.Nullable.t(Dom.node) =
-    "getElementById";
-  [@mel.get] external target: Js.Json.t => Js.Nullable.t(Dom.node) = "target";
-  [@mel.send] external contains: (Dom.node, Dom.node) => bool = "contains";
-  [@mel.get] external prevented: Js.Json.t => bool = "defaultPrevented";
-  [@mel.send] external prevent: Js.Json.t => unit = "preventDefault";
-  [@mel.send] external stop: Js.Json.t => unit = "stopPropagation";
-  let within = (id, event) =>
-    switch (
-      Js.Nullable.toOption(by_id(document, id)),
-      Js.Nullable.toOption(target(event)),
-    ) {
-    | (Some(root), Some(target)) => contains(root, target)
-    | _ => false
-    };
-};
+/* tea.browser has no pointer-modality source and its keydown source cannot
+   claim an event, so these two listeners are local. */
 let subscriptions = model =>
   Sub.batch([
     Sub.map(
@@ -286,10 +260,9 @@ let subscriptions = model =>
       ~tagger=() => Modality(false),
       ~start=
         dispatch => {
-          let pointer = _ => dispatch();
-          Native.listen(Native.document, "pointerdown", pointer, true);
-          () =>
-            Native.unlisten(Native.document, "pointerdown", pointer, true);
+          Ui_dom.on(~capture=true, Ui_dom.document, "pointerdown", _ =>
+            dispatch()
+          )
         },
     ),
     Events.on_key_down(
@@ -316,22 +289,30 @@ let subscriptions = model =>
           ~start=
             dispatch => {
               let key = event =>
-                if (!Native.prevented(event)
-                    && !Native.within(trigger_id(model), event)) {
-                  switch (Tea_dom.Dom_decode.run(Ui_keyboard.decoder, event)) {
+                if (!Ui_dom.prevented(event)
+                    && !
+                         Ui_dom.within(
+                           trigger_id(model),
+                           Ui_dom.target(event),
+                         )) {
+                  switch (
+                    Tea_dom.Dom_decode.run(
+                      Ui_keyboard.decoder,
+                      Ui_dom.raw(event),
+                    )
+                  ) {
                   | Ok(key)
                       when
                         Ui_keyboard.available(key)
                         && Ui_keyboard.plain(key)
                         && String.equal(key.key, "Escape") =>
-                    Native.prevent(event);
-                    Native.stop(event);
+                    Ui_dom.prevent(event);
+                    Ui_dom.stop(event);
                     dispatch(Escape(key.time_stamp));
                   | _ => ()
                   };
                 };
-              Native.listen(Native.document, "keydown", key, true);
-              () => Native.unlisten(Native.document, "keydown", key, true);
+              Ui_dom.on(~capture=true, Ui_dom.document, "keydown", key);
             },
         ),
   ]);
