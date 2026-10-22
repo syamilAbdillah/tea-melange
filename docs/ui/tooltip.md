@@ -102,32 +102,75 @@ still use the trigger handler, verified against a document bubble listener.
 
 ## Warm-up groups
 
-Store `Hover_intent.Group.t` in the parent, not inside individual tooltips:
+Store one immutable `Hover_intent.Group.t` in the parent. The parent already
+knows which member produced `Tip(key, message)`, so notifications deliberately
+stay `Opened | Closed(float)` rather than duplicating an id. Use a stable key
+unique **within this group** (the tooltip's id prefix is a convenient choice).
+Fold every notification using `T.track(~key, out, group)`:
+
+- `Opened` calls `Group.record_open(~key, group)`.
+- `Closed(time_stamp)` calls `Group.record_close(~key, ~time_stamp, group)`,
+  removing that member and recording monotonic milliseconds in the same origin
+  as `PointerEvent.timeStamp` / `performance.now()`.
+
+An open member warms the group even during its 150ms close grace. After the
+last member closes, entries less than `skip_delay_ms` later are warm; exactly
+the boundary is cold. Zero/negative skip disables warm-up. Backwards timestamps
+are cold when no member is open. Pass the newly committed group to the next
+member's update; changing it does not shorten an already pending opening.
+
+**One visible tooltip per group is a parent policy**, not global mutable state.
+In the same update that opens a member, close every other visible member with
+`close_immediately` and `Group.forget`. Check `is_visible`, not `is_open`: an
+already Leaving member must disappear too. Unlike normal `close`, immediate
+close skips the leave animation, clears hover/focus persistence, cancels timers
+and animation waits, and stops Anchor. Commit all member models and the group
+atomically before the next render. This exact pattern also appears in
+`examples/ui/tooltip/main.re`:
 
 ```reason
-let group = Ui.Hover_intent.Group.init(~skip_delay_ms=1800, ());
-let (tooltip, command, out) = T.update(~group, message, tooltip);
-let group = List.fold_left((group, out) => switch (out) {
-| T.Opened => group
-| T.Closed(time_stamp) =>
-  Ui.Hover_intent.Group.record_close(~time_stamp, group)
-}, group, out);
+module G = Ui.Hover_intent.Group;
+type entry = {key: string, tip: T.model};
+type msg = Tip(string, T.msg);
+let group = G.init(~skip_delay_ms=1800, ());
+
+/* In the parent's Tip(key, message) branch, pass only this group's members. */
+let update_member = (~key, message, tips: list(entry), group) => {
+  let current = List.find(entry => String.equal(entry.key, key), tips);
+  let (tip, command, outs) = T.update(~group, message, current.tip);
+  let group = List.fold_left((group, out) => T.track(~key, out, group), group, outs);
+  let taking_over = List.mem(T.Opened, outs);
+  List.fold_right((entry, (tips, commands, group)) => {
+    if (String.equal(entry.key, key)) {
+      ([{...entry, tip}, ...tips], commands, group);
+    } else if (taking_over && T.is_visible(entry.tip)) {
+      let (tip, command) = T.close_immediately(entry.tip);
+      ([{...entry, tip}, ...tips],
+       [Cmd.map(message => Tip(entry.key, message), command), ...commands],
+       G.forget(~key=entry.key, group));
+    } else {
+      ([entry, ...tips], commands, group);
+    };
+  }, tips, ([], [Cmd.map(message => Tip(key, message), command)], group));
+};
+/* Commit returned tips/group and return Cmd.batch(commands). */
 ```
 
-Pass the updated group to the next member's update. Only actual user closes
-produce a timestamp; programmatic setters do not emit notifications or warm the
-group implicitly. Warm-up expires at exactly its configured boundary. Group
-changes do not retroactively shorten an already pending opening.
+Programmatic `close`, `close_immediately`, disabling and unmount emit no user
+notifications: call `G.forget(~key, group)` in that same parent update. Forget
+does not invent a close timestamp or extend the skip window. Unmount also means
+removing that member's subscriptions (do not retain an open key for removed
+content). If using programmatic `open_`, explicitly record it with
+`G.record_open(~key, group)` only if it actually opens, and apply the same
+one-visible-member policy; a disabled member must not warm the group.
 
 The example's icon-only document toolbar is a **labelled group of native
 buttons**, not an ARIA toolbar promising a roving-arrow keyboard model. Only
-its two members share a group. They have zero close delay and zero placement
-gap: leaving one records a close before entering its sibling, which then opens
-immediately. Their adjoining tooltip surfaces remain hoverable. For spaced
-controls/content retain a positive close grace; when moving to another member
-before the previous close completes, Hover_intent is still cold until a close
-is recorded. Choose timing/layout deliberately rather than mutating group
-state globally or recording fictitious closes.
+its two members share a group, using the defaults: 600ms opening, 150ms closing
+and an 8px placement gap. Moving between icons opens the next immediately and
+hides the old one, without sacrificing the grace for crossing onto the tooltip.
+Leaving the toolbar and re-entering within its 1800ms skip window is immediate;
+after expiry the normal opening delay returns.
 
 ## Disabled native controls
 
@@ -192,6 +235,8 @@ let position: model => option(Anchor.position);
 let disabled: model => bool;
 let open_: model => (model, Tea_core.Cmd.t(msg));
 let close: model => (model, Tea_core.Cmd.t(msg));
+let close_immediately: model => (model, Tea_core.Cmd.t(msg));
+let track: (~key: string, out_msg, Hover_intent.Group.t) => Hover_intent.Group.t;
 let set_disabled: (bool, model) => (model, Tea_core.Cmd.t(msg));
 let update: (~group: Hover_intent.Group.t=?, msg, model) =>
   (model, Tea_core.Cmd.t(msg), list(out_msg));
@@ -223,12 +268,15 @@ TEA_E2E_CHROMIUM=/usr/bin/google-chrome node test/ui-e2e/run.mjs tooltip
 jsdom drives a real TEA program and deterministic timer boundaries: real DOM
 ARIA/idrefs, focus, default prevention, Escape propagation, grouped delays,
 hoverability/persistence, touch exclusion, disabled changes, latest-model batched
-intents, every animation reversal, unmount, and in-flight animation wait cleanup.
+intents, every animation reversal, one-at-a-time takeover during close grace
+and Leaving, keyed open/close notifications, programmatic/unmount forget, and
+in-flight animation wait cleanup.
 The harness independently rejects timer/MutationObserver/listener leaks. Tests
 also inspect bundles for duplicate hidden/id/data facts. Chromium checks trusted
 hover/touch, Tab and Shift+Tab, native activation, computed names/descriptions,
 ARIA snapshots, real arrow/motion/top-layer state, disabled wrapper, modal Escape
-layering, and unfiltered axe across closed/open/disabled/modal states.
+layering, default-delay sibling switching and skip-window re-entry/expiry,
+and unfiltered axe across closed/open/disabled/modal states.
 
 No long-press, interactive tooltip content, geometric safe polygon, portal,
 shadow-root/iframe id resolution or alternate-document modality tracking.

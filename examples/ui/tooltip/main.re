@@ -18,68 +18,91 @@ type msg =
   | Open_dialog
   | Action
   | Disable(bool);
+/* The toolbar members share one warm-up group; the other tooltips do not. */
+let toolbar = ["cut", "copy"];
 let create = key => {
   key,
   tip:
     switch (key) {
-    | "cut"
-    | "copy" =>
-      T.init(~id=key, ~mode=T.Label, ~close_delay_ms=0, ~offset=0., ())
     | "animated" => T.init(~id=key, ~arrow_size=8., ~offset=12., ())
+    | "cut"
+    | "copy"
     | "modal-help" => T.init(~id=key, ~mode=T.Label, ())
     | _ => T.init(~id=key, ())
     },
 };
+let find = (tips, key) =>
+  List.find(entry => String.equal(entry.key, key), tips).tip;
+let replace = (tips, key, tip) =>
+  List.map(
+    entry =>
+      String.equal(entry.key, key)
+        ? {
+          ...entry,
+          tip,
+        }
+        : entry,
+    tips,
+  );
+/* The member that just opened takes over: any other member that is still
+   visible (open, or leaving after its pointer left) closes immediately, so two
+   toolbar tooltips are never shown at once, and leaves the group. */
+let take_over = (winner, tips, group) =>
+  List.fold_left(
+    ((tips, commands, group), key) =>
+      if (!String.equal(key, winner) && T.is_visible(find(tips, key))) {
+        let (tip, command) = T.close_immediately(find(tips, key));
+        (
+          replace(tips, key, tip),
+          [Cmd.map(x => Tip(key, x), command), ...commands],
+          G.forget(~key, group),
+        );
+      } else {
+        (tips, commands, group);
+      },
+    (tips, [], group),
+    toolbar,
+  );
 let update = (message, model) =>
   switch (message) {
   | Tip(key, message) =>
-    let (tips, commands, group) =
-      List.fold_right(
-        (entry, (tips, commands, group)) =>
-          if (String.equal(entry.key, key)) {
-            let grouped = List.mem(key, ["cut", "copy"]);
-            let (tip, command, outs) =
-              T.update(
-                ~group=?grouped ? Some(model.group) : None,
-                message,
-                entry.tip,
-              );
-            let group =
-              List.fold_left(
-                (group, out) =>
-                  switch (out) {
-                  | T.Opened => group
-                  | T.Closed(time_stamp) =>
-                    grouped ? G.record_close(~time_stamp, group) : group
-                  },
-                group,
-                outs,
-              );
-            (
-              [
-                {
-                  ...entry,
-                  tip,
-                },
-                ...tips,
-              ],
-              [Cmd.map(x => Tip(key, x), command), ...commands],
-              group,
-            );
-          } else {
-            ([entry, ...tips], commands, group);
-          },
-        model.tips,
-        ([], [], model.group),
+    let grouped = List.mem(key, toolbar);
+    let (tip, command, outs) =
+      T.update(
+        ~group=?grouped ? Some(model.group) : None,
+        message,
+        find(model.tips, key),
       );
-    (
-      {
-        ...model,
-        tips,
-        group,
-      },
-      Cmd.batch(commands),
-    );
+    let tips = replace(model.tips, key, tip);
+    let command = Cmd.map(x => Tip(key, x), command);
+    if (grouped) {
+      /* Opened records the member open, Closed records the close time. */
+      let group =
+        List.fold_left(
+          (group, out) => T.track(~key, out, group),
+          model.group,
+          outs,
+        );
+      let (tips, commands, group) =
+        List.mem(T.Opened, outs)
+          ? take_over(key, tips, group) : (tips, [], group);
+      (
+        {
+          ...model,
+          tips,
+          group,
+        },
+        Cmd.batch([command, ...commands]),
+      );
+    } else {
+      (
+        {
+          ...model,
+          tips,
+        },
+        command,
+      );
+    };
   | Dialog(message) =>
     let (dialog, command, _) = D.update(message, model.dialog);
     /* A dialog's removed/hidden subtree must not retain an active tooltip. */
@@ -247,7 +270,7 @@ let view = model =>
             [],
             [
               Html.text(
-                "The first hover waits 600ms. Move to the next icon within 1.8 seconds and help appears immediately. This labelled group keeps native Tab order.",
+                "The first hover waits 600ms. Move to the next icon, or back within 1.8 seconds of leaving the toolbar, and help appears immediately while the previous one disappears. This labelled group keeps native Tab order.",
               ),
             ],
           ),

@@ -50,17 +50,34 @@ export async function run(context) {
   await visible('cut');
   await trigger('cut').hover();
   await visible('cut');
-  // These adjoining toolbar tooltips have zero gap and zero close delay, so
-  // leaving one records a close before entering its sibling (no timed race).
+  // Defaults: 600ms open, 150ms close and an 8px placement gap. The first
+  // member must still be open when its sibling receives pointerenter: warm-up
+  // comes from the recorded open member, not an already recorded close.
+  const triggerBox = await trigger('cut').boundingBox();
+  const tipBox = await tip('cut').boundingBox();
+  assert.ok(Math.abs(triggerBox.y - (tipBox.y + tipBox.height) - 8) < 1, 'default placement gap');
+  await trigger('copy').evaluate(el => el.addEventListener('pointerenter', () => {
+    el.dataset.previousOpen = String(document.querySelector('#cut-trigger').hasAttribute('data-open'));
+  }, { once: true }));
   const warm = Date.now();
   await trigger('copy').hover();
   await visible('copy');
   assert.ok(Date.now() - warm < 450, 'warm sibling skips the 600ms delay');
+  assert.equal(await trigger('copy').getAttribute('data-previous-open'), 'true', 'switch happens inside the previous close grace');
+  assert.equal(await tip('cut').evaluate(el => el.hidden), true, 'takeover hides the previous member in the same render');
   await hidden('cut');
   await ariaSnapshot(tip('copy'), '- tooltip "Copy selection"');
   await axe(page);
   await page.mouse.move(2, 2);
   await hidden('copy');
+  await page.waitForTimeout(200);
+  const reentry = Date.now();
+  await trigger('cut').hover();
+  await visible('cut');
+  assert.ok(Date.now() - reentry < 450, 're-entry within the skip window is immediate');
+  assert.equal(await tip('copy').evaluate(el => el.hidden), true);
+  await page.mouse.move(2, 2);
+  await hidden('cut');
   await page.waitForTimeout(1850);
   const expired = Date.now();
   await trigger('cut').hover();
