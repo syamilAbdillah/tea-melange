@@ -5,15 +5,23 @@ module M = Ui.Meter;
 type model = {
   value: option(float),
   formatted: bool,
+  has_label: bool,
+  aria_label: option(string),
 };
 type msg =
   | Set(option(float))
-  | Format(bool);
+  | Format(bool)
+  | Name(bool, option(string));
 let update = (msg, model) => (
   switch (msg) {
   | Set(value) => {
       ...model,
       value,
+    }
+  | Name(has_label, aria_label) => {
+      ...model,
+      has_label,
+      aria_label,
     }
   | Format(formatted) => {
       ...model,
@@ -29,6 +37,8 @@ let view = model => {
       ? Some(value => Js.Float.toString(value) ++ " units") : None;
   M.view(
     ~id="display",
+    ~has_label=model.has_label,
+    ~aria_label=?model.aria_label,
     ~value=Option.value(~default=0., value),
     ~min=0.,
     ~max=100.,
@@ -38,7 +48,8 @@ let view = model => {
         Html.div(
           [],
           [
-            Html.span(p.label, [Html.text("Capacity")]),
+            model.has_label
+              ? Html.span(p.label, [Html.text("Capacity")]) : Html.text(""),
             Html.div(p.root, []),
             Html.text(""),
           ],
@@ -64,6 +75,8 @@ let completed = {
             {
               value: Some(25.),
               formatted: true,
+              has_label: true,
+              aria_label: None,
             },
             Cmd.none,
           ),
@@ -79,6 +92,65 @@ let completed = {
     "label resolves",
     attr("#display", "aria-labelledby") == Some("display-label")
     && get(node("#display-label"), "textContent") == "Capacity",
+  );
+  app.dispatch(Name(false, Some("  Storage used  ")));
+  frame();
+  check(
+    "aria_label names a meter without a label part",
+    attr("#display", "aria-label") == Some("Storage used")
+    && attr("#display", "aria-labelledby") == None
+    && Array.length(query_all(document, "#display-label")) == 0,
+  );
+  app.dispatch(Name(true, Some("Fallback")));
+  frame();
+  check(
+    "visible label retains precedence over aria_label",
+    attr("#display", "aria-labelledby") == Some("display-label")
+    && attr("#display", "aria-label") == Some("Fallback"),
+  );
+  app.dispatch(Name(true, None));
+  frame();
+  check(
+    "switching back clears aria_label",
+    attr("#display", "aria-label") == None,
+  );
+  check(
+    "missing accessible name rejected",
+    rejected(() =>
+      ignore(M.parts(~id="unnamed", ~value=0., ~has_label=false, ()))
+    ),
+  );
+  List.iter(
+    aria_label => {
+      List.iter(
+        has_label =>
+          check(
+            "blank aria_label rejected",
+            rejected(() =>
+              ignore(
+                M.parts(~id="blank", ~value=0., ~has_label, ~aria_label, ()),
+              )
+            ),
+          ),
+        [false, true],
+      );
+      check(
+        "view validates name before rendering",
+        rejected(() =>
+          ignore(
+            M.view(
+              ~id="blank",
+              ~value=0.,
+              ~has_label=false,
+              ~aria_label,
+              ~to_view=_ => failwith("invalid name reached callback"),
+              (),
+            ),
+          )
+        ),
+      );
+    },
+    ["", " ", "\t\n", {js|\u00a0|js}],
   );
   check(
     "bounds",

@@ -16,6 +16,10 @@ type element_info = {rect, viewport_width: float, viewport_height: float,
 let focus: (~prevent_scroll: bool=?, string) => Task.t(unit, error);
 let blur: string => Task.t(unit, error);
 let focus_cmd: string => Cmd.t('msg);
+let first_tabbable:
+  (~exclude: (Dom.node => bool)=?, Dom.node) => option(Dom.node);
+let last_tabbable:
+  (~exclude: (Dom.node => bool)=?, Dom.node) => option(Dom.node);
 let focus_first: (~within: string) => Task.t(unit, error);
 let scroll_into_view:
   (~block: [ `Nearest | `Center | `Start | `End ]=?, string) => Task.t(unit, error);
@@ -33,6 +37,30 @@ returns it for an empty candidate set. Native dialog/scroll APIs are detected;
 unsupported dialog methods only manipulate `open` (not a modality polyfill).
 Focus returns success when the id exists; the platform ultimately decides
 whether an element can actually take focus.
+
+`first_tabbable` and `last_tabbable` are synchronous read-only queries, separate
+from the deferred tasks. They return a descendant node (never the root), or
+`None`, without moving focus or scheduling work. Call them after the required
+render and inside the caller's cancellation/live check. Dialog uses this in the
+same callback as `showModal()` so initial focus cannot steal a later Tab/click;
+Popover and Date_picker share the same ordering and exclusions. `focus_first`
+uses `first_tabbable` after render.
+
+Tab order is ascending positive tabindex, then zero/implicit stops in DOM order;
+ties keep DOM order. Negative tabindex, disabled controls/fieldsets (with the
+first-legend exception), hidden inputs, hidden/inert ancestors, display:none,
+visibility:hidden/collapse, and closed-details content outside its first direct
+summary are skipped. Native editable/media stops are included unless explicitly
+negative. Named radio groups compare names and form owners across the document:
+a checked enabled peer is the group's stop, even outside the search root;
+otherwise the first/last query follows entry direction. Unnamed radios remain
+independent. `aria-disabled` alone does not remove a tab stop.
+
+The optional `exclude` predicate rejects candidates; Date_picker uses it to
+skip its boundary spans. Selection is computed afresh, including ancestor state
+outside the root, with no layout-box measurement (so jsdom works). Visibility
+checks are conservative through ancestors; there is no shadow-root or iframe
+traversal.
 
 `wait_for_animations` takes a subtree snapshot after render. It awaits all-settled
 finished promises, resolves on removal, and has a 5000 ms watchdog for paused,
@@ -56,6 +84,10 @@ let on_visibility_change: (bool => 'msg) => Sub.t('msg);
 let on_element_resize: (~id: string, element_size => 'msg) => Sub.t('msg);
 let on_media_query: (~query: string, bool => 'msg) => Sub.t('msg);
 let scroll_lock: (~key: string) => Sub.t('msg);
+type focus_target = Element(string) | First_tabbable(string) | Last_tabbable(string);
+let focus:
+  (~key: string, ~target: focus_target, ~ready: bool=?, ~from: list(string)=?,
+   ~prevent_scroll: bool=?, bool => 'msg) => Sub.t('msg);
 let restore_focus: (~key: string, ~within: string=?, unit) => Sub.t('msg);
 ```
 
@@ -79,6 +111,23 @@ feature heuristic), restoring scroll coordinates afterwards. Other platforms do
 not need that hack. Do not mutate owned inline styles while locked. Restoration
 also flushes Chromium's lazy CSSOM empty-attribute serialization so an absent
 style attribute remains absent, not `style=""`.
+
+`focus` performs one cancellable post-render attempt. Put the owner id and an
+immutable request generation in `key`, and remove the subscription on completion.
+It captures focus immediately on start, observes intervening focusin/focusout,
+and will not override an intentional focus movement (including away and back).
+Render-induced loss to body can be repaired. Start the source immediately on
+opening with `ready=false`, then update `ready` after Anchor reports visibility.
+The retained source keeps the original focus snapshot and reads the latest target
+and readiness without restarting. A false-to-true readiness transition crosses
+one additional frame so its render precedes focus. Thus arbitrary programmatic
+openers still work, while moving focus during positioning cancels the request.
+Optional `from` additionally limits the origin to supplied id subtrees or body;
+its configuration is fixed for the lifetime of a key. The completion boolean says
+whether the resolved target took focus; missing targets complete false. Stopping
+or shutdown removes both listeners immediately and suppresses work/completion.
+Mutable cancellation cells belong only to the source's start closure, never to
+component models. `Radio_group` and `Tabs` use immutable request generations.
 
 Focus return remembers the element on subscription start, before the opening
 render. Stop waits for the closing render, then restores only a connected
@@ -163,6 +212,61 @@ Underscores are escaped too: otherwise a literal escape-looking key could
 collide with another key. Empty encodes as `_`. The result uses only the
 specification's safe alphabet, but is deliberately more restrictive to ensure
 injectivity. Consumers should not depend on a particular encoded spelling.
+
+## Private browser bindings
+
+Keep a capability inside its component, hidden by the `.rei`, until at least two
+consumers need the same behavior and ownership contract. Repeating a low-level
+`getElementById`, timer, event getter or add/removeEventListener declaration alone
+does not establish a shared lifecycle abstraction. Reuse Browser_dom and
+Browser_events where their public contracts already fit; do not expand those APIs
+for a single component or expose a generic bag of DOM bindings.
+
+The Z1a review retains these component-specific bindings:
+
+- **Hover_intent**: a cancellable delay with generation rejection, performance
+  timestamps, window blur and document pointerout with relatedTarget/pointerType
+  checks. Its two-region intent state and warm-group timing differ from Toast's
+  per-entry remaining-duration accounting. Visibility already uses Browser_events;
+  Tooltip consumes Hover_intent's public API rather than duplicating this source.
+- **Anchor**: manual showPopover/hidePopover capability detection, connection and
+  :popover-open checks, plus devicePixelRatio rounding. Measurements, scroll,
+  resize and element resize already use the browser APIs. Menu, Popover and
+  Tooltip consume Anchor's public API; they are not separate consumers needing
+  a second implementation of the private popover lease.
+- **Slider**: document pointermove/up/cancel and lostpointercapture, pointer-id
+  filtering, window blur, and capture/release on the track. Its frame-coalesced
+  moves and final commit belong to the drag session. Scroll/resize already reuse
+  Browser_events. Generic pointer primitives also occur in Drag_and_drop, but its
+  lift threshold, touch delay, measurements and cancellation contract differ;
+  sharing the raw declarations would not share a session lifecycle.
+- **Virtual_list**: viewport scrollTop/clientHeight reads, exact scrollTop writes,
+  child-list observation, and ResizeObserver border-box measurements tied to
+  stable row keys. Browser_events.on_element_resize observes one id's content
+  box; it cannot replace dynamic row registration, generation-checked samples
+  or anchor-preserving writes. These operations have one capability consumer.
+- **Combobox**: active-element/value guards and setSelectionRange for inline
+  completion after render. Existing browser helpers provide focus effects; no
+  second component needs the guarded inline-completion selection operation.
+  Its JavaScript lowercase binding is a string operation, not a browser source;
+  shared search normalization already lives in Ui_typeahead.
+- **Toast**: per-entry cancellable remaining-duration timers and initial
+  document.hidden read; capture hotkeys that can cancel the configured chord;
+  and region focusin/focusout containment boundaries. Browser_events keydown is
+  deliberately observational and cannot consume the hotkey. Tooltip's global
+  Escape source and Drag_and_drop's drag keys have different claiming rules;
+  Toast alone needs the exact configurable chord plus hotkey-entry bookkeeping.
+  Visibility, focus restoration and animation use the existing public helpers.
+
+No new shared helper or browser API is required by this review. A future second
+consumer should first specify matching timing, cancellation, identity and event
+claiming semantics, then coordinate an extraction with the foundation owner.
+
+Reason test literals that model browser text use `{js|…|js}` so Melange receives
+JavaScript Unicode strings rather than OCaml UTF-8 byte strings. Deliberate
+byte-domain id tests (the 0–255 `String.make`/`Char.chr` alphabet sweep) keep byte
+inputs and explain that choice locally. Native HTML serialization and URL
+percent-decoding tests also retain their explicit UTF-8 byte expectations.
 
 ## Existing infrastructure changes
 

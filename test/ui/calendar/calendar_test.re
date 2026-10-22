@@ -665,6 +665,34 @@ let completed = {
     attr(cell("0001-01-01"), "aria-label") == Some("1 localized date"),
   );
   check("labels do not emit outs", app.model().outs == before);
+  focus(node(cell("0001-01-01")));
+  ignore(
+    dispatch(
+      node(cell("0001-01-01")),
+      event(
+        "click",
+        {
+          "bubbles": true,
+          "cancelable": true,
+        },
+      ),
+    ),
+  );
+  focus(node("#cal-next-month"));
+  frame();
+  check(
+    "cell selection never overrides a later navigation-button focus",
+    has_focus("#cal-next-month"),
+  );
+  focus(node(cell("0001-01-01")));
+  ignore(key(cell("0001-01-01"), "keydown", "ArrowRight"));
+  focus(node("#cal-next-month"));
+  frame();
+  check(
+    "arrow focus yields to intervening navigation",
+    has_focus("#cal-next-month"),
+  );
+  ignore(key(cell("0001-01-02"), "keydown", "ArrowRight"));
   app.shutdown();
   frame();
   check("no root listeners", Tea_dom.Debug.active_listeners() == 0);

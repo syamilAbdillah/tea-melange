@@ -256,6 +256,10 @@ let completed = {
     "initial closed",
     !D.is_visible(app.model().dialog) && get(node("#test-dialog"), "hidden"),
   );
+  check(
+    "closed mounted Escape propagates without prevention",
+    key_at_document("#first", "Escape") == (true, true),
+  );
   check("native role not overridden", attr("#test-dialog", "role") == None);
   check(
     "root semantics",
@@ -327,14 +331,24 @@ let completed = {
   );
   check("Enter native", key("#first", "keydown", "Enter"));
   check("Space native", key("#first", "keydown", " "));
-  check("Escape prevented", !key("#first", "keydown", "Escape"));
+  check(
+    "modified Escape propagates",
+    key_at_document(~ctrl=true, "#first", "Escape") == (true, true)
+    && key_at_document(~alt=true, "#first", "Escape") == (true, true)
+    && key_at_document(~meta=true, "#first", "Escape") == (true, true)
+    && key_at_document(~composing=true, "#first", "Escape") == (true, true),
+  );
+  check(
+    "Escape prevented and stopped at document",
+    key_at_document("#first", "Escape") == (false, false),
+  );
   check(
     "leave starts immediately",
     D.phase(app.model().dialog) == A.Leaving,
   );
   check(
     "repeat Escape prevented",
-    !key(~repeat=true, "#first", "keydown", "Escape"),
+    key_at_document(~repeat=true, "#first", "Escape") == (false, false),
   );
   check(
     "only one request during leave",
@@ -625,6 +639,26 @@ let completed = {
   settle();
   check("focus moved right after opening is kept", has_focus("#save"));
   stop(early);
+  let ordered = start();
+  set_attribute(node("#save"), "tabindex", "1");
+  set_attribute(node("#first"), "tabindex", "2");
+  opened(ordered);
+  check("shared first selector drives initial focus", has_focus("#save"));
+  ignore(run_task(Browser_dom.blur("save")));
+  check(
+    "reverse Tab is not cancelled",
+    key(~shift=true, "#first", "keydown", "Tab"),
+  );
+  settle();
+  check(
+    "shared last selector repairs reverse Tab",
+    has_focus("#test-close"),
+  );
+  ignore(run_task(Browser_dom.blur("test-close")));
+  check("forward Tab is not cancelled", key("#first", "keydown", "Tab"));
+  settle();
+  check("shared first selector repairs forward Tab", has_focus("#save"));
+  stop(ordered);
   let optout = start(~close_on_backdrop=false, ());
   opened(optout);
   point("#test-dialog", "pointerdown", 5, 5);

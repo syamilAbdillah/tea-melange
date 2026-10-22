@@ -24,6 +24,8 @@ let parts =
     (
       ~id,
       ~value,
+      ~has_label=true,
+      ~aria_label=?,
       ~min=0.,
       ~max=1.,
       ~low=?,
@@ -34,6 +36,12 @@ let parts =
     ) => {
   if (!finite(min) || !finite(max) || min >= max) {
     invalid_arg("Meter: expected finite min < max");
+  };
+  let aria_label = Option.map(Js.String.trim, aria_label);
+  if (Option.fold(~none=!has_label, ~some=String.equal(""), aria_label)) {
+    invalid_arg(
+      "Meter: render a nonempty label or provide a nonblank aria_label",
+    );
   };
   let value = clamp(~min, ~max, value);
   let low = threshold(~min, ~max, ~default=min, low);
@@ -68,7 +76,14 @@ let parts =
       | None => Html.none
       | Some(format) => Html.aria("valuetext", format(value))
       },
-      Ui_attr.aria_ids("labelledby", [Ui_attr.part_id(id, "label")]),
+      Ui_attr.aria_ids(
+        "labelledby",
+        has_label ? [Ui_attr.part_id(id, "label")] : [],
+      ),
+      switch (aria_label) {
+      | Some(label) => Html.aria("label", label)
+      | None => Html.none
+      },
       Html.data("state", state),
       Html.style("--tea-meter-percent", Js.Float.toString(percent) ++ "%"),
     ],
@@ -82,6 +97,8 @@ let view =
     (
       ~id,
       ~value,
+      ~has_label=true,
+      ~aria_label=?,
       ~min=0.,
       ~max=1.,
       ~low=?,
@@ -92,5 +109,17 @@ let view =
       (),
     ) =>
   to_view(
-    parts(~id, ~value, ~min, ~max, ~low?, ~high?, ~optimum?, ~format?, ()),
+    parts(
+      ~id,
+      ~value,
+      ~has_label,
+      ~aria_label?,
+      ~min,
+      ~max,
+      ~low?,
+      ~high?,
+      ~optimum?,
+      ~format?,
+      (),
+    ),
   );

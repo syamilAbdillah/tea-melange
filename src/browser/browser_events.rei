@@ -57,6 +57,42 @@ let on_media_query: (~query: string, bool => 'msg) => Tea_core.Sub.t('msg);
     inline styles while a lock owns them. Independent keys and runtimes share
     the lock; stop/shutdown release only their own lease. */
 let scroll_lock: (~key: string) => Tea_core.Sub.t('msg);
+/** A post-render focus destination, resolved only when the frame runs. */
+type focus_target =
+  | /** Element with the given document id. */
+    Element(string)
+  | /** First sequential tab stop below the root id. */
+    First_tabbable(string)
+  | /** Last sequential tab stop below the root id. */
+    Last_tabbable(string);
+/** One cancellable focus attempt after the next render. Identity:
+    [("Browser_events.focus", key)]. Include an immutable generation in [key]
+    for each new request. [ready] defaults to true; while false, each render-frame
+    checks the latest readiness without losing the opening focus snapshot. A
+    false-to-true readiness transition crosses another frame so its render lands
+    before focus. Target,
+    readiness and completion tagger refresh for a kept key; [from] is fixed at
+    start. A superseding focus movement completes false even before readiness.
+    Captures activeElement synchronously on start and never overrides a focus
+    movement before the frame, including moving away and back. Removal/recycling
+    of the remembered node by render may leave focus on body and does not cancel;
+    an explicit blur of an intact element does cancel. Optional [from] restricts
+    focus to these id subtrees (body is also allowed), for example a restoring
+    dismissal's overlay. Use [ready] to wait for opening layout readiness.
+    [prevent_scroll] defaults to true. Delivers whether the target took focus,
+    including false for missing targets or superseded attempts. Remove the
+    source on completion. Removal/shutdown cancels work and removes its focus
+    listeners immediately; no DOM state or mutable owner belongs in the model. */
+let focus:
+  (
+    ~key: string,
+    ~target: focus_target,
+    ~ready: bool=?,
+    ~from: list(string)=?,
+    ~prevent_scroll: bool=?,
+    bool => 'msg
+  ) =>
+  Tea_core.Sub.t('msg);
 /** Remember activeElement on start, before the opening render. After the
     closing render, refocus it if connected and focus is on body, absent,
     disconnected, or inside the element with id [within] (an overlay that stays

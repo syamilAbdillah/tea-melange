@@ -227,11 +227,15 @@ type model = {
   dir: direction,
   fixed_weeks: bool,
   show_outside_month: bool,
+  focus_pending: bool,
+  focus_generation: int,
 };
 type msg =
   | Key(Ui_keyboard.event)
   | Select(date)
-  | Browse(int);
+  | Browse(int)
+  | Request_focus
+  | Focus_finished(int);
 type out_msg =
   | Changed(date)
   | Focused(date)
@@ -254,6 +258,8 @@ let init =
   dir,
   fixed_weeks,
   show_outside_month,
+  focus_pending: false,
+  focus_generation: 0,
 };
 let focus_date = m => m.focused;
 let selected = m => m.selected;
@@ -268,12 +274,27 @@ let set_selected = (selected, m) => {
 let set_focus = (focused, m) => {
   ...m,
   focused,
+  focus_pending: false,
 };
-let focus_grid = m =>
-  Tea_browser.Browser_dom.focus_cmd(
-    Ui_attr.item_id(m.id, Date.to_iso(m.focused)),
-  );
-let subscriptions = _ => Sub.none;
+let request_focus = m => {
+  ...m,
+  focus_pending: true,
+  focus_generation: m.focus_generation + 1,
+};
+let focus_grid = _ => Cmd.msg(Request_focus);
+let subscriptions = m =>
+  m.focus_pending
+    ? Tea_browser.Browser_events.focus(
+        ~key="Calendar:" ++ m.id ++ ":" ++ string_of_int(m.focus_generation),
+        ~target=
+          Tea_browser.Browser_events.Element(
+            Ui_attr.item_id(m.id, Date.to_iso(m.focused)),
+          ),
+        ~prevent_scroll=false,
+        _ =>
+        Focus_finished(m.focus_generation)
+      )
+    : Sub.none;
 let same_month = (a, b) => a.Date.year == b.Date.year && a.month == b.month;
 let allowed = (constraints, date) =>
   (
@@ -336,7 +357,16 @@ let update = (~constraints=unconstrained, ~readonly=false, msg, m) => {
       ...m,
       focused: date,
     };
-    (next, focus ? focus_grid(next) : Cmd.none, focus_outputs(m, next));
+    (
+      focus
+        ? request_focus(next)
+        : {
+          ...next,
+          focus_pending: false,
+        },
+      Cmd.none,
+      focus_outputs(m, next),
+    );
   };
   let select = date => {
     let next = {
@@ -348,12 +378,26 @@ let update = (~constraints=unconstrained, ~readonly=false, msg, m) => {
         ...next,
         selected: Some(date),
       };
-      (next, focus_grid(next), focus_outputs(m, next) @ [Changed(date)]);
+      (
+        request_focus(next),
+        Cmd.none,
+        focus_outputs(m, next) @ [Changed(date)],
+      );
     } else {
-      (next, focus_grid(next), focus_outputs(m, next));
+      (request_focus(next), Cmd.none, focus_outputs(m, next));
     };
   };
   switch (msg) {
+  | Request_focus => (request_focus(m), Cmd.none, [])
+  | Focus_finished(generation) when generation == m.focus_generation => (
+      {
+        ...m,
+        focus_pending: false,
+      },
+      Cmd.none,
+      [],
+    )
+  | Focus_finished(_) => (m, Cmd.none, [])
   | Select(date) =>
     /* Ignore a stale click on a date that is no longer rendered. */
     let grid =

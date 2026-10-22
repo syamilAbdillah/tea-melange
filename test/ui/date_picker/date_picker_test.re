@@ -3,6 +3,7 @@ open Test_support;
 module P = Ui.Date_picker;
 module C = Ui.Calendar;
 module V = Tea_vdom.Vdom;
+[@mel.send] external blur: Dom.node => unit = "blur";
 let date = iso => Option.value(~default=C.Date.first, C.Date.of_iso(iso));
 let today = date("2026-03-05");
 let settle = () =>
@@ -514,6 +515,18 @@ let completed = {
     "start sentinel redirects to last control",
     has_focus("#test-close"),
   );
+  set_attribute(node("#test-close"), "tabindex", "1");
+  focus(node("#test-end"));
+  check(
+    "boundary first respects positive tabindex",
+    has_focus("#test-close"),
+  );
+  focus(node("#test-start"));
+  check(
+    "boundary last follows zero tabindex DOM order",
+    has_focus("#test-cancel"),
+  );
+  remove_attribute(node("#test-close"), "tabindex");
   focus(node("#outside"));
   check(
     "programmatic focus cannot leave an open modal",
@@ -998,6 +1011,92 @@ let completed = {
   check(
     "active animation wait",
     P.phase(app.model().picker) == Ui.Animation.Entering,
+  );
+  stop(app);
+  let app = start();
+  layout();
+  focus(node(trigger));
+  ignore(
+    dispatch(
+      node(trigger),
+      event(
+        "click",
+        {
+          "bubbles": true,
+          "cancelable": true,
+        },
+      ),
+    ),
+  );
+  focus(node("#outside"));
+  settle();
+  check("opening readiness never steals moved focus", has_focus("#outside"));
+  check(
+    "abandoned opening removes modal semantics",
+    !P.is_open(app.model().picker) && latest(app) == P.Closed(P.Outside),
+  );
+  focus(node(trigger));
+  app.dispatch(Open);
+  flush();
+  focus(node("#outside"));
+  settle();
+  check(
+    "opening focus frame never steals moved focus",
+    has_focus("#outside"),
+  );
+  focus(node(trigger));
+  app.dispatch(Open);
+  focus(node(input));
+  settle();
+  check(
+    "opening never steals focus moved back to its input",
+    has_focus(input) && !P.is_open(app.model().picker),
+  );
+  focus(node(trigger));
+  app.dispatch(Open);
+  blur(node(trigger));
+  check(
+    "explicit blur leaves focus on body before readiness",
+    has_focus("body"),
+  );
+  settle();
+  check(
+    "opening never steals focus after explicit blur",
+    has_focus("body") && !P.is_open(app.model().picker),
+  );
+  stop(app);
+  let app = start(~readonly=true, ());
+  layout();
+  focus(node(trigger));
+  app.dispatch(Open);
+  settle();
+  ignore(
+    dispatch(
+      node(active_cell),
+      event(
+        "click",
+        {
+          "bubbles": true,
+          "cancelable": true,
+        },
+      ),
+    ),
+  );
+  focus(node("#test-cancel"));
+  settle();
+  check(
+    "calendar selection cannot steal a later Cancel focus",
+    has_focus("#test-cancel") && P.is_open(app.model().picker),
+  );
+  stop(app);
+  let app = start();
+  layout();
+  focus(node("#outside"));
+  app.dispatch(Open);
+  settle();
+  check(
+    "programmatic opening from an external control still focuses the calendar",
+    has_focus(active_cell) && P.is_open(app.model().picker),
   );
   stop(app);
   let app = start(~top_layer=true, ());

@@ -602,6 +602,23 @@ let completed = {
   frame();
   check("backwards group stamp stays cold", !opened("b") && pending() == 1);
   reset("b");
+  /* Subtracting these doubles rounds the exact deadline back inside the window. */
+  let fractional_close = 248.006;
+  app.dispatch(
+    Group(
+      H.Group.record_close(
+        ~time_stamp=fractional_close,
+        H.Group.init(~skip_delay_ms=1800, ()),
+      ),
+    ),
+  );
+  hover(~stamp=fractional_close +. 1800., "#b", "pointerenter");
+  frame();
+  check(
+    "fractional timestamp expiry is exclusive",
+    !opened("b") && pending() == 1,
+  );
+  reset("b");
   app.dispatch(
     Group(
       H.Group.record_close(

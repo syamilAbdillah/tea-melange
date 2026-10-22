@@ -186,7 +186,7 @@ let completed = {
     "single current reappears",
     Array.length(query_all(document, "[aria-current]")) == 1,
   );
-  app.dispatch(Keys([|"a b", "a_0020b", "", "é", "a/b"|]));
+  app.dispatch(Keys([|"a b", "a_0020b", "", {js|é|js}, "a/b"|]));
   frame();
   let links = query_all(document, "#nav a");
   let ids = Array.map(link => get(link, "id"), links);

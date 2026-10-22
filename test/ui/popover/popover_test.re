@@ -655,6 +655,42 @@ let completed = {
       flush();
       await_position(app, remaining - 1);
     };
+  let app =
+    start(~focus_on_open=P.First_tabbable, ~close_on_focus_out=false, ());
+  layout();
+  focus(node("#outside"));
+  app.dispatch(Open);
+  settle();
+  check(
+    "programmatic opening retains focus policy from an external control",
+    has_focus("#first"),
+  );
+  stop(app);
+  let app =
+    start(~focus_on_open=P.First_tabbable, ~close_on_focus_out=false, ());
+  layout();
+  focus(node("#test-trigger"));
+  app.dispatch(Open);
+  await_position(app, 20);
+  focus(node("#outside"));
+  settle();
+  check(
+    "opening does not override focus moved after positioning",
+    has_focus("#outside") && P.is_open(app.model().popover),
+  );
+  stop(app);
+  let app =
+    start(~focus_on_open=P.First_tabbable, ~close_on_focus_out=false, ());
+  layout();
+  focus(node("#test-trigger"));
+  app.dispatch(Open);
+  focus(node("#outside"));
+  settle();
+  check(
+    "opening snapshot survives delayed positioning",
+    has_focus("#outside") && P.is_open(app.model().popover),
+  );
+  stop(app);
   let app = start(~focus_on_open=P.First_tabbable, ());
   layout();
   app.dispatch(Open);

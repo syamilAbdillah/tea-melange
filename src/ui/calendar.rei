@@ -143,10 +143,14 @@ let selected: model => option(date);
 let visible_month: model => date;
 /** Replace/clear selection without out messages or DOM effects. */
 let set_selected: (option(date), model) => model;
-/** Replace focus date and visible month without DOM effects/out messages.
+/** Replace focus date and visible month without DOM effects/out messages,
+    cancelling a previously pending focus request.
     Pair with focus_grid if DOM focus should move after rendering. */
 let set_focus: (date, model) => model;
-/** Post-render focus of current roving cell, ignoring a missing grid. */
+/** Request post-render focus of the current roving cell through update and
+    subscriptions, ignoring a missing grid. Intervening focus movement, a newer
+    request or shutdown cancels it. Always forward returned commands to update
+    and map subscriptions into the parent. */
 let focus_grid: model => Tea_core.Cmd.t(msg);
 /** Update against current constraints/read-only state. Keyboard can reach
     unavailable/out-of-bound dates. Navigation buttons stop at min/max months;
@@ -158,7 +162,9 @@ let focus_grid: model => Tea_core.Cmd.t(msg);
 let update:
   (~constraints: constraints=?, ~readonly: bool=?, msg, model) =>
   (model, Tea_core.Cmd.t(msg), list(out_msg));
-/** No global listeners or subscriptions. */
+/** Execute generation-keyed cancellable post-render focus requests. Required
+    whenever mounted, including when using focus_grid. Temporary document focus
+    listeners yield to user navigation and are released on completion/shutdown. */
 let subscriptions: model => Tea_core.Sub.t(msg);
 /** A td bundle. Blank cells have no date, events, id or tabindex. */
 type cell('msg) = {

@@ -178,18 +178,14 @@ default; required shortcuts take precedence. Tab never reaches hooks. Item
 names come from `item.label`; render the same text visibly. All derived IDs
 encode keys with the foundation's collision-free UTF-16 safe-key encoding.
 
-### Private browser capability
+### Browser focus capability
 
-Each module privately implements lifecycle-cancelable, latest-request-only focus,
-using `Tea_dom.Browser_platform.request_animation_frame`, `getElementById` and
-`element.focus()`. Missing nodes are harmless. This is the one exception to
-using `Browser_dom.focus` directly: its tasks cannot currently be canceled once
-queued. Direct use would steal focus back when an arrow is followed by Tab before
-the next render, and would still focus after shutdown. The private capability
-uses the same render-before-effect scheduling contract; it should be consolidated
-into tea.browser by the integrator. No foundation or browser files are modified.
-The small mutable owner holds effect-lifetime tickets only, never domain state
-or a collection. All state/navigation remains in the immutable TEA submodel.
+Focus requests are immutable generation-keyed model data, executed by
+`Browser_events.focus` after render. A newer request cancels its predecessor;
+leaving the group or shutdown cancels pending work. An intervening focus movement
+wins, including moving away and back before the frame. Missing nodes are harmless.
+Only subscription-local closures hold cancellation cells; models contain no
+mutable effect owner or DOM state.
 
 ## Tests
 

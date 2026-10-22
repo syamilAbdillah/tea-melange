@@ -251,8 +251,14 @@ let completed = {
     ],
   );
   let before = List.length(app.model().out);
+  let prior_model = app.model().tabs;
+  let prior_snapshot = Js.Json.stringifyAny(prior_model);
   ignore(key("#t-item-d", "keydown", "ArrowRight"));
   ignore(key("#t-item-d", "keydown", "ArrowRight"));
+  check(
+    "updates never mutate a prior model",
+    Js.Json.stringifyAny(prior_model) == prior_snapshot,
+  );
   check(
     "batched state",
     selection() == Some("c") && List.length(app.model().out) == before + 2,
@@ -500,7 +506,7 @@ let completed = {
   );
   let strange: array(T.item) = [|
     {
-      key: "a b/é",
+      key: {js|a b/é|js},
       label: "Odd",
       disabled: false,
     },

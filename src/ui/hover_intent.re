@@ -61,9 +61,11 @@ module Group = {
       || (
         switch (group.closed_at) {
         | Some(closed) =>
+          /* Compare deadlines, not a subtraction that can round an exact
+             fractional-millisecond boundary back inside the warm window. */
           time_stamp >= closed
-          && time_stamp
-          -. closed < float_of_int(group.skip_delay_ms)
+          && time_stamp < closed
+          +. float_of_int(group.skip_delay_ms)
         | None => false
         }
       )

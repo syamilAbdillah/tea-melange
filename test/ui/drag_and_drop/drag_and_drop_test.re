@@ -245,6 +245,10 @@ let completed = {
     "orientation",
     attr(list_selector("left"), "data-orientation") == Some("vertical"),
   );
+  check(
+    "idle Escape reaches document",
+    key_at_document(handle("a"), "Escape") == (true, true),
+  );
   check("idle arrows untouched", key(handle("a"), "keydown", "ArrowDown"));
   List.iter(
     k => {
@@ -330,7 +334,18 @@ let completed = {
   press(app, "Enter");
   frame();
   press(app, "ArrowDown");
-  press(app, "Escape");
+  check(
+    "modified and composing drag Escape reach document",
+    key_at_document(~ctrl=true, handle("a"), "Escape") == (true, true)
+    && key_at_document(~alt=true, handle("a"), "Escape") == (true, true)
+    && key_at_document(~meta=true, handle("a"), "Escape") == (true, true)
+    && key_at_document(~composing=true, handle("a"), "Escape")
+    == (true, true),
+  );
+  check(
+    "drag Escape prevented and stopped at document",
+    key_at_document(handle("a"), "Escape") == (false, false),
+  );
   frame();
   check(
     "Escape restores",
@@ -438,7 +453,7 @@ let completed = {
       ~containers=[|
         container(
           "a_b",
-          [|item("a b"), item("a_0020b"), item(""), item("日本語")|],
+          [|item("a b"), item("a_0020b"), item(""), item({js|日本語|js})|],
         ),
       |],
       (),
@@ -449,11 +464,13 @@ let completed = {
   );
   check(
     "Unicode and empty key ids exist",
-    attr(handle(""), "id") != None && attr(handle("日本語"), "id") != None,
+    attr(handle(""), "id") != None
+    && attr(handle({js|日本語|js}), "id") != None,
   );
   check(
     "special keys share resolving instructions",
-    attr(handle("日本語"), "aria-describedby") == Some("sort-instructions"),
+    attr(handle({js|日本語|js}), "aria-describedby")
+    == Some("sort-instructions"),
   );
   close(special);
   let pointer_app = mount();

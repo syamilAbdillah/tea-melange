@@ -53,8 +53,10 @@ Browser/AT shortcuts and IME do not invoke it. Do not nest buttons in date cells
 
 `set_selected` replaces or clears the domain value without out messages.
 `set_focus` replaces the roving date and visible month without DOM effects;
-return `focus_grid(next_model)` as a command to focus after the new grid draws.
-Always use the new submodel for that command. Initial focus is explicit: the
+return `focus_grid(next_model)` as a command to request focus after the new grid
+draws. Forward the command back through update and map `Calendar.subscriptions`.
+Requests target the current roving cell and yield to any intervening focus move;
+newer requests, a setter, unmount or shutdown cancel obsolete work. Initial focus is explicit: the
 parent chooses selected date, today, or another fallback. Nothing reads a clock.
 
 ## Public API
@@ -259,8 +261,9 @@ or Home/End's logical week edges.
 - Presence flags: data-active, data-selected, data-today, data-disabled,
   data-outside-month on date cells; data-disabled on bounded navigation;
   data-readonly on the grid.
-- No inline styles, document listeners, locks or subscriptions. Behavior needs
-  no CSS. The example demonstrates visible focus and the data hooks.
+- No inline styles or scroll locks. Focus uses generation-keyed
+  `Browser_events.focus` subscriptions with temporary focus listeners; always
+  forward `Calendar.subscriptions`. Behavior needs no CSS.
 
 ## Scope and verification
 

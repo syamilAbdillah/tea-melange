@@ -198,7 +198,6 @@ type reason =
   | Timeout
   | Close_button
   | Action
-  | Swipe
   | Escape
   | Programmatic;
 type out_msg =
@@ -288,8 +287,8 @@ or other component source was changed.
 
 **Swipe is explicitly omitted**, rather than shipping partial pointer capture,
 threshold or cancellation behavior. No data-swipe or --tea-toast-swipe-x/y are
-emitted. Swipe remains a reserved reason for API compatibility; this
-implementation never emits it. Hover-expanded stacking is also omitted.
+emitted, and the reason type contains only implemented dismissal sources.
+Hover-expanded stacking is also omitted.
 DOM ids/focus are document-local, not shadow-root or iframe aware.
 Animation's inherited 5000ms watchdog can end deliberately paused/infinite or
 longer visual transitions; no Animation defect or missing capability was found.
@@ -317,3 +316,10 @@ Document visibility is a property/event fixture (headless tabs do not reliably
 background); it exercises the real Browser_events source, not a Toast test hook.
 Axe is unfiltered in empty, normal, urgent, action, queued, alternate and restored
 states, including after real visual transitions.
+
+Hotkey entry uses a cancellable post-render focus request. A focus movement
+before its frame supersedes entry, including moving away and back, and shutdown
+cancels it. Ordinary focus repair after a focused toast disappears uses the same
+ownership and does not override a later destination. The existing Tab/Escape
+return bridges retain their command ordering
+with the opener restoration lease; they are separate from hotkey entry.

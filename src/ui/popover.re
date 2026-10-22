@@ -3,7 +3,6 @@ module V = Tea_vdom.Vdom;
 module D = Tea_core.Decode;
 module Cmd = Tea_core.Cmd;
 module Sub = Tea_core.Sub;
-module Browser = Tea_browser.Browser_dom;
 module Events = Tea_browser.Browser_events;
 type role =
   | Dialog(string)
@@ -108,28 +107,6 @@ module Native = {
   [@mel.get]
   external related: Dom.event => Js.Nullable.t(Dom.node) = "relatedTarget";
   [@mel.send] external contains: (Dom.node, Dom.node) => bool = "contains";
-  [@mel.send] external focus: Dom.node => unit = "focus";
-  [@mel.get]
-  external parent: Dom.node => Js.Nullable.t(Dom.node) = "parentElement";
-  [@mel.get] external local_name: Dom.node => string = "localName";
-  [@mel.get] external tab_index: Dom.node => int = "tabIndex";
-  [@mel.get] external name: Dom.node => string = "name";
-  [@mel.get] external form: Dom.node => Js.Nullable.t(Dom.node) = "form";
-  [@mel.get] external checked: Dom.node => bool = "checked";
-  [@mel.send] external matches: (Dom.node, string) => bool = "matches";
-  [@mel.send] external has: (Dom.node, string) => bool = "hasAttribute";
-  [@mel.send]
-  external query: (Dom.node, string) => array(Dom.node) = "querySelectorAll";
-  [@mel.send]
-  external query_document: (Dom.document, string) => array(Dom.node) =
-    "querySelectorAll";
-  external window: Dom.window = "window";
-  [@mel.send]
-  external computed: (Dom.window, Dom.node) => Dom.cssStyleDeclaration =
-    "getComputedStyle";
-  [@mel.send]
-  external style: (Dom.cssStyleDeclaration, string) => string =
-    "getPropertyValue";
   [@mel.send]
   external add: (Dom.document, string, Dom.event => unit, bool) => unit =
     "addEventListener";
@@ -149,73 +126,6 @@ module Native = {
         ids,
       )
     };
-  /* Browser_dom focus tasks cannot be cancelled between scheduling and focus.
-     The subscription below needs an atomic live check + focus, including when
-     focus leaves or the component unmounts in the intervening frame. */
-  let rec visible = node => {
-    let css = computed(window, node);
-    !has(node, "hidden")
-    && !has(node, "inert")
-    && !String.equal(style(css, "display"), "none")
-    && !List.mem(style(css, "visibility"), ["hidden", "collapse"])
-    && (
-      switch (Js.Nullable.toOption(parent(node))) {
-      | None => true
-      | Some(parent) =>
-        (
-          !String.equal(local_name(parent), "details")
-          || has(parent, "open")
-          || String.equal(local_name(node), "summary")
-        )
-        && visible(parent)
-      }
-    );
-  };
-  let radio_stop = node =>
-    !matches(node, "input[type=radio]")
-    || String.equal(name(node), "")
-    || !
-         Array.exists(
-           other =>
-             other !== node
-             && checked(other)
-             && String.equal(name(other), name(node))
-             && form(other) === form(node)
-             && !matches(other, ":disabled"),
-           query_document(document, "input[type=radio]"),
-         );
-  let first = root => {
-    let candidates =
-      query(
-        root,
-        "a[href],area[href],button,input:not([type=hidden]),select,textarea,iframe,summary,[tabindex],[contenteditable]:not([contenteditable=false]),audio[controls],video[controls]",
-      );
-    Array.fold_left(
-      (best, node) => {
-        let tab = tab_index(node);
-        let implicit =
-          matches(
-            node,
-            "[contenteditable]:not([contenteditable=false]),audio[controls],video[controls]",
-          );
-        if ((tab >= 0 || implicit && !has(node, "tabindex"))
-            && !matches(node, ":disabled,input[type=hidden]")
-            && visible(node)
-            && radio_stop(node)) {
-          let priority = tab > 0 ? tab : max_int;
-          switch (best) {
-          | Some((_, old)) when old <= priority => best
-          | _ => Some((node, priority))
-          };
-        } else {
-          best;
-        };
-      },
-      None,
-      candidates,
-    )
-    |> Option.map(((node, _)) => node);
-  };
 };
 let focus_source = model =>
   Sub.make(
@@ -328,6 +238,7 @@ let update = (message, model) =>
       {
         ...model,
         focus_job: None,
+        pending_focus: false,
         restore_focus: !model.opened && should_render(model),
       },
       Cmd.none,
@@ -389,60 +300,43 @@ let update = (message, model) =>
     );
   };
 let focus_effect = (model, policy) =>
-  Sub.make(
-    ~home="Tea_ui.Popover.focus_effect",
-    ~key=model.id ++ ":" ++ string_of_int(model.focus_generation),
-    ~start=
-      dispatch => {
-        let live = ref(true);
-        Browser.active_element_id(_ =>
-          if (live^) {
-            /* A restoring dismissal must not steal a subsequent intentional focus
-               destination. Outside and focus-out dismissals never request this. */
-            let allowed =
-              model.opened
-              || Native.within(
-                   [trigger_id(model), panel_id(model)],
-                   Native.active(Native.document),
-                 )
-              || (
-                switch (Js.Nullable.toOption(Native.active(Native.document))) {
-                | None => true
-                | Some(node) =>
-                  String.equal(Native.local_name(node), "body")
-                }
-              );
-            if (allowed) {
-              let target: option(Dom.node) =
-                switch (policy) {
-                | None => None
-                | Element(id) =>
-                  Js.Nullable.toOption(Native.by_id(Native.document, id))
-                | First_tabbable =>
-                  Option.bind(
-                    Js.Nullable.toOption(
-                      Native.by_id(Native.document, panel_id(model)),
-                    ),
-                    Native.first,
-                  )
-                };
-              Option.iter(Native.focus, target);
-            };
-            if (live^) {
-              dispatch(Focus_finished(model.focus_generation));
-            };
-          }
-        );
-        () => live := false;
-      },
-    ~tagger=message => message,
-  );
+  switch (policy) {
+  | None => Sub.none
+  | Element(id) =>
+    Events.focus(
+      ~key=
+        string_of_int(String.length(model.id))
+        ++ ":"
+        ++ model.id
+        ++ ":"
+        ++ string_of_int(model.focus_generation),
+      ~target=Events.Element(id),
+      ~ready=!model.pending_focus,
+      ~from=model.opened ? [] : [trigger_id(model), panel_id(model)],
+      _ =>
+      Focus_finished(model.focus_generation)
+    )
+  | First_tabbable =>
+    Events.focus(
+      ~key=
+        string_of_int(String.length(model.id))
+        ++ ":"
+        ++ model.id
+        ++ ":"
+        ++ string_of_int(model.focus_generation),
+      ~target=Events.First_tabbable(panel_id(model)),
+      ~ready=!model.pending_focus,
+      _ =>
+      Focus_finished(model.focus_generation)
+    )
+  };
 let subscriptions = model =>
   Sub.batch([
-    switch (model.focus_job) {
-    | None => Sub.none
-    | Some(policy) => focus_effect(model, policy)
-    },
+    focus_effect(
+      model,
+      model.pending_focus
+        ? model.focus_on_open : Option.value(~default=None, model.focus_job),
+    ),
     Sub.map(
       msg => Animation(msg),
       Animation.subscriptions(model.animation),

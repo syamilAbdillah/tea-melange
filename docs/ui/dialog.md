@@ -144,17 +144,19 @@ Every part bundle is in the **parent's message type**, not Dialog.msg.
 | --- | --- |
 | Tab | Move forward among modal tabbables, wrapping inside; never prevent default |
 | Shift+Tab | Move backward, wrapping inside; never prevent default |
-| Escape | Request close of the focused/top dialog; prevent native closure |
+| Escape while visible (including Leaving) | Request close of the focused/top dialog; prevent native closure and stop propagation |
 | Enter / Space | Native button activation / form submission; never synthesized |
 | Other keys | Unchanged; optional unmodified-key hook, without prevention |
 | Ctrl/Alt/Meta chords / IME | Unchanged; no hook invocation |
 
 Escape is intercepted on keydown as well as the dialog's `cancel` event.
-`cancel` is always prevented and stopped; only Escape keydown stops propagation.
+`cancel` is always prevented and stopped; only claimed Escape keydown stops
+propagation. A closed, mounted dialog leaves Escape unprevented and bubbling.
 This avoids Chromium's repeated-Escape close watcher producing a noncancelable
 cancel and bypassing a guard or closing during Leaving. `closedby="none"` also
 disables newer native light-dismiss behavior; model intent owns dismissal.
-The keydown hook receives neither Escape nor Tab. Avoid installing another
+The keydown hook receives neither claimed Escape nor Tab; a closed dialog may
+forward unclaimed Escape to the hook. Avoid installing another
 keydown handler on root; use `on_key_down` to compose application shortcuts.
 
 Native modality excludes background focus targets. Chromium can temporarily
@@ -174,6 +176,10 @@ opening is never pulled back:
 3. First tabbable in sequential tab order (positive tabindex first, then DOM
    order), skipping hidden, inert, disabled and unchecked radio-group members.
 4. Root itself (`tabindex=-1`) if no tabbable exists.
+
+Initial fallback and Tab-boundary repair share the synchronous
+`Browser_dom.first_tabbable` / `last_tabbable` queries described in
+[foundation.md](foundation.md). The selector does not schedule another frame.
 
 A missing/outside/unfocusable explicit target falls back. Alertdialog callers
 must render a valid enabled least-destructive action: the library cannot infer

@@ -178,10 +178,9 @@ is left for its click to toggle, avoiding close-then-reopen races.
 
 The model is entirely immutable, including focus generations. A private
 subscription-owned runtime lease registry (document-unique id, removed on stop)
-cancels obsolete queued focus, because `Browser_dom.focus` has no cancellation
-handle. Private `getElementById` and `focus({preventScroll:true})` bindings execute
-only in guarded post-render callbacks. No capabilities were added to shared
-browser modules. An open lease wraps
+retains only shutdown/unmount restoration policy. Opening and explicit return
+focus use the shared generation-keyed `Browser_events.focus` source. An open
+lease wraps
 `Browser_events.restore_focus(~within=popup_id)` for shutdown/unmount restoration;
 normal close decisions use explicit guarded trigger focus, and discard the
 resource-free restoration callback. This prevents outside/Tab dismissal from
@@ -268,10 +267,17 @@ form values and submit, 200 scrolling items, RTL, empty/disabled/invalid/wrappin
 states, and live collection replacement. Tests cover every keyboard row, real
 typeahead timing, single/multiple selection, idrefs, focus, pointer behavior,
 rapid intents/reversals, unresolved-animation cleanup, form serialization,
-accessibility snapshots and unfiltered axe. No shared files are changed.
+accessibility snapshots and unfiltered axe.
 
 Anchor's documented top-layer fallback, viewport/layout visibility, shadow DOM
 and iframe limitations apply. Without Popover API support, fixed-position panels
 cannot escape transformed/clipping ancestors. Animation's 5000ms watchdog bounds
 paused/infinite transitions. The parent supplies missing-opener focus fallbacks,
 form reset and a synchronous active-row pinning contract when virtualizing.
+
+Opening focus captures the current element immediately, then waits for a visible
+Anchor position in a cancellable subscription. It supports arbitrary programmatic
+openers; moving focus before readiness or the focus frame supersedes it, even
+when focus moves away and back. Return-focus requests use the same
+ownership and generation checks. Tab/outside dismissal cancels pending work;
+shutdown restoration retains its separate opener lease.

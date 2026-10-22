@@ -699,6 +699,28 @@ let completed = {
     step(
       run,
       () => {
+        focus(node("#m-button"));
+        app.dispatch(Open);
+        focus(node("#outside"));
+        phase_hidden();
+        check(
+          "opening readiness never steals moved focus",
+          has_focus("#outside"),
+        );
+        app.dispatch(Close);
+        phase_hidden();
+        focus(node("#m-button"));
+        app.dispatch(Open);
+        flush();
+        focus(node("#outside"));
+        phase_hidden();
+        check(
+          "opening focus frame never steals moved focus",
+          has_focus("#outside"),
+        );
+        app.dispatch(Close);
+        phase_hidden();
+        focus(node("#m-button"));
         put(node("#m-menu"), "getAnimations", () =>
           [|
             {

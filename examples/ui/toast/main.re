@@ -28,7 +28,6 @@ let reason_name = reason =>
   | T.Timeout => "Timeout"
   | T.Close_button => "Close_button"
   | T.Action => "Action"
-  | T.Swipe => "Swipe"
   | T.Escape => "Escape"
   | T.Programmatic => "Programmatic"
   };

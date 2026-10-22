@@ -553,8 +553,19 @@ let completed = {
   check("all six unclaimed events reached ancestor", propagated^ == 6);
   check("Tab not prevented", key(root("focus"), "keydown", "Tab"));
   check("Tab propagates", propagated^ == 7);
-  check("Escape consumed", !key(root("focus"), "keydown", "Escape"));
-  check("Escape never reaches enclosing overlay", propagated^ == 7);
+  check(
+    "modified and composing Escape reach document",
+    key_at_document(~ctrl=true, root("focus"), "Escape") == (true, true)
+    && key_at_document(~alt=true, root("focus"), "Escape") == (true, true)
+    && key_at_document(~meta=true, root("focus"), "Escape") == (true, true)
+    && key_at_document(~composing=true, root("focus"), "Escape")
+    == (true, true),
+  );
+  check(
+    "Escape consumed and stopped at document",
+    key_at_document(root("focus"), "Escape") == (false, false),
+  );
+  check("Escape never reaches enclosing overlay", propagated^ == 11);
   frames();
   check(
     "Escape dismisses and returns",
@@ -563,9 +574,16 @@ let completed = {
   check("empty F8 consumed", !key("#opener", "keydown", "F8"));
   frames();
   check("empty region focuses", has_focus("#notice"));
-  check("empty Escape consumed", !key("#notice", "keydown", "Escape"));
+  check(
+    "empty Escape consumed and stopped at document",
+    key_at_document("#notice", "Escape") == (false, false),
+  );
   frames();
   check("empty Escape returns", has_focus("#opener"));
+  check(
+    "unclaimed region Escape reaches document",
+    key_at_document("#notice", "Escape") == (true, true),
+  );
   push(app, "tab", ~duration=None, "Tab exit");
   ignore(key("#opener", "keydown", "F8"));
   frames();
@@ -738,6 +756,51 @@ let completed = {
     &&
     resources()##observers == 1
     && pending() == 1,
+  );
+  stop(app);
+  let app = start();
+  frames();
+  push(app, "race", ~duration=None, "Focus race");
+  focus(node("#opener"));
+  ignore(key("#opener", "keydown", "F8"));
+  focus(node("#after"));
+  frames();
+  check(
+    "hotkey deferred focus never steals moved focus",
+    has_focus("#after"),
+  );
+  focus(node("#opener"));
+  ignore(key("#opener", "keydown", "F8"));
+  focus(node("#after"));
+  focus(node("#opener"));
+  frames();
+  check(
+    "hotkey ignores an away-and-back focus journey",
+    has_focus("#opener"),
+  );
+  ignore(key("#opener", "keydown", "F8"));
+  stop(app);
+  check("shutdown cancels pending hotkey focus", !has_focus(root("race")));
+  let app = start();
+  frames();
+  push(app, "repair", ~duration=None, "Ordinary focus repair");
+  focus(node(close_button("repair")));
+  app.dispatch(Dismiss("repair"));
+  let rec until_removed = remaining =>
+    if (remaining > 0 && List.mem("repair", T.keys(app.model().toast))) {
+      flush();
+      until_removed(remaining - 1);
+    };
+  until_removed(14);
+  check(
+    "ordinary dismissal completed before repair frame",
+    !List.mem("repair", T.keys(app.model().toast)),
+  );
+  focus(node("#after"));
+  frames();
+  check(
+    "ordinary focus repair never steals a later destination",
+    has_focus("#after"),
   );
   stop(app);
   visibility(false);

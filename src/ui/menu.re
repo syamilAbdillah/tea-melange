@@ -85,6 +85,7 @@ type model = {
   selected: option(string),
   hover: option(hover),
   restore: bool,
+  focus_epoch: int,
 };
 type msg =
   | Trigger_click
@@ -96,7 +97,7 @@ type msg =
   | Leave(option(string))
   | Hover(hover)
   | Outside_down
-  | Focused(option(string))
+  | Focused(option(string), int)
   | Animated(option(string), Animation.msg)
   | Anchored(option(string), Anchor.msg);
 type out_msg =
@@ -182,6 +183,7 @@ let init =
     selected: None,
     hover: None,
     restore: false,
+    focus_epoch: 0,
   };
   {
     ...m,
@@ -353,6 +355,7 @@ let focus_panel = (m, p) => {
   };
   let m = {
     ...m,
+    focus_epoch: m.focus_epoch + 1,
     panels:
       List.map(
         p =>
@@ -707,7 +710,7 @@ let update = (~items, message, m) => {
     | Menu_key(owner, event) => menu_key(~items, m, owner, event)
     | Activate(owner, key, keep) => activate(~items, m, owner, key, keep)
     | Outside_down => close_user(m, Outside, false)
-    | Focused(owner) =>
+    | Focused(owner, epoch) when epoch == m.focus_epoch =>
       let p = get_panel(m, owner);
       (
         put_panel(
@@ -720,6 +723,7 @@ let update = (~items, message, m) => {
         Cmd.none,
         [],
       );
+    | Focused(_, _) => (m, Cmd.none, [])
     | Move(owner, key) =>
       let p = get_panel(m, owner);
       let candidates =
@@ -887,14 +891,8 @@ let update = (~items, message, m) => {
           ...p,
           anchor,
         };
-        let (m, focus) =
-          p.open_ && p.focus_pending
-            ? focus_panel(m, p) : (put_panel(m, p), Cmd.none);
-        (
-          m,
-          Cmd.batch([Cmd.map(msg => Anchored(owner, msg), cmd), focus]),
-          [],
-        );
+        let m = put_panel(m, p);
+        (m, Cmd.map(msg => Anchored(owner, msg), cmd), []);
       }
     };
   (m, Cmd.batch([repair_cmd, cmd]), outs);
@@ -939,29 +937,21 @@ let subscriptions = m =>
               msg => Anchored(p.owner, msg),
               Anchor.subscriptions(p.anchor),
             ),
-            p.open_
-            && p.focus_pending
-            && (
-              switch (Anchor.position(p.anchor)) {
-              | Some(position) => !position.reference_hidden
-              | None => false
-              }
-            )
-              ? Sub.make(
-                  ~home="Tea_ui.Menu.focus",
-                  ~key=panel_id(m, p.owner),
-                  ~tagger=() => Focused(p.owner),
-                  ~start=
-                    dispatch => {
-                      let live = ref(true);
-                      Tea_dom.Browser_platform.request_animation_frame(_ =>
-                        if (live^) {
-                          Native.focus_id(panel_id(m, p.owner));
-                          dispatch();
-                        }
-                      );
-                      () => live := false;
-                    },
+            p.open_ && p.focus_pending
+              ? Events.focus(
+                  ~key=
+                    panel_id(m, p.owner)
+                    ++ ":"
+                    ++ string_of_int(m.focus_epoch),
+                  ~target=Events.Element(panel_id(m, p.owner)),
+                  ~ready=
+                    Option.fold(
+                      ~none=false,
+                      ~some=position => !position.Anchor.reference_hidden,
+                      Anchor.position(p.anchor),
+                    ),
+                  _ =>
+                  Focused(p.owner, m.focus_epoch)
                 )
               : Sub.none,
           ]),

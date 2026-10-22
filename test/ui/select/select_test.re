@@ -36,7 +36,7 @@ let initial_items = [|
     disabled: false,
     items: [|
       {
-        key: "b /☕",
+        key: {js|b /☕|js},
         label: "Beta",
         disabled: false,
       },
@@ -170,11 +170,14 @@ let completed = {
     "optgroup rendered",
     Array.length(query_all(document, "optgroup[label=Group]")) == 1,
   );
-  set_selected(["b /☕"]);
-  check("keys not indices", app.model().value == F.Single(Some("b /☕")));
+  set_selected([{js|b /☕|js}]);
+  check(
+    "keys not indices",
+    app.model().value == F.Single(Some({js|b /☕|js})),
+  );
   check(
     "raw key is native form value",
-    values(form_data(node("#form")), "choice") == [|"b /☕"|],
+    values(form_data(node("#form")), "choice") == [|{js|b /☕|js}|],
   );
   app.dispatch(
     Items([|initial_items[2], initial_items[1], initial_items[0]|]),
@@ -182,8 +185,8 @@ let completed = {
   frame();
   check(
     "reorder preserves selection by key",
-    get(node("#select-control"), "value") == "b /☕"
-    && app.model().value == F.Single(Some("b /☕")),
+    get(node("#select-control"), "value") == {js|b /☕|js}
+    && app.model().value == F.Single(Some({js|b /☕|js})),
   );
   app.dispatch(Value(F.Single(Some(""))));
   frame();
@@ -196,7 +199,7 @@ let completed = {
   frame();
   ignore(emit("#select-control", "change"));
   check("placeholder decodes None", app.model().value == F.Single(None));
-  app.dispatch(Value(F.Multiple([|"a", "b /☕", "a", "absent"|])));
+  app.dispatch(Value(F.Multiple([|"a", {js|b /☕|js}, "a", "absent"|])));
   frame();
   check(
     "multiple native mode",
@@ -210,18 +213,18 @@ let completed = {
     "normalize removes duplicates/missing",
     F.normalize(
       ~items=initial_items,
-      F.Multiple([|"a", "b /☕", "a", "absent"|]),
+      F.Multiple([|"a", {js|b /☕|js}, "a", "absent"|]),
     )
-    == F.Multiple([|"a", "b /☕"|]),
+    == F.Multiple([|"a", {js|b /☕|js}|]),
   );
-  set_selected(["a", "b /☕"]);
+  set_selected(["a", {js|b /☕|js}]);
   check(
     "multiple actual key selection DOM order",
-    app.model().value == F.Multiple([|"b /☕", "a"|]),
+    app.model().value == F.Multiple([|{js|b /☕|js}, "a"|]),
   );
   check(
     "multiple form values",
-    values(form_data(node("#form")), "choice") == [|"b /☕", "a"|],
+    values(form_data(node("#form")), "choice") == [|{js|b /☕|js}, "a"|],
   );
   set_selected([]);
   check("multiple empty selection", app.model().value == F.Multiple([||]));

@@ -25,94 +25,13 @@ module Browser = {
       "bottom": float,
     } =
     "getBoundingClientRect";
-  external window: Dom.window = "window";
   [@mel.get] external body: Dom.document => Dom.node = "body";
-  [@mel.get]
-  external parent: Dom.node => Js.Nullable.t(Dom.node) = "parentElement";
-  [@mel.get] external tab_index: Dom.node => int = "tabIndex";
-  [@mel.get] external tag: Dom.node => string = "localName";
-  [@mel.get] external checked: Dom.node => bool = "checked";
-  [@mel.get] external form: Dom.node => Js.Nullable.t(Dom.node) = "form";
-  [@mel.get] external name: Dom.node => string = "name";
   [@mel.send] external matches: (Dom.node, string) => bool = "matches";
-  [@mel.send]
-  external query_all: (Dom.node, string) => array(Dom.node) =
-    "querySelectorAll";
   [@mel.send] external focus: Dom.node => unit = "focus";
-  [@mel.send]
-  external style:
-    (Dom.window, Dom.node) =>
-    {
-      .
-      "display": string,
-      "visibility": string,
-    } =
-    "getComputedStyle";
-  let rec visible = node => {
-    let css = style(window, node);
-    !matches(node, "[hidden],[inert]")
-    && !String.equal(css##display, "none")
-    && !String.equal(css##visibility, "hidden")
-    && !String.equal(css##visibility, "collapse")
-    && (
-      switch (Js.Nullable.toOption(parent(node))) {
-      | None => true
-      | Some(parent) =>
-        (
-          !matches(parent, "details:not([open])")
-          || String.equal(tag(node), "summary")
-        )
-        && visible(parent)
-      }
-    );
-  };
   [@mel.send]
   external focus_without_scroll:
     (Dom.node, {. "preventScroll": bool }) => unit =
     "focus";
-  /* Sequential tab order: positive tabindex ascending, then tabindex 0 in DOM
-     order. [backwards] picks the last stop instead of the first. */
-  let tabbable = (~backwards, root) => {
-    let radios = query_all(root, "input[type=radio]");
-    let chosen = ref(None);
-    Array.iter(
-      node => {
-        let tab = tab_index(node);
-        let radio =
-          !matches(node, "input[type=radio]")
-          || String.equal(name(node), "")
-          || !
-               Array.exists(
-                 other =>
-                   other !== node
-                   && String.equal(name(other), name(node))
-                   && form(other) === form(node)
-                   && checked(other)
-                   && !matches(other, ":disabled"),
-                 radios,
-               );
-        if (tab >= 0
-            && !matches(node, ":disabled,input[type=hidden]")
-            && radio
-            && visible(node)) {
-          let priority = tab > 0 ? tab : max_int;
-          switch (chosen^) {
-          | Some((_, previous))
-              when backwards ? previous > priority : previous <= priority =>
-            ()
-          | _ => chosen := Some((node, priority))
-          };
-        };
-      },
-      query_all(
-        root,
-        "a[href],area[href],button,input,select,textarea,iframe,summary,[tabindex],[contenteditable]:not([contenteditable=false]),audio[controls],video[controls]",
-      ),
-    );
-    Option.map(((node, _)) => node, chosen^);
-  };
-  let last_tabbable = root =>
-    Option.value(~default=root, tabbable(~backwards=true, root));
   let repair_tab = (id, backwards, live) =>
     Tea_dom.Browser_platform.request_animation_frame(_ =>
       switch (
@@ -128,10 +47,18 @@ module Browser = {
            Repair AFTER default navigation; never cancel Tab or steal focus
            from another connected element. */
         if (backwards) {
-          focus(last_tabbable(root));
+          focus(
+            Option.value(
+              ~default=root,
+              Tea_browser.Browser_dom.last_tabbable(root),
+            ),
+          );
         } else {
           focus(
-            Option.value(~default=root, tabbable(~backwards=false, root)),
+            Option.value(
+              ~default=root,
+              Tea_browser.Browser_dom.first_tabbable(root),
+            ),
           );
         }
       | _ => ()
@@ -404,12 +331,7 @@ let initial_focus = (model, live) =>
       let focus = node =>
         Browser.focus_without_scroll(node, { "preventScroll": true });
       let fallback = () =>
-        focus(
-          Option.value(
-            ~default=root,
-            Browser.tabbable(~backwards=false, root),
-          ),
-        );
+        focus(Option.value(~default=root, Dom.first_tabbable(root)));
       let target =
         switch (model.kind) {
         | Alertdialog(id) => Some(id)
@@ -537,7 +459,7 @@ let view =
     Ui_keyboard.custom(event =>
       !Ui_keyboard.plain(event)
         ? None
-        : String.equal(event.key, "Escape")
+        : String.equal(event.key, "Escape") && is_visible(model)
             ? Some((Some(to_parent(Request(Escape))), true))
             : String.equal(event.key, "Tab")
                 ? Some((Some(to_parent(Tab(event.shift))), false))

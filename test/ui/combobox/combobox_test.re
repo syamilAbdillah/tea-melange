@@ -318,21 +318,11 @@ let input = value => {
   put(node("#test-control"), "value", value);
   ignore(emit("#test-control", "input"));
 };
-[@mel.send]
-external listen: (Dom.node, string, Dom.event => unit) => unit =
-  "addEventListener";
-[@mel.send]
-external unlisten: (Dom.node, string, Dom.event => unit) => unit =
-  "removeEventListener";
-let escape_reaches_ancestor = () => {
-  let reached = ref(false);
-  let spy = _ => reached := true;
-  let ancestor = node("#app");
-  listen(ancestor, "keydown", spy);
-  ignore(key("#test-control", "keydown", "Escape"));
-  unlisten(ancestor, "keydown", spy);
+let escape_reaches_document = () => {
+  let (accepted, reached) = key_at_document("#test-control", "Escape");
+  check("Escape prevention matches its claim", accepted == reached);
   settle();
-  reached^;
+  reached;
 };
 let active = app =>
   C.active_key(~items=app.Tea_core.Runtime.model().items, app.model().combo);
@@ -395,7 +385,7 @@ let completed = {
     && attr("#test-toggle", "aria-label") == Some("Show suggestions"),
   );
   focus(node("#test-control"));
-  check("unclaimed empty Escape bubbles", escape_reaches_ancestor());
+  check("unclaimed empty Escape bubbles", escape_reaches_document());
   check("Down claimed", !press("ArrowDown"));
   check("first enabled", active(app) == Some("a /"));
   let first_id = Option.get(attr("#test-control", "aria-activedescendant"));
@@ -427,14 +417,25 @@ let completed = {
     ["Home", "End", "ArrowLeft", "ArrowRight"],
   );
   check("caret no active movement", active(app) == Some("d"));
-  check("claimed open Escape stops ancestor", !escape_reaches_ancestor());
+  check(
+    "modified and composing Escape reach document",
+    key_at_document(~ctrl=true, "#test-control", "Escape") == (true, true)
+    && key_at_document(~alt=true, "#test-control", "Escape") == (true, true)
+    && key_at_document(~meta=true, "#test-control", "Escape") == (true, true)
+    && key_at_document(~composing=true, "#test-control", "Escape")
+    == (true, true),
+  );
+  check("claimed open Escape stops at document", !escape_reaches_document());
   send(app, Text("abc"));
-  check("closed clearing Escape stops ancestor", !escape_reaches_ancestor());
+  check(
+    "closed clearing Escape stops at document",
+    !escape_reaches_document(),
+  );
   check(
     "clear emits query",
     List.mem(C.Query_changed(""), app.model().outs),
   );
-  check("empty Escape now bubbles", escape_reaches_ancestor());
+  check("empty Escape now bubbles", escape_reaches_document());
   ignore(key(~alt=true, "#test-control", "keydown", "ArrowDown"));
   settle();
   check(
@@ -491,7 +492,7 @@ let completed = {
   send(app, Readonly(true));
   send(app, Close);
   send(app, Text("readonly"));
-  check("readonly closed Escape bubbles", escape_reaches_ancestor());
+  check("readonly closed Escape bubbles", escape_reaches_document());
   input("cannot edit");
   check("readonly input rejected", C.text(app.model().combo) == "readonly");
   send(app, Readonly(false));
@@ -745,6 +746,49 @@ let completed = {
   check(
     "reversing leave retains resources",
     C.phase(app.model().combo) == Ui.Animation.Entering,
+  );
+  stop(app);
+  let app = start();
+  focus(node("#test-control"));
+  ignore(
+    dispatch(
+      node("#test-toggle"),
+      event(
+        "click",
+        {
+          "bubbles": true,
+          "cancelable": true,
+        },
+      ),
+    ),
+  );
+  focus(node("#outside"));
+  settle();
+  check(
+    "toggle deferred focus never steals moved focus",
+    has_focus("#outside"),
+  );
+  stop(app);
+  let app = start();
+  focus(node("#test-toggle"));
+  ignore(
+    dispatch(
+      node("#test-toggle"),
+      event(
+        "click",
+        {
+          "bubbles": true,
+          "cancelable": true,
+        },
+      ),
+    ),
+  );
+  focus(node("#outside"));
+  focus(node("#test-toggle"));
+  settle();
+  check(
+    "toggle ignores an away-and-back focus journey",
+    has_focus("#test-toggle"),
   );
   stop(app);
   let app = start();

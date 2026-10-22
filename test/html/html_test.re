@@ -24,6 +24,7 @@ let view = model =>
   Html.div(
     [],
     [
+      /* Native HTML serialization intentionally preserves UTF-8 bytes. */
       Html.button([Html.on_click(Decrement)], [Html.text("−")]),
       Html.span([], [Html.text(string_of_int(model))]),
       Html.button([Html.on_click(Increment)], [Html.text("+")]),

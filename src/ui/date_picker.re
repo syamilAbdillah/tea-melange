@@ -62,7 +62,7 @@ type msg =
   | Accept
   | Calendar(Calendar.msg)
   | Popover(Popover.msg)
-  | Focus_finished(int);
+  | Focus_finished(int, bool);
 type model = {
   id: string,
   value: option(date),
@@ -371,28 +371,34 @@ let update =
         outs,
       );
     (model, Cmd.map(message => Popover(message), command), notifications);
-  | Focus_finished(generation) when generation == model.generation => (
-      {
-        ...model,
-        initial_focus: false,
-        return_focus: false,
-        instructions_ready: is_open(model),
-      },
-      Cmd.none,
-      [],
-    )
-  | Focus_finished(_) => (model, Cmd.none, [])
+  | Focus_finished(generation, focused) when generation == model.generation =>
+    if (model.initial_focus && !focused && is_open(model)) {
+      /* A user who left during opening must not acquire a modal focus boundary
+         when positioning catches up. Closing also removes modal semantics. */
+      let (model, command) = close(model);
+      (model, command, [Closed(Outside)]);
+    } else {
+      (
+        {
+          ...model,
+          initial_focus: false,
+          return_focus: false,
+          instructions_ready: is_open(model) && focused,
+        },
+        Cmd.none,
+        [],
+      );
+    }
+  | Focus_finished(_, _) => (model, Cmd.none, [])
   };
-/* Private DOM capability: synchronous boundary focus and cancellable post-render
-   focus. Only subscription-local closures own live flags; the model is immutable. */
+/* Synchronous modal boundary focus. Deferred opening/return requests belong
+   to Browser_events subscriptions; no live runtime state enters the model. */
 module Native = {
   external document: Dom.document = "document";
   external window: Dom.window = "window";
   [@mel.send]
   external by_id: (Dom.document, string) => Js.Nullable.t(Dom.node) =
     "getElementById";
-  [@mel.get]
-  external active: Dom.document => Js.Nullable.t(Dom.node) = "activeElement";
   [@mel.get] external target: Dom.event => Js.Nullable.t(Dom.node) = "target";
   [@mel.get] external local_name: Dom.node => string = "localName";
   [@mel.send] external contains: (Dom.node, Dom.node) => bool = "contains";
@@ -402,7 +408,6 @@ module Native = {
   [@mel.send] external matches: (Dom.node, string) => bool = "matches";
   [@mel.get]
   external parent: Dom.node => Js.Nullable.t(Dom.node) = "parentElement";
-  [@mel.get] external tab_index: Dom.node => int = "tabIndex";
   [@mel.send]
   external computed: (Dom.window, Dom.node) => Dom.cssStyleDeclaration =
     "getComputedStyle";
@@ -450,42 +455,22 @@ let ready = model =>
        Popover.position(model.popover),
      );
 let focus_effect = model =>
-  Sub.make(
-    ~home="Tea_ui.Date_picker.focus",
-    ~key=model.id ++ ":" ++ string_of_int(model.generation),
-    ~start=
-      dispatch => {
-        let live = ref(true);
-        Browser.active_element_id(_ =>
-          if (live^) {
-            if (model.initial_focus) {
-              Option.iter(
-                Native.grid_focus,
-                Native.find(Popover.panel_id(model.popover)),
-              );
-            } else {
-              let allowed =
-                switch (Js.Nullable.toOption(Native.active(Native.document))) {
-                | None => true
-                | Some(node) =>
-                  String.equal(Native.local_name(node), "body")
-                  || Native.within(Popover.panel_id(model.popover), node)
-                };
-              if (allowed) {
-                Option.iter(
-                  Native.focus,
-                  Native.find(Popover.trigger_id(model.popover)),
-                );
-              };
-            };
-            if (live^) {
-              dispatch(Focus_finished(model.generation));
-            };
-          }
-        );
-        () => live := false;
-      },
-    ~tagger=message => message,
+  Events.focus(
+    ~key="Date_picker:" ++ model.id ++ ":" ++ string_of_int(model.generation),
+    ~target=
+      Events.Element(
+        model.initial_focus
+          ? Ui_attr.item_id(
+              part(model, "calendar"),
+              Date.to_iso(focus_date(model)),
+            )
+          : Popover.trigger_id(model.popover),
+      ),
+    ~ready=model.return_focus || ready(model),
+    ~from=model.initial_focus ? [] : [Popover.panel_id(model.popover)],
+    ~prevent_scroll=false,
+    focused =>
+    Focus_finished(model.generation, focused)
   );
 let boundary_source = model =>
   Sub.make(
@@ -504,25 +489,14 @@ let boundary_source = model =>
               let start = Native.within(part(model, "start"), target);
               let end_ = Native.within(part(model, "end"), target);
               if (start || end_) {
-                let controls =
-                  Array.to_list(
-                    Native.query(
-                      panel,
-                      "button,input,select,textarea,a[href],[tabindex]",
-                    ),
-                  )
-                  |> List.filter(node =>
-                       Native.tab_index(node) >= 0
-                       && !
-                            Native.matches(
-                              node,
-                              ":disabled,[data-tea-date-boundary]",
-                            )
-                       && Native.visible(node)
-                     );
                 Option.iter(
                   Native.focus,
-                  List.nth_opt(start ? List.rev(controls) : controls, 0),
+                  (start ? Browser.last_tabbable : Browser.first_tabbable)(
+                    ~exclude=
+                      node =>
+                        Native.matches(node, "[data-tea-date-boundary]"),
+                    panel,
+                  ),
                 );
               } else if (!Native.contains(panel, target)) {
                 Native.grid_focus(panel);
@@ -540,17 +514,20 @@ let boundary_source = model =>
   );
 let subscriptions = model =>
   Sub.batch([
-    Sub.map(
-      message => Calendar(message),
-      Calendar.subscriptions(model.calendar),
-    ),
+    is_open(model)
+      ? Sub.map(
+          message => Calendar(message),
+          Calendar.subscriptions(model.calendar),
+        )
+      : Sub.none,
     Sub.map(
       message => Popover(message),
       Popover.subscriptions(model.popover),
     ),
-    model.return_focus || model.initial_focus && ready(model)
+    model.return_focus || model.initial_focus && is_open(model)
       ? focus_effect(model) : Sub.none,
-    ready(model) ? boundary_source(model) : Sub.none,
+    ready(model) && model.instructions_ready
+      ? boundary_source(model) : Sub.none,
     model.return_focus
       ? Events.on_pointer_down_outside(
           ~ids=[

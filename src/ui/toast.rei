@@ -16,7 +16,7 @@
     Data: data-index, data-urgency="normal|urgent", data-paused (presence), and
     Animation's data-enter, data-leave, data-transition, data-closed. Geometry:
     --tea-toast-index. Swipe is deliberately not implemented: no swipe handlers,
-    states or variables are advertised. [Swipe] is a reserved dismissal reason.
+    states, variables or dismissal reasons are advertised.
 
     Always mount region, polite and assertive parts, even when empty, before
     inserting toasts. Render each toast as a keyed child of the live region
@@ -37,12 +37,11 @@ type urgency =
 type order =
   | Oldest_first
   | Newest_first;
-/** Why a toast finished leaving. Swipe is reserved, never emitted currently. */
+/** Why a toast finished leaving. Every reason has an implemented source. */
 type reason =
   | Timeout
   | Close_button
   | Action
-  | Swipe
   | Escape
   | Programmatic;
 /** Action is immediate; Dismissed is emitted exactly once, only after Left.

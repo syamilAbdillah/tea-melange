@@ -74,7 +74,8 @@ that explicit document-local target. Supply an existing, focusable panel target;
 missing targets/empty panels are harmless and retain focus. Initial focus waits
 only for Anchor's first visible measurement, **not** for animation completion.
 This avoids focusing the initially visibility-hidden positioning surface.
-Opening focus is cancelled on close/unmount and restoring focus does not steal
+Opening focus is cancelled on close/unmount or intervening focus movement,
+even with focus-out dismissal disabled; restoring focus does not steal
 a newer intentional destination.
 
 `close_on_focus_out=true` closes when focus leaves the union of trigger and panel,
@@ -243,18 +244,21 @@ retain the model for its mounted lifetime rather than reinitializing open panels
 
 ## Private browser capabilities and limits
 
-Two private capabilities live only in Popover, with no foundation edits:
+Focus containment remains a private lifecycle capability in Popover:
 
 - Capture-phase focusin/focusout containment with separate Focus_out reasons,
   group trigger membership, and deferred active-element checks for blur to body.
   The public outside source conflates pointer/focus reasons when `focus=true`.
-- Cancellable post-render initial/return focus, using Browser_dom's deferred
-  active-element read as the frame handoff and a subscription-local live guard
-  immediately before synchronous focus. It includes first-tabbable selection
-  with visibility, tabindex, disabled, closed-details and native radio rules.
-  Public Browser_dom focus tasks do not expose cancellation, so composing them
-  here would leave a stale focus effect after close/unmount. No mutable DOM
-  state, refs, subscriptions or cancellation handles are stored in the model.
+
+Initial/return focus uses the generation-keyed `Browser_events.focus` source.
+It captures focus immediately when opening, waits for positioning readiness,
+and only proceeds if that focus has not moved. Arbitrary programmatic openers
+therefore retain the configured policy, while even with
+`close_on_focus_out=false`, moving focus during positioning keeps the new
+destination. Moving away and back also cancels the attempt. First-tabbable selection uses the
+shared synchronous `Browser_dom.first_tabbable` query; ordering and exclusions
+are documented in [foundation.md](foundation.md). No mutable DOM state, refs,
+subscriptions or cancellation handles are stored in the model.
 
 No Animation/Anchor changes or workarounds are required. Their bounds still
 apply: document-local ids, no shadow-root/iframe traversal or fallback portal,

@@ -39,7 +39,6 @@ type reason =
   | Timeout
   | Close_button
   | Action
-  | Swipe
   | Escape
   | Programmatic;
 type out_msg =
@@ -79,6 +78,9 @@ type model = {
   hidden: bool,
   browsing: bool,
   tabbing: bool,
+  focus_epoch: int,
+  focus_pending: bool,
+  repair_target: option(string),
 };
 type msg =
   | Ready(bool)
@@ -87,6 +89,8 @@ type msg =
   | Focus_toast(string)
   | Tab
   | Hotkey
+  | Hotkey_focused(int, bool)
+  | Focus_repaired(int)
   | Visible(bool)
   | Close(string, reason)
   | Activate(string)
@@ -135,6 +139,9 @@ let init =
   hidden: false,
   browsing: false,
   tabbing: false,
+  focus_epoch: 0,
+  focus_pending: false,
+  repair_target: None,
 };
 let paused = model => model.hovered || model.focused || model.hidden;
 let visible_entries = model => {
@@ -421,10 +428,32 @@ let update = (message, model) => {
           ...model,
           browsing: true,
           tabbing: false,
+          focus_epoch: model.focus_epoch + 1,
+          focus_pending: true,
+          repair_target: None,
         },
-        Browser.focus_cmd(focus_target(model)),
+        Cmd.none,
         [],
       )
+    | Hotkey_focused(epoch, focused) when epoch == model.focus_epoch => (
+        {
+          ...model,
+          focus_pending: false,
+          browsing: focused && model.browsing,
+        },
+        Cmd.none,
+        [],
+      )
+    | Hotkey_focused(_, _) => (model, Cmd.none, [])
+    | Focus_repaired(epoch) when epoch == model.focus_epoch => (
+        {
+          ...model,
+          repair_target: None,
+        },
+        Cmd.none,
+        [],
+      )
+    | Focus_repaired(_) => (model, Cmd.none, [])
     | Close(key, reason) =>
       let (next, command) = close(model, key, reason);
       let returning = reason == Escape && model.browsing;
@@ -493,6 +522,9 @@ let update = (message, model) => {
               ...next,
               browsing: false,
               focused_key: None,
+              focus_epoch: model.focus_epoch + 1,
+              repair_target:
+                model.browsing ? None : Some(focus_target(next)),
             }
             : next;
         let outs =
@@ -506,11 +538,11 @@ let update = (message, model) => {
           next,
           Cmd.batch([
             Cmd.map(message => Animate(key, instance, message), command),
-            lost_focus
-              ? Browser.focus_cmd(
-                  model.browsing ? model.id : focus_target(next),
-                )
-              : Cmd.none,
+            /* A browsing dismissal must place focus inside the region before
+               the opener restoration stopper runs. Ordinary repair can use the
+               cancellable focus subscription instead. */
+            lost_focus && model.browsing
+              ? Browser.focus_cmd(model.id) : Cmd.none,
           ]),
           outs,
         );
@@ -628,6 +660,32 @@ let subscriptions = model => {
           };
         },
     ),
+    model.focus_pending && model.browsing
+      ? Events.focus(
+          ~key=
+            "Toast:" ++ model.id ++ ":" ++ string_of_int(model.focus_epoch),
+          ~target=Events.Element(focus_target(model)),
+          ~prevent_scroll=false,
+          focused =>
+          Hotkey_focused(model.focus_epoch, focused)
+        )
+      : Sub.none,
+    switch (model.repair_target) {
+    | Some(id) =>
+      Events.focus(
+        ~key=
+          "Toast.repair:"
+          ++ model.id
+          ++ ":"
+          ++ string_of_int(model.focus_epoch),
+        ~target=Events.Element(id),
+        ~from=[model.id],
+        ~prevent_scroll=false,
+        _ =>
+        Focus_repaired(model.focus_epoch)
+      )
+    | None => Sub.none
+    },
     model.browsing
       ? Events.restore_focus(
           ~key="Tea_ui.Toast:" ++ model.id,

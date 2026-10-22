@@ -90,6 +90,8 @@ type model = {
   announcement: string,
   animation: Animation.model,
   anchor: Anchor.model,
+  focus_pending: bool,
+  focus_epoch: int,
 };
 type msg =
   | Key(Ui_keyboard.event)
@@ -104,7 +106,8 @@ type msg =
   | Remove(string)
   | Animated(Animation.msg)
   | Anchored(Anchor.msg)
-  | Announce(string);
+  | Announce(string)
+  | Focused(int);
 let part = (model, name) => Ui_attr.part_id(model.id, name);
 let unique = keys =>
   List.rev(
@@ -160,6 +163,8 @@ let init =
   loading: false,
   pending: "",
   announcement: "",
+  focus_pending: false,
+  focus_epoch: 0,
   animation:
     Animation.init(~id=Ui_attr.part_id(id, "popup"), ~open_=false, ()),
   anchor:
@@ -230,6 +235,7 @@ let close = model => {
     {
       ...model,
       open_: false,
+      focus_pending: false,
       animation,
       active: None,
       completion: None,
@@ -343,6 +349,11 @@ let closed = model => {
 };
 let changed = (value, model) =>
   String.equal(value, model.query) ? [] : [Query_changed(value)];
+let request_focus = model => {
+  ...model,
+  focus_pending: true,
+  focus_epoch: model.focus_epoch + 1,
+};
 let remove = (key, model) =>
   if (model.disabled
       || model.readonly
@@ -351,11 +362,11 @@ let remove = (key, model) =>
   } else {
     let selected = List.filter(k => !String.equal(k, key), model.selected);
     (
-      {
+      request_focus({
         ...model,
         selected,
-      },
-      Bdom.focus_cmd(part(model, "control")),
+      }),
+      Cmd.none,
       [Removed(key), Selection_changed(selected)],
     );
   };
@@ -379,11 +390,11 @@ let choose = (~items, key, model) =>
     };
     if (model.multiple) {
       (
-        {
+        request_focus({
           ...model,
           active: Some(key),
-        },
-        Bdom.focus_cmd(part(model, "control")),
+        }),
+        Cmd.none,
         outs,
       );
     } else {
@@ -577,6 +588,15 @@ let update = (~items, ~label_for_key=?, message, model) => {
           composing: composing || model.composing,
         },
       )
+    | Focused(epoch) when epoch == model.focus_epoch => (
+        {
+          ...model,
+          focus_pending: false,
+        },
+        Cmd.none,
+        [],
+      )
+    | Focused(_) => (model, Cmd.none, [])
     | Blur
     | Outside => commit_blur(~items, ~label_for_key, model)
     | Remove(key) => remove(key, model)
@@ -597,11 +617,7 @@ let update = (~items, ~label_for_key=?, message, model) => {
     | Choose(key) => choose(~items, key, model)
     | Toggle when !model.disabled =>
       let (model, cmd, outs) = model.open_ ? closed(model) : opened(model);
-      (
-        model,
-        Cmd.batch([cmd, Bdom.focus_cmd(part(model, "control"))]),
-        outs,
-      );
+      (request_focus(model), cmd, outs);
     | Key(event) when !model.disabled && !model.composing =>
       if (event.alt && !event.ctrl && !event.meta && !event.shift) {
         switch (event.key) {
@@ -712,6 +728,16 @@ let subscriptions = model =>
   Sub.batch([
     Sub.map(m => Animated(m), Animation.subscriptions(model.animation)),
     Sub.map(m => Anchored(m), Anchor.subscriptions(model.anchor)),
+    model.focus_pending
+      ? Events.focus(
+          ~key=
+            "Combobox:" ++ model.id ++ ":" ++ string_of_int(model.focus_epoch),
+          ~target=Events.Element(part(model, "control")),
+          ~prevent_scroll=false,
+          _ =>
+          Focused(model.focus_epoch)
+        )
+      : Sub.none,
     model.open_
       ? Events.on_pointer_down_outside(
           ~ids=[part(model, "wrapper"), part(model, "popup")],

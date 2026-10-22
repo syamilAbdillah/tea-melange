@@ -109,7 +109,10 @@ let focus_date: model => date;
 let set_value: (option(date), model) => model;
 /** Silent idempotent opening; ignores disabled=true. Valid typed text supplies
     the focus date; otherwise committed value, then init's focus. Pass the same
-    current constraints as update/view. Does not commit unblurred text. */
+    current constraints as update/view. Does not commit unblurred text.
+    Captures the opening focus before waiting for positioning. Intervening
+    focus movement cancels initial focus and emits Closed(Outside); the modal
+    focus boundary and instructions activate only after successful initial focus. */
 let open_:
   (~disabled: bool=?, ~constraints: Calendar.constraints=?, model) =>
   (model, Tea_core.Cmd.t(msg));
