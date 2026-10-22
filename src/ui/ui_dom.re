@@ -18,6 +18,10 @@ let has_method = (value, name) => Js.typeof(get(value, name)) == "function";
 [@mel.get] external body: Dom.document => Dom.node = "body";
 [@mel.get] external connected: Dom.node => bool = "isConnected";
 [@mel.get] external pixel_ratio: Dom.window => float = "devicePixelRatio";
+[@mel.get] external value: Dom.node => string = "value";
+[@mel.send]
+external set_selection_range: (Dom.node, int, int) => unit =
+  "setSelectionRange";
 [@mel.send] external show_popover: Dom.node => unit = "showPopover";
 [@mel.send] external hide_popover: Dom.node => unit = "hidePopover";
 [@mel.send] external contains: (Dom.node, Dom.node) => bool = "contains";

@@ -20,3 +20,16 @@ let rec scoped = (~key, sub) => {
     })
   };
 };
+/** Start a subscription outside the runtime; the result stops it. For
+    composing Browser_events sources inside one hand-written leaf. */
+let rec connect: type a. (Sub.t(a), a => unit, unit) => unit =
+        (sub, dispatch) =>
+  switch (sub) {
+  | Sub.None => (() => ())
+  | Sub.Batch(subs) =>
+    let stops = List.map(sub => connect(sub, dispatch), subs);
+    (() => List.iter(stop => stop(), stops));
+  | Sub.Leaf(leaf) => leaf.start(value => dispatch(leaf.tagger(value)))
+  | Sub.Filtered(leaf) =>
+    leaf.start(value => Option.iter(dispatch, leaf.tagger(value)))
+  };

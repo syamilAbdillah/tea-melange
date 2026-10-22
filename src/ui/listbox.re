@@ -28,19 +28,6 @@ let policy = (id, opened, restore) =>
       lease_for(id),
     )
   );
-/* restore_focus owns no listeners: its disposer is the restoration itself.
-   Cancelling that one-shot action is required for outside/Tab dismissal. */
-let rec connect: type a. (Sub.t(a), a => unit, unit) => unit =
-        (sub, dispatch) =>
-  switch (sub) {
-  | Sub.None => (() => ())
-  | Sub.Batch(subs) =>
-    let stops = List.map(sub => connect(sub, dispatch), subs);
-    (() => List.iter(stop => stop(), stops));
-  | Sub.Leaf(leaf) => leaf.start(raw => dispatch(leaf.tagger(raw)))
-  | Sub.Filtered(leaf) =>
-    leaf.start(raw => Option.iter(dispatch, leaf.tagger(raw)))
-  };
 type item('value) = {
   key: string,
   label: string,
@@ -68,8 +55,7 @@ type model = {
   animation: Animation.model,
   anchor: Anchor.model,
   search: Ui_typeahead.t,
-  focus_pending: bool,
-  focus_epoch: int,
+  focus: Ui_focus.t,
   return_focus: bool,
 };
 type msg =
@@ -144,8 +130,7 @@ let init =
       (),
     ),
   search: Ui_typeahead.empty,
-  focus_pending: false,
-  focus_epoch: 0,
+  focus: Ui_focus.none,
   return_focus: false,
 };
 let index = (items, key) => {
@@ -228,8 +213,7 @@ let open_ = (~items, ~last=false, model) =>
           anchor,
           animation,
           search: Ui_typeahead.empty,
-          focus_pending: true,
-          focus_epoch: model.focus_epoch + 1,
+          focus: Ui_focus.element(model.focus, part(model, "listbox")),
           return_focus: true,
         },
       );
@@ -252,8 +236,10 @@ let close = (~return_focus=false, model) =>
       {
         ...model,
         animation,
-        focus_pending: return_focus,
-        focus_epoch: model.focus_epoch + 1,
+        focus:
+          return_focus
+            ? Ui_focus.element(model.focus, part(model, "button"))
+            : Ui_focus.cancel(model.focus),
         return_focus,
         search: Ui_typeahead.empty,
       },
@@ -388,15 +374,14 @@ let update = (~items, message, original) => {
         Cmd.map(m => Anchored(m), command),
         [],
       );
-    | Focused(epoch) when epoch == model.focus_epoch => (
+    | Focused(generation) => (
         {
           ...model,
-          focus_pending: false,
+          focus: fst(Ui_focus.finish(model.focus, generation)),
         },
         Cmd.none,
         [],
       )
-    | Focused(_) => (model, Cmd.none, [])
     | Blur(target)
         when
           !is_open(model)
@@ -520,7 +505,7 @@ let subscriptions = model =>
               };
               focus_leases := [(model.id, lease), ...focus_leases^];
               let stop =
-                connect(
+                Ui_sub.connect(
                   Events.restore_focus(
                     ~key=model.id,
                     ~within=part(model, "listbox"),
@@ -545,28 +530,23 @@ let subscriptions = model =>
             },
         )
       : Sub.none,
-    model.focus_pending
-      ? Events.focus(
-          ~key=
-            "Listbox:" ++ model.id ++ ":" ++ string_of_int(model.focus_epoch),
-          ~target=
-            Events.Element(
-              part(model, is_open(model) ? "listbox" : "button"),
-            ),
-          ~ready=
-            !is_open(model)
-            || Option.fold(
-                 ~none=false,
-                 ~some=position => !position.Anchor.reference_hidden,
-                 Anchor.position(model.anchor),
-               ),
-          ~from=
-            is_open(model)
-              ? [] : [part(model, "button"), part(model, "listbox")],
-          _ =>
-          Focused(model.focus_epoch)
-        )
-      : Sub.none,
+    Ui_focus.sub(
+      ~home="Listbox",
+      ~id=model.id,
+      ~ready=
+        !is_open(model)
+        || Option.fold(
+             ~none=false,
+             ~some=position => !position.Anchor.reference_hidden,
+             Anchor.position(model.anchor),
+           ),
+      ~from=
+        is_open(model)
+          ? [] : [part(model, "button"), part(model, "listbox")],
+      model.focus,
+      (generation, _) =>
+      Focused(generation)
+    ),
     is_open(model)
       ? Events.on_pointer_down_outside(
           ~ids=[part(model, "button"), part(model, "listbox")],

@@ -384,21 +384,8 @@ let update = (Measured(revision, position, ratio), model) =>
       ],
     );
   };
-/* These sources are privately nested under one lifecycle leaf, rather than
-   routed through update. A scroll burst consequently sends no intent storm.
-   Their taggers are immutable within this leaf; configuration changes replace
-   the leaf. Public Sub constructors preserve each browser source's disposer. */
-let rec connect: type a. (Sub.t(a), a => unit, unit) => unit =
-        (sub, dispatch) =>
-  switch (sub) {
-  | Sub.None => (() => ())
-  | Sub.Batch(sources) =>
-    let stops = List.map(source => connect(source, dispatch), sources);
-    (() => List.iter(stop => stop(), stops));
-  | Sub.Leaf(leaf) => leaf.start(value => dispatch(leaf.tagger(value)))
-  | Sub.Filtered(leaf) =>
-    leaf.start(value => Option.iter(dispatch, leaf.tagger(value)))
-  };
+/* Resize/scroll sources run inside this one leaf and call [measure]
+   directly, so a scroll burst does not round-trip through update. */
 let subscriptions = model =>
   !model.active
     ? Sub.none
@@ -513,7 +500,7 @@ let subscriptions = model =>
             );
             measure();
             let dispose =
-              connect(
+              Ui_sub.connect(
                 Sub.batch([
                   Events.on_resize(_ => ()),
                   Events.on_scroll(),
