@@ -500,7 +500,7 @@ let completed = {
   );
   let strange: array(T.item) = [|
     {
-      key: "a b/é",
+      key: {js|a b/é|js},
       label: "Odd",
       disabled: false,
     },

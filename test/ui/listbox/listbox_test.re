@@ -666,7 +666,7 @@ let completed = {
         Items([|
           {
             L.key: "a b",
-            label: "Accent Éclair",
+            label: {js|Accent Éclair|js},
             disabled: false,
             value: 99,
           },
@@ -687,7 +687,7 @@ let completed = {
         Items([|
           {
             L.key: "a b",
-            label: "Accent Éclair",
+            label: {js|Accent Éclair|js},
             disabled: true,
             value: 99,
           },

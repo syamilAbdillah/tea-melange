@@ -71,6 +71,8 @@ let run = () => {
     == Some(Some("hello world")),
   );
   assert(P.parse(P.fragment, url("http://x/")) == Some(None));
+  /* Intentional UTF-8 bytes: percent_decode returns bytes in both native and
+     Melange builds; this is not a DOM/Unicode text-behavior assertion. */
   assert(U.percent_decode("%E2%9C%93") == Some("✓"));
   print_endline("url: roundtrips and parser cases passed");
 };

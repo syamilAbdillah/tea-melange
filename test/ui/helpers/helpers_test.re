@@ -365,6 +365,9 @@ let attributes = () => {
     keys,
   );
   check("item id", A.item_id("menu", "tea") == "menu-item-tea");
+  /* Deliberate byte-domain coverage: String.make/Char.chr enumerates all 256
+     OCaml byte values for safe_key's output-alphabet invariant. The Unicode
+     collision tests above use JS strings to exercise real UTF-16 inputs. */
   for (code in 0 to 255) {
     let encoded = A.safe_key(String.make(1, Char.chr(code)));
     check(

@@ -16,7 +16,7 @@ let view = model =>
   Html.div(
     [],
     [
-      Html.button([Html.on_click(Decrement)], [Html.text("−")]),
+      Html.button([Html.on_click(Decrement)], [Html.text({js|−|js})]),
       Html.span([], [Html.text(string_of_int(model))]),
       Html.button([Html.on_click(Increment)], [Html.text("+")]),
     ],

@@ -428,7 +428,7 @@ let completed = {
   );
   let strange: array(R.item) = [|
     {
-      key: "a b/é",
+      key: {js|a b/é|js},
       label: "Odd key",
       disabled: false,
     },

@@ -453,7 +453,7 @@ let completed = {
       ~containers=[|
         container(
           "a_b",
-          [|item("a b"), item("a_0020b"), item(""), item("日本語")|],
+          [|item("a b"), item("a_0020b"), item(""), item({js|日本語|js})|],
         ),
       |],
       (),
@@ -464,11 +464,13 @@ let completed = {
   );
   check(
     "Unicode and empty key ids exist",
-    attr(handle(""), "id") != None && attr(handle("日本語"), "id") != None,
+    attr(handle(""), "id") != None
+    && attr(handle({js|日本語|js}), "id") != None,
   );
   check(
     "special keys share resolving instructions",
-    attr(handle("日本語"), "aria-describedby") == Some("sort-instructions"),
+    attr(handle({js|日本語|js}), "aria-describedby")
+    == Some("sort-instructions"),
   );
   close(special);
   let pointer_app = mount();
