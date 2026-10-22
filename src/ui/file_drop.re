@@ -1,36 +1,8 @@
 module Html = Tea_html.Html;
 module Cmd = Tea_core.Cmd;
 module Sub = Tea_core.Sub;
-module B = {
-  type raw;
-  external document: Dom.document = "document";
-  [@mel.get_index] external get: ('a, string) => raw;
-  external cast: 'a => 'b = "%identity";
-  [@mel.send]
-  external find: (Dom.document, string) => Js.Nullable.t(Dom.node) =
-    "getElementById";
-  [@mel.send] external contains: (Dom.node, Dom.node) => bool = "contains";
-  [@mel.send]
-  external listen: (Dom.document, string, raw => unit) => unit =
-    "addEventListener";
-  [@mel.send]
-  external unlisten: (Dom.document, string, raw => unit) => unit =
-    "removeEventListener";
-  [@mel.send] external prevent: raw => unit = "preventDefault";
-  [@mel.send] external click: Dom.node => unit = "click";
-  [@mel.set] external clear: (Dom.node, string) => unit = "value";
-  let present = x => !Js.testAny(x);
-  let within = (id, event) => {
-    let target = get(event, "target");
-    switch (Js.Nullable.toOption(find(document, id))) {
-    | Some(root)
-        when
-          present(target) && Js.typeof(get(target, "nodeType")) == "number" =>
-      contains(root, cast(target))
-    | _ => false
-    };
-  };
-};
+external cast: 'a => 'b = "%identity";
+let present = value => !Js.testAny(value);
 type handle;
 type file = {
   handle,
@@ -115,19 +87,6 @@ let tokens = model =>
       List.concat_map(String.split_on_char(','), model.accept),
     ),
   );
-let starts = (s, prefix) =>
-  String.length(s) >= String.length(prefix)
-  && String.equal(String.sub(s, 0, String.length(prefix)), prefix);
-let ends = (s, suffix) =>
-  String.length(s) >= String.length(suffix)
-  && String.equal(
-       String.sub(
-         s,
-         String.length(s) - String.length(suffix),
-         String.length(suffix),
-       ),
-       suffix,
-     );
 let mime_token = token =>
   !String.equal(token, "")
   && String.for_all(
@@ -159,8 +118,8 @@ let accepts = (tokens, file) => {
   tokens == []
   || List.exists(
        token =>
-         if (starts(token, ".")) {
-           String.length(token) > 1 && ends(name, token);
+         if (String.starts_with(~prefix=".", token)) {
+           String.length(token) > 1 && String.ends_with(~suffix=token, name);
          } else {
            switch (
              String.split_on_char('/', token),
@@ -258,23 +217,24 @@ let file_decoder =
       ),
     )
   );
+/* A FileList is array-like, not an array: read it by index. */
 let files = raw => {
-  let n = B.get(raw, "length");
-  if (!B.present(raw) || Js.typeof(n) != "number") {
+  let n = Ui_dom.get(raw, "length");
+  if (!present(raw) || Js.typeof(n) != "number") {
     [];
   } else {
     let rec loop = (i, acc) =>
       if (i < 0) {
         acc;
       } else {
-        let value = B.get(raw, string_of_int(i));
-        switch (Tea_dom.Dom_decode.run(file_decoder, B.cast(value))) {
+        let value = Ui_dom.get(raw, string_of_int(i));
+        switch (Tea_dom.Dom_decode.run(file_decoder, cast(value))) {
         | Ok((name, (size, mime, last_modified))) =>
           loop(
             i - 1,
             [
               {
-                handle: B.cast(value),
+                handle: cast(value),
                 name,
                 size,
                 mime,
@@ -286,12 +246,12 @@ let files = raw => {
         | Error(_) => loop(i - 1, acc)
         };
       };
-    loop((B.cast(n): int) - 1, []);
+    loop((cast(n): int) - 1, []);
   };
 };
 let has_files = event => {
-  let transfer = B.get(event, "dataTransfer");
-  if (!B.present(transfer)) {
+  let transfer = Ui_dom.get(event, "dataTransfer");
+  if (!present(transfer)) {
     false;
   } else {
     switch (
@@ -300,7 +260,7 @@ let has_files = event => {
           "types",
           Tea_core.Decode.list(Tea_core.Decode.string),
         ),
-        B.cast(transfer),
+        cast(transfer),
       )
     ) {
     | Ok(types) => List.exists(String.equal("Files"), types)
@@ -310,33 +270,31 @@ let has_files = event => {
 };
 let route = (model, name, event) => {
   let part = Ui_attr.part_id(model.id);
+  let within = id => Ui_dom.within(part(id), Ui_dom.target(event));
   if (model.disabled) {
     None;
-  } else if (String.equal(name, "click") && B.within(part("button"), event)) {
-    Option.iter(
-      input => B.click(input),
-      Js.Nullable.toOption(B.find(B.document, part("input"))),
-    );
+  } else if (String.equal(name, "click") && within("button")) {
+    Option.iter(Ui_dom.click, Ui_dom.find(part("input")));
     None;
-  } else if (String.equal(name, "change") && B.within(part("input"), event)) {
-    let target = B.get(event, "target");
-    let selected = B.get(target, "files");
-    let snapshot = B.present(selected) ? files(selected) : [];
-    B.clear(B.cast(target), "");
+  } else if (String.equal(name, "change") && within("input")) {
+    let target = Ui_dom.get(event, "target");
+    let selected = Ui_dom.get(target, "files");
+    let snapshot = present(selected) ? files(selected) : [];
+    Ui_dom.set_value(cast(target), "");
     Some(Receive(snapshot));
-  } else if (B.within(part("root"), event) && has_files(event)) {
+  } else if (within("root") && has_files(event)) {
     switch (name) {
     | "dragenter" =>
-      B.prevent(event);
+      Ui_dom.prevent(event);
       Some(Enter);
     | "dragover" =>
-      B.prevent(event);
+      Ui_dom.prevent(event);
       Some(Over);
     | "dragleave" => Some(Leave)
     | "drop" =>
-      B.prevent(event);
-      let selected = B.get(B.get(event, "dataTransfer"), "files");
-      Some(Receive(B.present(selected) ? files(selected) : []));
+      Ui_dom.prevent(event);
+      let selected = Ui_dom.get(Ui_dom.get(event, "dataTransfer"), "files");
+      Some(Receive(present(selected) ? files(selected) : []));
     | _ => None
     };
   } else {
@@ -355,11 +313,13 @@ let subscriptions = model =>
             ~tagger=x => x,
             ~start=
               dispatch => {
-                /* Delegation survives replacement of parts. Filtered's newest tagger
-                   reads current state; file snapshots and picker activation happen in
-                   the native event stack, not in a deferred DOM command. */
-                B.listen(B.document, name, dispatch);
-                () => B.unlisten(B.document, name, dispatch);
+                /* Picker activation and file snapshots must happen inside
+                   the native event, not a deferred command. */
+                Ui_dom.on(
+                  Ui_dom.document,
+                  name,
+                  dispatch,
+                )
               },
           ),
         ),
@@ -367,8 +327,7 @@ let subscriptions = model =>
     ),
   );
 let view = (~model, ~to_parent, ~to_view, ()) => {
-  /* Events are delegated by subscriptions; attribute bundles carry no stale
-     state closures. to_parent is deliberately used only for the type boundary. */
+  /* Events are handled by subscriptions; to_parent only fixes the type. */
   let map = List.map(Tea_vdom.Vdom.map_fact(to_parent));
   let part = Ui_attr.part_id(model.id);
   to_view({

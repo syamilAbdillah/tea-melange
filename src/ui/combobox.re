@@ -1,7 +1,7 @@
 open Tea_core;
 module Html = Tea_html.Html;
 module V = Tea_vdom.Vdom;
-module Bdom = Tea_browser.Browser_dom;
+module Browser = Tea_browser.Browser_dom;
 module Events = Tea_browser.Browser_events;
 module Platform = Tea_dom.Browser_platform;
 module D = Decode;
@@ -736,7 +736,7 @@ let subscriptions = model =>
         ~home="Tea_ui.Combobox.scroll",
         ~key=identity(model) ++ ":" ++ Ui_attr.safe_key(key),
         _ =>
-        Bdom.scroll_into_view(Ui_attr.item_id(model.id, key), _ => ())
+        Browser.scroll_into_view(Ui_attr.item_id(model.id, key), _ => ())
       )
     | _ => Sub.none
     },

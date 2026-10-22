@@ -1,6 +1,6 @@
 open Tea_core;
 module Html = Tea_html.Html;
-module Dom = Tea_browser.Browser_dom;
+module Browser = Tea_browser.Browser_dom;
 module Platform = Tea_dom.Browser_platform;
 
 type phase =
@@ -137,7 +137,7 @@ let subscriptions = model =>
                must not start an obsolete observer or watchdog. */
             Platform.request_animation_frame(_ =>
               if (live^) {
-                cancel := Dom.watch_animations(model.id, _ => deliver());
+                cancel := Browser.watch_animations(model.id, _ => deliver());
               }
             );
           };

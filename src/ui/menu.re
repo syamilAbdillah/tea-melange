@@ -5,39 +5,10 @@ module Sub = Tea_core.Sub;
 module D = Tea_core.Decode;
 module Browser = Tea_browser.Browser_dom;
 module Events = Tea_browser.Browser_events;
-/* Tab's native default runs before an after-render Browser_dom task. This
-   private capability sets its sequential-navigation origin synchronously from
-   update's command, without preventing Tab or implementing a tabbable walker. */
-module Native = {
-  external document: Dom.document = "document";
-  [@mel.send]
-  external by_id: (Dom.document, string) => Js.Nullable.t(Dom.element) =
-    "getElementById";
-  [@mel.send]
-  external focus: (Dom.element, {. "preventScroll": bool }) => unit = "focus";
-  [@mel.get] external active: Dom.document => Dom.element = "activeElement";
-  [@mel.send]
-  external closest: (Dom.element, string) => Js.Nullable.t(Dom.element) =
-    "closest";
-  [@mel.send]
-  external attribute: (Dom.element, string) => Js.Nullable.t(string) =
-    "getAttribute";
-  let focus_id = id =>
-    Option.iter(
-      element => focus(element, { "preventScroll": true }),
-      Js.Nullable.toOption(by_id(document, id)),
-    );
-  type timer;
-  external timeout: (unit => unit, int) => timer = "setTimeout";
-  external cancel: timer => unit = "clearTimeout";
-  let focus_now = id =>
-    Cmd.effect(_ =>
-      Option.iter(
-        element => focus(element, { "preventScroll": true }),
-        Js.Nullable.toOption(by_id(document, id)),
-      )
-    );
-};
+/* Tab's native default runs before an after-render Browser_dom task, so
+   focus that must set the sequential-navigation origin runs synchronously
+   from update's command. */
+let focus_now = id => Cmd.effect(_ => Ui_dom.focus_id(id));
 type direction =
   | Ltr
   | Rtl;
@@ -106,12 +77,7 @@ type out_msg =
   | Radio_selected(string, string)
   | Opened
   | Closed(close_reason);
-let equal_owner = (a, b) =>
-  switch (a, b) {
-  | (None, None) => true
-  | (Some(a), Some(b)) => String.equal(a, b)
-  | _ => false
-  };
+let equal_owner = Option.equal(String.equal);
 let trigger_id = m => Ui_attr.part_id(m.id, "button");
 let item_id = (m, key) => Ui_attr.item_id(m.id, key);
 let panel_id = (m, owner) =>
@@ -344,7 +310,7 @@ let close_tree = (m, restore) => {
       ...m,
       restore,
     },
-    Cmd.batch([cmd, restore ? Native.focus_now(trigger_id(m)) : Cmd.none]),
+    Cmd.batch([cmd, restore ? focus_now(trigger_id(m)) : Cmd.none]),
   );
 };
 let close = m => close_tree(m, is_open(m));
@@ -519,7 +485,7 @@ let close_submenu = (m, owner) =>
           active: owner,
         },
       ),
-      Cmd.batch([cmd, Native.focus_now(panel_id(m, p.parent))]),
+      Cmd.batch([cmd, focus_now(panel_id(m, p.parent))]),
       [],
     );
   | _ => (m, Cmd.none, [])
@@ -612,7 +578,7 @@ let menu_key = (~items, m, owner, event: Ui_keyboard.event) => {
     | "Tab" =>
       /* This command must run before the browser's unprevented Tab default. */
       let (m, cmd, outs) = close_user(m, Tab, false);
-      (m, Cmd.batch([cmd, Native.focus_now(trigger_id(m))]), outs);
+      (m, Cmd.batch([cmd, focus_now(trigger_id(m))]), outs);
     | "Escape" =>
       Option.is_some(owner)
         ? close_submenu(m, owner) : close_user(m, Escape, true)
@@ -907,20 +873,15 @@ let subscriptions = m =>
       ~tagger=() => Outside_down,
       ~start=
         (_, ()) => {
-          let container =
-            Js.Nullable.toOption(
-              Native.closest(
-                Native.active(Native.document),
-                "[data-menu-tree]",
-              ),
+          let tree =
+            Option.bind(Ui_dom.active(), el =>
+              Ui_dom.closest(el, "[data-menu-tree]")
             );
           switch (
-            Option.bind(container, el =>
-              Js.Nullable.toOption(Native.attribute(el, "data-menu-tree"))
-            )
+            Option.bind(tree, el => Ui_dom.attribute(el, "data-menu-tree"))
           ) {
           | Some(id) when String.equal(id, m.id) =>
-            Native.focus_id(trigger_id(m))
+            Ui_dom.focus_id(trigger_id(m))
           | _ => ()
           };
         },
@@ -990,8 +951,8 @@ let subscriptions = m =>
         ~start=
           dispatch => {
             let timer =
-              Native.timeout(() => dispatch(), int_of_float(m.hover_delay));
-            () => Native.cancel(timer);
+              Ui_dom.timeout(() => dispatch(), int_of_float(m.hover_delay));
+            () => Ui_dom.clear_timeout(timer);
           },
       )
     },

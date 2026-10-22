@@ -246,57 +246,17 @@ let synchronize = (~items: items, model) =>
         ),
     };
   };
-module B = {
-  type element;
-  type observer;
-  type entry;
-  type event = Js.Json.t;
-  external global: Js.Json.t = "globalThis";
-  external document: Dom.document = "document";
-  [@mel.get_index] external get: ('a, string) => 'b;
-  [@mel.send]
-  external find: (Dom.document, string) => Js.Nullable.t(element) =
-    "getElementById";
-  [@mel.get] external top: element => float = "scrollTop";
-  [@mel.set] external set_top: (element, float) => unit = "scrollTop";
-  [@mel.get] external height: element => float = "clientHeight";
-  [@mel.get] external children: element => array(element) = "children";
-  [@mel.send]
-  external attr: (element, string) => Js.Nullable.t(string) = "getAttribute";
-  [@mel.send]
-  external listen: (element, string, event => unit) => unit =
-    "addEventListener";
-  [@mel.send]
-  external unlisten: (element, string, event => unit) => unit =
-    "removeEventListener";
-  [@mel.new]
-  external resize: (array(entry) => unit) => observer = "ResizeObserver";
-  [@mel.new]
-  external mutations: (unit => unit) => observer = "MutationObserver";
-  [@mel.send]
-  external observe_size: (observer, element, Js.t({..})) => unit = "observe";
-  [@mel.send] external unobserve: (observer, element) => unit = "unobserve";
-  [@mel.send]
-  external observe_children: (observer, element, Js.t({..})) => unit =
-    "observe";
-  [@mel.send] external disconnect: observer => unit = "disconnect";
-  [@mel.get] external target: entry => element = "target";
-  [@mel.send]
-  external rect: element => Js.t({. "height": float }) =
-    "getBoundingClientRect";
-  let after = f => Tea_dom.Browser_platform.request_animation_frame(_ => f());
-  let find = id => Js.Nullable.toOption(find(document, id));
-};
+let after = f => Tea_dom.Browser_platform.request_animation_frame(_ => f());
 let scroll_command = (model: model) =>
   Cmd.effect(_ =>
-    B.after(() =>
+    after(() =>
       Option.iter(
         el =>
-          if (Js.Nullable.toOption(B.attr(el, "data-tea-virtual-generation"))
+          if (Ui_dom.attribute(el, "data-tea-virtual-generation")
               == Some(string_of_int(model.generation))) {
-            B.set_top(el, model.scroll);
+            Ui_dom.set_scroll_top(el, model.scroll);
           },
-        B.find(Ui_attr.part_id(model.id, "viewport")),
+        Ui_dom.find(Ui_attr.part_id(model.id, "viewport")),
       )
     )
   );
@@ -421,19 +381,20 @@ let subscriptions = model =>
       dispatch => {
         let active = ref(true);
         let cleanup = ref(() => ());
-        B.after(() =>
+        after(() =>
           if (active^) {
             switch (
-              B.find(Ui_attr.part_id(model.id, "viewport")),
-              B.find(Ui_attr.part_id(model.id, "content")),
+              Ui_dom.find(Ui_attr.part_id(model.id, "viewport")),
+              Ui_dom.find(Ui_attr.part_id(model.id, "content")),
             ) {
             | (Some(container), Some(content)) =>
               let read_generation = () =>
                 Option.value(
                   ~default=-1,
                   Option.bind(
-                    Js.Nullable.toOption(
-                      B.attr(container, "data-tea-virtual-generation"),
+                    Ui_dom.attribute(
+                      container,
+                      "data-tea-virtual-generation",
                     ),
                     int_of_string_opt,
                   ),
@@ -442,12 +403,12 @@ let subscriptions = model =>
               let queued = ref(false);
               let sizes = ref(Sizes.empty);
               let scrolled = ref(false);
-              let top = ref(B.top(container));
-              let height = ref(B.height(container));
+              let top = ref(Ui_dom.scroll_top(container));
+              let height = ref(Ui_dom.client_height(container));
               let queue = () =>
                 if (! queued^) {
                   queued := true;
-                  B.after(() =>
+                  after(() =>
                     if (active^) {
                       queued := false;
                       let sample = {
@@ -463,46 +424,42 @@ let subscriptions = model =>
                     }
                   );
                 };
-              let decoder =
-                D.map2(
-                  (top_, height_) => (top_, height_),
-                  D.at(["target", "scrollTop"], D.float),
-                  D.at(["target", "clientHeight"], D.float),
+              let off_scroll =
+                Ui_dom.on(
+                  container,
+                  "scroll",
+                  _ => {
+                    top := Ui_dom.scroll_top(container);
+                    height := Ui_dom.client_height(container);
+                    generation := read_generation();
+                    scrolled := true;
+                    queue();
+                  },
                 );
-              let on_scroll = event =>
-                switch (Tea_dom.Dom_decode.run(decoder, event)) {
-                | Ok((top_, height_)) =>
-                  top := top_;
-                  height := height_;
-                  generation := read_generation();
-                  scrolled := true;
-                  queue();
-                | Error(_) => ()
-                };
-              B.listen(container, "scroll", on_scroll);
               let observed = ref([||]);
               let observer =
-                Js.typeof(B.get(B.global, "ResizeObserver")) == "function"
+                Ui_dom.has_method(Ui_dom.global, "ResizeObserver")
                   ? Some(
-                      B.resize(entries => {
-                        top := B.top(container);
+                      Ui_dom.resize_observer(entries => {
+                        top := Ui_dom.scroll_top(container);
                         generation := read_generation();
                         Array.iter(
                           entry => {
-                            let element = B.target(entry);
+                            let element = Ui_dom.entry_target(entry);
                             if (element === container) {
-                              height := B.height(container);
+                              height := Ui_dom.client_height(container);
                             } else {
                               switch (
-                                Js.Nullable.toOption(
-                                  B.attr(element, "data-tea-virtual-key"),
+                                Ui_dom.attribute(
+                                  element,
+                                  "data-tea-virtual-key",
                                 )
                               ) {
                               | Some(key) =>
                                 sizes :=
                                   Sizes.add(
                                     key,
-                                    B.get(B.rect(element), "height"),
+                                    Ui_dom.rect(element).height,
                                     sizes^,
                                   )
                               | None => ()
@@ -524,22 +481,18 @@ let subscriptions = model =>
                 if (measure_rows) {
                   Option.iter(
                     observer => {
-                      let current = B.children(content);
+                      let current = Ui_dom.children(content);
                       Array.iter(
                         el =>
                           if (!Array.exists(other => el === other, current)) {
-                            B.unobserve(observer, el);
+                            Ui_dom.unobserve(observer, el);
                           },
                         observed^,
                       );
                       Array.iter(
                         el =>
                           if (!Array.exists(other => el === other, observed^)) {
-                            B.observe_size(
-                              observer,
-                              el,
-                              { "box": "border-box" },
-                            );
+                            Ui_dom.observe_size(observer, el);
                           },
                         current,
                       );
@@ -550,23 +503,14 @@ let subscriptions = model =>
                   );
                 };
               Option.iter(
-                observer =>
-                  B.observe_size(
-                    observer,
-                    container,
-                    { "box": "border-box" },
-                  ),
+                observer => Ui_dom.observe_size(observer, container),
                 observer,
               );
               scan();
               let mutations =
                 if (measure_rows) {
-                  let observer = B.mutations(scan);
-                  B.observe_children(
-                    observer,
-                    content,
-                    { "childList": true },
-                  );
+                  let observer = Ui_dom.mutation_observer(scan);
+                  Ui_dom.observe_children(observer, content);
                   Some(observer);
                 } else {
                   None;
@@ -575,9 +519,9 @@ let subscriptions = model =>
               cleanup :=
                 (
                   () => {
-                    B.unlisten(container, "scroll", on_scroll);
-                    Option.iter(B.disconnect, observer);
-                    Option.iter(B.disconnect, mutations);
+                    off_scroll();
+                    Option.iter(Ui_dom.disconnect, observer);
+                    Option.iter(Ui_dom.disconnect, mutations);
                     sizes := Sizes.empty;
                     observed := [||];
                   }

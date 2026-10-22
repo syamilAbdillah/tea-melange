@@ -35,7 +35,7 @@ let outside = (id, target, x, y) =>
       x < r.left || x > r.right || y < r.top || y > r.bottom;
     }
   );
-module Dom = Tea_browser.Browser_dom;
+module Browser = Tea_browser.Browser_dom;
 type kind =
   | Modal
   | Alertdialog(string);
@@ -279,7 +279,7 @@ let initial_focus = (model, live) =>
     | Some(root) =>
       let focus = Ui_dom.focus(~prevent_scroll=true);
       let fallback = () =>
-        focus(Option.value(~default=root, Dom.first_tabbable(root)));
+        focus(Option.value(~default=root, Browser.first_tabbable(root)));
       let target =
         switch (model.kind) {
         | Alertdialog(id) => Some(id)
@@ -307,7 +307,7 @@ let subscriptions = model => {
           ~start=
             dispatch => {
               let live = ref(true);
-              Dom.show_modal(id, result =>
+              Browser.show_modal(id, result =>
                 if (live^) {
                   switch (result) {
                   | Ok () =>
@@ -319,7 +319,7 @@ let subscriptions = model => {
               );
               () => {
                 live := false;
-                Dom.close(id, _ => ());
+                Browser.close(id, _ => ());
               };
             },
         )
@@ -333,7 +333,7 @@ let subscriptions = model => {
         ~start=
           _ => {
             let live = ref(true);
-            Dom.show_modal(id, result =>
+            Browser.show_modal(id, result =>
               if (live^) {
                 switch (result) {
                 | Ok () => initial_focus(model, live)

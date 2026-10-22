@@ -3,7 +3,7 @@ module V = Tea_vdom.Vdom;
 module Cmd = Tea_core.Cmd;
 module Sub = Tea_core.Sub;
 module D = Tea_core.Decode;
-module Dom = Tea_browser.Browser_dom;
+module Browser = Tea_browser.Browser_dom;
 module Events = Tea_browser.Browser_events;
 type focus_lease = {
   opened: ref(bool),
@@ -175,7 +175,8 @@ let scroll = model =>
   switch (model.active) {
   | Some(key) when is_open(model) =>
     Cmd.effect(_ =>
-      Dom.scroll_into_view(~block=`Nearest, Ui_attr.item_id(model.id, key), _ =>
+      Browser.scroll_into_view(
+        ~block=`Nearest, Ui_attr.item_id(model.id, key), _ =>
         ()
       )
     )
