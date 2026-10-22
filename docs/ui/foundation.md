@@ -164,6 +164,61 @@ collide with another key. Empty encodes as `_`. The result uses only the
 specification's safe alphabet, but is deliberately more restrictive to ensure
 injectivity. Consumers should not depend on a particular encoded spelling.
 
+## Private browser bindings
+
+Keep a capability inside its component, hidden by the `.rei`, until at least two
+consumers need the same behavior and ownership contract. Repeating a low-level
+`getElementById`, timer, event getter or add/removeEventListener declaration alone
+does not establish a shared lifecycle abstraction. Reuse Browser_dom and
+Browser_events where their public contracts already fit; do not expand those APIs
+for a single component or expose a generic bag of DOM bindings.
+
+The Z1a review retains these component-specific bindings:
+
+- **Hover_intent**: a cancellable delay with generation rejection, performance
+  timestamps, window blur and document pointerout with relatedTarget/pointerType
+  checks. Its two-region intent state and warm-group timing differ from Toast's
+  per-entry remaining-duration accounting. Visibility already uses Browser_events;
+  Tooltip consumes Hover_intent's public API rather than duplicating this source.
+- **Anchor**: manual showPopover/hidePopover capability detection, connection and
+  :popover-open checks, plus devicePixelRatio rounding. Measurements, scroll,
+  resize and element resize already use the browser APIs. Menu, Popover and
+  Tooltip consume Anchor's public API; they are not separate consumers needing
+  a second implementation of the private popover lease.
+- **Slider**: document pointermove/up/cancel and lostpointercapture, pointer-id
+  filtering, window blur, and capture/release on the track. Its frame-coalesced
+  moves and final commit belong to the drag session. Scroll/resize already reuse
+  Browser_events. Generic pointer primitives also occur in Drag_and_drop, but its
+  lift threshold, touch delay, measurements and cancellation contract differ;
+  sharing the raw declarations would not share a session lifecycle.
+- **Virtual_list**: viewport scrollTop/clientHeight reads, exact scrollTop writes,
+  child-list observation, and ResizeObserver border-box measurements tied to
+  stable row keys. Browser_events.on_element_resize observes one id's content
+  box; it cannot replace dynamic row registration, generation-checked samples
+  or anchor-preserving writes. These operations have one capability consumer.
+- **Combobox**: active-element/value guards and setSelectionRange for inline
+  completion after render. Existing browser helpers provide focus effects; no
+  second component needs the guarded inline-completion selection operation.
+  Its JavaScript lowercase binding is a string operation, not a browser source;
+  shared search normalization already lives in Ui_typeahead.
+- **Toast**: per-entry cancellable remaining-duration timers and initial
+  document.hidden read; capture hotkeys that can cancel the configured chord;
+  and region focusin/focusout containment boundaries. Browser_events keydown is
+  deliberately observational and cannot consume the hotkey. Tooltip's global
+  Escape source and Drag_and_drop's drag keys have different claiming rules;
+  Toast alone needs the exact configurable chord plus hotkey-entry bookkeeping.
+  Visibility, focus restoration and animation use the existing public helpers.
+
+No new shared helper or browser API is required by this review. A future second
+consumer should first specify matching timing, cancellation, identity and event
+claiming semantics, then coordinate an extraction with the foundation owner.
+
+Reason test literals that model browser text use `{js|…|js}` so Melange receives
+JavaScript Unicode strings rather than OCaml UTF-8 byte strings. Deliberate
+byte-domain id tests (the 0–255 `String.make`/`Char.chr` alphabet sweep) keep byte
+inputs and explain that choice locally. Native HTML serialization and URL
+percent-decoding tests also retain their explicit UTF-8 byte expectations.
+
 ## Existing infrastructure changes
 
 - Runtime requests draw before commands/subscription reconciliation. Native
