@@ -1,0 +1,59 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <base href="/">
+  <link rel="icon" href="data:,">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Tea UI · Animation</title>
+  <style>
+    :root { font: 17px/1.6 "Trebuchet MS", sans-serif; color: #173c47; background: #edf5f6; }
+    main { max-width: 62rem; margin: 3rem auto; padding: 0 1.5rem; }
+    h1 { font-size: clamp(2rem, 5vw, 3.6rem); line-height: 1.1; max-width: 18ch; }
+    h2 { font-size: 1.25rem; }
+    p { max-width: 66ch; }
+    .lanes { display: grid; grid-template-columns: repeat(auto-fit,minmax(min(100%,25rem),1fr)); gap: 2rem; margin: 2rem 0; }
+    section { border-top: 4px solid #39808d; padding-top: .5rem; }
+    button { font: inherit; padding: .35rem .7rem; margin: .2rem .3rem .2rem 0; border: 1px solid #296373; border-radius: .25rem; color: #173c47; background: #fff; cursor: pointer; }
+    :focus-visible { outline: 3px solid #7341a7; outline-offset: 3px; }
+    .phase { font-size: .9rem; }
+    .panel { padding: 1rem; background: #cfe4e8; opacity: 1; }
+    .panel p { margin-top: 0; }
+    .transition[data-transition], .appear[data-transition], .unmount[data-transition] { transition: opacity 320ms linear; }
+    /* Keep text contrast above WCAG AA even during motion; hidden owns hiding. */
+    .transition[data-closed], .appear[data-closed], .unmount[data-closed] { opacity: .85; }
+    .keyframe[data-enter] { animation: reveal 320ms linear both; }
+    .keyframe[data-leave] { animation: conceal 320ms linear both; }
+    @keyframes reveal { from { opacity: .85; } to { opacity: 1; } }
+    @keyframes conceal { from { opacity: 1; } to { opacity: .85; } }
+    @media (prefers-reduced-motion: reduce) {
+      .panel[data-transition] { transition: none; animation: none; }
+    }
+  </style>
+</head>
+<body>
+  <div id="app"></div>
+  <script type="importmap">
+{
+  "imports": {
+    "melange/": "./node_modules/melange/",
+    "melange.dom/": "./node_modules/melange.dom/",
+    "melange.js/": "./node_modules/melange.js/",
+    "melange.__private__.melange_mini_stdlib/": "./node_modules/melange.__private__.melange_mini_stdlib/",
+    "tea.browser/": "./node_modules/tea.browser/",
+    "tea.ui/": "./node_modules/tea.ui/",
+    "tea/": "./node_modules/tea/",
+    "tea.core/": "./node_modules/tea.core/",
+    "tea.dom/": "./node_modules/tea.dom/",
+    "tea.effects/": "./node_modules/tea.effects/",
+    "tea.html/": "./node_modules/tea.html/",
+    "tea.http/": "./node_modules/tea.http/",
+    "tea.nav/": "./node_modules/tea.nav/",
+    "tea.url/": "./node_modules/tea.url/",
+    "tea.vdom/": "./node_modules/tea.vdom/"
+  }
+}
+  </script>
+  <script type="module" src="./examples/ui/animation/main.mjs"></script>
+</body>
+</html>

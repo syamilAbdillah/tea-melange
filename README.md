@@ -93,6 +93,60 @@ loading/error/success states and routes without reloading. Todo persists nothing
 
 Generated API docs: `_build/default/_doc/_html/index.html`.
 
+## Accessible headless UI (tea.ui)
+
+`tea.ui` provides accessible semantics, keyboard interaction and focus/lifecycle
+behavior, without a stylesheet or runtime npm dependency. Your application owns
+content and design; presence attributes such as `data-open` and `data-selected`
+are styling hooks. `tea.browser` supplies post-render DOM tasks and lifecycle
+subscriptions. Both are included by the `Tea` umbrella, or available separately.
+
+A minimal stateful Popover (mount into `<div id="app"></div>`):
+
+```reason
+open Tea;
+module P = Ui.Popover;
+type msg = Popover(P.msg);
+
+let update = (Popover(message), model) => {
+  let (model, command, _notifications) = P.update(message, model);
+  (model, Cmd.map(message => Popover(message), command));
+};
+let view = model =>
+  Html.main([], [
+    Html.h1([], [Html.text("Workspace")]),
+    P.view(
+      ~model,
+      ~to_parent=message => Popover(message),
+      ~to_view=p => Html.div([], [
+        Html.button(p.trigger, [Html.text("Details")]),
+        Html.div(p.panel, [
+          Html.p([], [Html.text("Changes are visible to your team.")]),
+          Html.button(p.close_button, [Html.text("Done")]),
+        ]),
+      ]),
+      (),
+    ),
+  ]);
+let () = ignore(App.element(
+  ~init=() => (P.init(~id="details", ~role=P.Region, ()), Cmd.none),
+  ~update, ~view,
+  ~subscriptions=model => Sub.map(message => Popover(message), P.subscriptions(model)),
+  ~node="#app", ~flags=(), (),
+));
+```
+
+Keep the panel mounted and forward subscriptions through its leave animation;
+its owned `hidden` property handles the closed state even without CSS. Do not
+replace part-owned event handlers. See the [component guide](docs/ui/README.md)
+for selection advice, keyboard contracts, layering and limitations, and the
+[Fieldwork showcase](examples/ui/showcase/) for a complete composed app:
+
+```sh
+dune build @examples/melange
+node scripts/serve.js ui/showcase
+```
+
 ## Module map
 
 | Library | Public modules | Targets |
@@ -106,6 +160,8 @@ Generated API docs: `_build/default/_doc/_html/index.html`.
 | `tea.url` | Url (including Parser and Query) | native + Melange |
 | `tea.nav` | Navigation, Application | Melange |
 | `tea.effects` | Time, Random, Animation_frame | Melange |
+| `tea.browser` | Browser_dom, Browser_events | Melange |
+| `tea.ui` | Accessible headless components (`Tea.Ui`) | Melange |
 | `tea.test` | Render, Query, Simulate | native only |
 
 `Tea.Random` combines the pure seeded generators with effectful `generate` and

@@ -1,0 +1,14 @@
+(melange.emit
+ (target js)
+ (alias melange)
+ (modules main)
+ (module_systems (es6 mjs))
+ (libraries tea)
+ (preprocess (pps melange.ppx)))
+
+(subdir js
+ (rule
+  (alias melange)
+  (deps ../index.html)
+  (target index.html)
+  (action (copy %{dep:../index.html} %{target}))))

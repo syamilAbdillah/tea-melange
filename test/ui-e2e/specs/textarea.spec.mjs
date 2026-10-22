@@ -1,0 +1,60 @@
+import assert from 'node:assert/strict';
+import {openExample, frames, pressKeys, assertFocus, ariaSnapshot, axe} from '../lib.mjs';
+export async function run(context) {
+ const page=await openExample(context,'forms');
+ const field=page.locator('#notes-control');
+ await ariaSnapshot(field,'- textbox "Tasting notes"'); await axe(page);
+ assert.equal(await page.locator('#notes-label').getAttribute('for'),'notes-control');
+ assert.equal(await field.getAttribute('aria-describedby'),'notes-description');
+ assert.equal(await field.getAttribute('aria-errormessage'),null);
+ await page.locator('#notes-label').click(); await assertFocus(page,'#notes-control');
+ await field.fill('Tea'); await frames(page);
+ await ariaSnapshot(field,'- textbox "Tasting notes": Tea'); await axe(page);
+ await pressKeys(page,'End','Home','ArrowRight','Shift+End');
+ await pressKeys(page,'Backspace'); await page.keyboard.type('asting'); await frames(page);
+ assert.equal(await field.inputValue(),'Tasting');
+ await pressKeys(page,'Control+a'); await page.keyboard.type('Guest'); await frames(page);
+ assert.equal(await field.inputValue(),'Guest');
+ await pressKeys(page,'End','Enter'); await page.keyboard.type('Second line'); await frames(page);
+ assert.equal(await field.inputValue(),'Guest\nSecond line');
+ await ariaSnapshot(field,'- textbox "Tasting notes": Guest Second line'); await axe(page);
+ await pressKeys(page,'Tab'); await assertFocus(page,'#native-control');
+ assert.match(await page.locator('#activity').textContent(),/Changes: [1-9]/);
+ assert.match(await page.locator('#activity').textContent(),/Blurs: [1-9]/);
+ await pressKeys(page,'Shift+Tab'); await assertFocus(page,'#notes-control');
+ await page.locator('#readonly').click(); await frames(page);
+ assert.equal(await field.getAttribute('data-readonly'),'');
+ assert.equal(await field.evaluate(el=>el.readOnly),true);
+ await field.focus(); const before=await field.inputValue(); await page.keyboard.type('ignored'); await frames(page);
+ assert.equal(await field.inputValue(),before);
+ await ariaSnapshot(field, '- textbox "Tasting notes": '+before.replace(/\n/g,' ')); await axe(page);
+ await page.locator('#validate').click(); await frames(page);
+ assert.equal(await field.getAttribute('aria-invalid'),'true');
+ assert.equal(await field.getAttribute('data-invalid'),'');
+ assert.equal(await field.getAttribute('aria-describedby'),'notes-description notes-error');
+ assert.equal(await field.getAttribute('aria-errormessage'),'notes-error');
+ assert.equal(await page.locator('#notes-error').isVisible(),true);
+ await ariaSnapshot(field,'- textbox "Tasting notes" [invalid]: '+before.replace(/\n/g,' ')); await axe(page);
+ await page.locator('#disable').click(); await frames(page);
+ await ariaSnapshot(field,'- textbox "Tasting notes" [disabled] [invalid]: '+before.replace(/\n/g,' ')); await axe(page);
+ await page.locator('#submit').click(); await frames(page);
+ assert.deepEqual(JSON.parse(await page.locator('#serialized').textContent()),[]);
+ await page.locator('#disable').click(); await page.locator('#readonly').click(); await page.locator('#validate').click(); await frames(page);
+ assert.equal(await field.getAttribute('aria-invalid'),null); assert.equal(await field.getAttribute('aria-errormessage'),null);
+ assert.equal(await field.getAttribute('data-readonly'),null);
+ await field.evaluate(el=>{
+ el.dispatchEvent(new CompositionEvent('compositionstart',{bubbles:true,data:''}));
+ el.value='Composed';
+ el.dispatchEvent(new InputEvent('input',{bubbles:true,data:'Composed',isComposing:true,inputType:'insertCompositionText'}));
+ el.dispatchEvent(new CompositionEvent('compositionend',{bubbles:true,data:'Composed'}));
+ for(const type of ['keydown','keyup']){
+ const event=new KeyboardEvent(type,{key:'Enter',isComposing:true,bubbles:true,cancelable:true});
+ el.dispatchEvent(event); if(event.defaultPrevented) throw new Error('IME key intercepted');
+ }
+ });
+ await frames(page); assert.equal(await field.inputValue(),'Composed');
+ await ariaSnapshot(field,'- textbox "Tasting notes": Composed'); await axe(page);
+ await field.fill('Submitted'); await page.locator('#submit').click(); await frames(page);
+ assert.ok(JSON.parse(await page.locator('#serialized').textContent()).some(([key,value])=>key==='notes'&&value==='Submitted'));
+ await ariaSnapshot(field,'- textbox "Tasting notes": Submitted'); await axe(page);
+}

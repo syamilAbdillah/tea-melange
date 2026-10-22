@@ -1,9 +1,11 @@
 /** Pure message loop; see docs/runtime-contract.md.
 
     Dispatch uses one non-reentrant FIFO, including during initialization and
-    rendering. Each message runs update, commits the model, calls on_msg, runs
-    commands depth-first left-to-right, diffs subscriptions, then requests a
-    frame. Exceptions release the drain guard; queued messages remain available
+    rendering. Each message runs update, commits the model, calls on_msg,
+    requests a frame, runs commands depth-first left-to-right, then diffs
+    subscriptions. Frame callbacks scheduled by effects therefore follow the
+    draw that creates their DOM (including when a spare frame is reused).
+    Exceptions release the drain guard; queued messages remain available
     for the next dispatch. An update that raises is not committed or logged.
 
     The first render is synchronous, before init commands and subscriptions.
@@ -11,7 +13,8 @@
     waits until render returns, then uses the animator's spare frame.
 
     Subscriptions are identified by (home,key), with the first flattened leaf
-    winning duplicates. Kept sources use the newest tagger without restarting.
+    winning duplicates. Kept sources use the newest tagger/filter without
+    restarting; rejected filtered payloads do not enter the message queue.
     A given identity must retain its raw payload type for its whole lifetime. */
 
 /** Elm's three-state animator, independent of the message loop. */

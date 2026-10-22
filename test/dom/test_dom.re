@@ -378,6 +378,36 @@ let events = () => {
     List.length(messages^) == prior + 1 && List.hd(messages^) == 42,
   );
   Render.dispose(root);
+  let optional = message =>
+    Html.button(
+      [
+        Vdom.map_fact(
+          x => x + 1,
+          Events.on(
+            "click",
+            Vdom.Custom_optional(
+              D.succeed({
+                Vdom.message,
+                stop_propagation: true,
+                prevent_default: true,
+              }),
+            ),
+          ),
+        ),
+      ],
+      [],
+    );
+  let optional_dom = Render.create(send, optional(None));
+  let previous_messages = messages^;
+  let e = emit(optional_dom, "click");
+  check(
+    "optional handler prevents without dispatch",
+    bool_prop(cast(e), "defaultPrevented") && messages^ == previous_messages,
+  );
+  ignore(patch(optional_dom, optional(None), optional(Some(6))));
+  ignore(emit(optional_dom, "click"));
+  check("optional handler maps present messages", List.hd(messages^) == 7);
+  Render.dispose(optional_dom);
   let raw =
     Js.Json.parseExn(
       "{\"values\":[1,2,3],\"flag\":true,\"nil\":null,\"s\":\"abc\"}",
