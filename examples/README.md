@@ -28,6 +28,11 @@ Missing module/assets return 404, not HTML.
   `users.json`, with loading, failure/retry, and unknown-user states.
   Navigation uses real links and history, not hash routes.
 
+- **fullstack_todo**: an Eio + SQLite server and a Tea client sharing one
+  Reason contract (types, codecs, validation) compiled native and Melange.
+  Run it with `docker compose up --build` from its directory; see
+  [its README](fullstack_todo/README.md).
+
 Run the jsdom interaction smoke tests:
 
 ```sh

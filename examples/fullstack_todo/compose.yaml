@@ -1,0 +1,12 @@
+services:
+  app:
+    build:
+      context: ../..
+      dockerfile: examples/fullstack_todo/Dockerfile
+    ports:
+      - "127.0.0.1:8787:8080"
+    volumes:
+      - todos:/data
+
+volumes:
+  todos:

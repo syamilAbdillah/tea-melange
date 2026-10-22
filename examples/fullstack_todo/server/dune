@@ -1,0 +1,19 @@
+; The server library is optional: when its opam dependencies (eio_main,
+; cohttp-eio, sqlite3, yojson) are missing, a plain `dune build` of the
+; repository skips it and main.exe becomes a stub that says what to install.
+; The Dockerfile installs them.
+(library
+ (name todo_server)
+ (modules json store api server)
+ (optional)
+ (libraries todo_shared tea.core eio_main cohttp-eio sqlite3 yojson uri))
+
+(executable
+ (name main)
+ (modules main)
+ (libraries
+  (select
+   main.re
+   from
+   (todo_server -> main.available.re)
+   (-> main.missing.re))))
