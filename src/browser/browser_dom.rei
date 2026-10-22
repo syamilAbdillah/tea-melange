@@ -1,5 +1,6 @@
 /** DOM tasks addressed by document-unique ids. Every task is lazy and runs
     after the next render, via [Tea_dom.Browser_platform.request_animation_frame].
+    Synchronous tabbable selection is the explicit read-only exception.
     Use [Task.attempt] to handle missing elements. No DOM is read at construction. */
 
 /** An id did not resolve at execution time (or [focus_first] had no candidate). */
@@ -43,9 +44,29 @@ let focus: (~prevent_scroll: bool=?, string) => Tea_core.Task.t(unit, error);
 let blur: string => Tea_core.Task.t(unit, error);
 /** Focus, ignoring [Not_found]. */
 let focus_cmd: string => Tea_core.Cmd.t('msg);
-/** Focus the first tabbable descendant in tab order. Excludes disabled,
-    negative tabindex, hidden/display:none/visibility:hidden, inert ancestors,
-    and closed details content. Returns [Not_found(within)] if none exists. */
+/** Synchronously select the first tabbable
+    descendant of [root], excluding root itself. Returns [None] when empty.
+    Reads the current DOM without scheduling work or moving focus; callers own
+    render timing and cancellation. [exclude] defaults to accepting every node
+    and can skip overlay boundary sentinels.
+
+    Positive tabindex sorts ascending, then zero/implicit stops in DOM order;
+    equal priorities retain DOM order. Skips negative tabindex, disabled controls
+    (including disabled fieldsets), hidden inputs, hidden/inert ancestors,
+    display:none, visibility:hidden/collapse and closed details content outside
+    its first summary. Named radio groups use the checked enabled member, even
+    outside root, matched by name and form owner; without one, entry follows the
+    requested direction. Visibility checks conservatively include ancestors.
+    Searches ordinary light DOM in the current document, without shadow roots
+    or iframe traversal; no layout-box measurement is required (works in jsdom). */
+let first_tabbable:
+  (~exclude: Dom.node => bool=?, Dom.node) => option(Dom.node);
+/** Synchronously select the last tabbable descendant in the same order and
+    with the same exclusions as [first_tabbable]. */
+let last_tabbable:
+  (~exclude: Dom.node => bool=?, Dom.node) => option(Dom.node);
+/** After render, focus the first descendant selected by [first_tabbable].
+    Returns [Not_found(within)] if the root or a candidate is missing. */
 let focus_first: (~within: string) => Tea_core.Task.t(unit, error);
 /** Scroll into view; block defaults to [`Nearest]. Unsupported APIs are no-ops. */
 let scroll_into_view:

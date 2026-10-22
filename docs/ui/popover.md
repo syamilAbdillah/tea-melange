@@ -243,15 +243,16 @@ retain the model for its mounted lifetime rather than reinitializing open panels
 
 ## Private browser capabilities and limits
 
-Two private capabilities live only in Popover, with no foundation edits:
+Two private lifecycle capabilities live in Popover:
 
 - Capture-phase focusin/focusout containment with separate Focus_out reasons,
   group trigger membership, and deferred active-element checks for blur to body.
   The public outside source conflates pointer/focus reasons when `focus=true`.
 - Cancellable post-render initial/return focus, using Browser_dom's deferred
   active-element read as the frame handoff and a subscription-local live guard
-  immediately before synchronous focus. It includes first-tabbable selection
-  with visibility, tabindex, disabled, closed-details and native radio rules.
+  immediately before synchronous focus. First-tabbable selection uses the shared
+  synchronous `Browser_dom.first_tabbable` query; ordering and exclusions are
+  documented in [foundation.md](foundation.md).
   Public Browser_dom focus tasks do not expose cancellation, so composing them
   here would leave a stale focus effect after close/unmount. No mutable DOM
   state, refs, subscriptions or cancellation handles are stored in the model.

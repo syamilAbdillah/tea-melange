@@ -402,7 +402,6 @@ module Native = {
   [@mel.send] external matches: (Dom.node, string) => bool = "matches";
   [@mel.get]
   external parent: Dom.node => Js.Nullable.t(Dom.node) = "parentElement";
-  [@mel.get] external tab_index: Dom.node => int = "tabIndex";
   [@mel.send]
   external computed: (Dom.window, Dom.node) => Dom.cssStyleDeclaration =
     "getComputedStyle";
@@ -504,25 +503,14 @@ let boundary_source = model =>
               let start = Native.within(part(model, "start"), target);
               let end_ = Native.within(part(model, "end"), target);
               if (start || end_) {
-                let controls =
-                  Array.to_list(
-                    Native.query(
-                      panel,
-                      "button,input,select,textarea,a[href],[tabindex]",
-                    ),
-                  )
-                  |> List.filter(node =>
-                       Native.tab_index(node) >= 0
-                       && !
-                            Native.matches(
-                              node,
-                              ":disabled,[data-tea-date-boundary]",
-                            )
-                       && Native.visible(node)
-                     );
                 Option.iter(
                   Native.focus,
-                  List.nth_opt(start ? List.rev(controls) : controls, 0),
+                  (start ? Browser.last_tabbable : Browser.first_tabbable)(
+                    ~exclude=
+                      node =>
+                        Native.matches(node, "[data-tea-date-boundary]"),
+                    panel,
+                  ),
                 );
               } else if (!Native.contains(panel, target)) {
                 Native.grid_focus(panel);

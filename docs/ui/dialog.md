@@ -176,6 +176,10 @@ opening is never pulled back:
    order), skipping hidden, inert, disabled and unchecked radio-group members.
 4. Root itself (`tabindex=-1`) if no tabbable exists.
 
+Initial fallback and Tab-boundary repair share the synchronous
+`Browser_dom.first_tabbable` / `last_tabbable` queries described in
+[foundation.md](foundation.md). The selector does not schedule another frame.
+
 A missing/outside/unfocusable explicit target falls back. Alertdialog callers
 must render a valid enabled least-destructive action: the library cannot infer
 which domain operation is safe. For long structured content, name a static

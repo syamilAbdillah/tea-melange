@@ -626,6 +626,26 @@ let completed = {
   settle();
   check("focus moved right after opening is kept", has_focus("#save"));
   stop(early);
+  let ordered = start();
+  set_attribute(node("#save"), "tabindex", "1");
+  set_attribute(node("#first"), "tabindex", "2");
+  opened(ordered);
+  check("shared first selector drives initial focus", has_focus("#save"));
+  ignore(run_task(Browser_dom.blur("save")));
+  check(
+    "reverse Tab is not cancelled",
+    key(~shift=true, "#first", "keydown", "Tab"),
+  );
+  settle();
+  check(
+    "shared last selector repairs reverse Tab",
+    has_focus("#test-close"),
+  );
+  ignore(run_task(Browser_dom.blur("test-close")));
+  check("forward Tab is not cancelled", key("#first", "keydown", "Tab"));
+  settle();
+  check("shared first selector repairs forward Tab", has_focus("#save"));
+  stop(ordered);
   let optout = start(~close_on_backdrop=false, ());
   opened(optout);
   point("#test-dialog", "pointerdown", 5, 5);

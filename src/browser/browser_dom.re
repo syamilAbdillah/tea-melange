@@ -47,6 +47,22 @@ let blur = id =>
     }
   );
 let focus_cmd = id => Cmd.effect(_ => focus(id, _ => ()));
+/* These reads are synchronous so overlays can check their subscription's live
+   flag, select a stop and focus it atomically in the render callback. */
+let first_summary = (details, summary) =>
+  Option.fold(
+    ~none=false,
+    ~some=first => first === summary,
+    Array.find_opt(
+      node =>
+        Option.fold(
+          ~none=false,
+          ~some=parent => parent === details,
+          Js.Nullable.toOption(B.parent(node)),
+        ),
+      B.query_all(details, "summary"),
+    ),
+  );
 let rec visible = element => {
   let style = B.computed_style(B.window, element);
   !B.has_attr(element, "hidden")
@@ -61,19 +77,17 @@ let rec visible = element => {
       let closed_details =
         String.equal(B.local_name(parent), "details")
         && !B.has_attr(parent, "open");
-      (!closed_details || String.equal(B.local_name(element), "summary"))
-      && visible(parent);
+      (!closed_details || first_summary(parent, element)) && visible(parent);
     }
   );
 };
+/* Check the whole document, including peers outside the search subtree.
+   Names are compared directly, never interpolated into a CSS selector. */
 let radio_tabbable = element =>
   if (!B.matches(element, "input[type=radio]")
       || String.equal(B.string(element, "name"), "")) {
     true;
   } else {
-    /* Native radio groups expose only their checked member to forward Tab.
-       Compare form owners and names directly; never interpolate ids into CSS. */
-    let group = B.query_all(B.root(B.document), "input[type=radio]");
     !
       Array.exists(
         other =>
@@ -85,49 +99,65 @@ let radio_tabbable = element =>
           && B.get(other, "form") === B.get(element, "form")
           && B.bool(other, "checked")
           && !B.matches(other, ":disabled"),
-        group,
+        B.query_all(B.root(B.document), "input[type=radio]"),
       );
   };
-let focus_first = (~within) =>
-  with_element(
-    within,
-    (root, done_) => {
-      let candidates =
-        B.query_all(
-          root,
-          "a[href],area[href],button,input:not([type=hidden]),select,textarea,iframe,summary,[tabindex],[contenteditable]:not([contenteditable=false]),audio[controls],video[controls]",
-        );
-      let chosen = ref(None);
-      Array.iter(
-        element => {
-          let tab = B.tab_index(element);
-          let explicit_negative = B.has_attr(element, "tabindex") && tab < 0;
-          let implicit_tab_stop =
-            B.matches(
-              element,
-              "[contenteditable]:not([contenteditable=false]),audio[controls],video[controls]",
-            );
-          if (!explicit_negative
-              && (tab >= 0 || implicit_tab_stop)
-              && !B.matches(element, ":disabled,input[type=hidden]")
-              && radio_tabbable(element)
-              && visible(element)) {
-            let priority = tab > 0 ? tab : max_int;
-            switch (chosen^) {
-            | Some((_, previous)) when previous <= priority => ()
-            | _ => chosen := Some((element, priority))
-            };
+let tabbable = (~backwards, ~exclude, root) => {
+  let chosen = ref(None);
+  Array.iter(
+    element => {
+      let tab = B.tab_index(element);
+      let implicit_tab_stop =
+        B.matches(
+          element,
+          "[contenteditable]:not([contenteditable=false]),audio[controls],video[controls]",
+        )
+        || String.equal(B.local_name(element), "summary")
+        && Option.fold(
+             ~none=false,
+             ~some=
+               parent =>
+                 String.equal(B.local_name(parent), "details")
+                 && first_summary(parent, element),
+             Js.Nullable.toOption(B.parent(element)),
+           );
+      if ((tab >= 0 || implicit_tab_stop && !B.has_attr(element, "tabindex"))
+          && !B.matches(element, ":disabled,input[type=hidden]")
+          && !exclude(element)
+          && visible(element)
+          && radio_tabbable(element)) {
+        let priority = tab > 0 ? tab : 0;
+        switch (chosen^) {
+        | Some((_, previous)) =>
+          /* Zero is the final class, even after the largest positive tabindex.
+             First keeps equal-priority DOM ties; last replaces them. */
+          let earlier = priority > 0 && (previous == 0 || priority < previous);
+          if (backwards ? !earlier : earlier) {
+            chosen := Some((element, priority));
           };
-        },
-        candidates,
-      );
-      switch (chosen^) {
-      | None => done_(Error(Not_found(within)))
-      | Some((element, _)) =>
-        B.focus(element, { "preventScroll": false });
-        done_(Ok());
+        | None => chosen := Some((element, priority))
+        };
       };
     },
+    B.query_all(
+      root,
+      "a[href],area[href],button,input,select,textarea,iframe,summary,[tabindex],[contenteditable]:not([contenteditable=false]),audio[controls],video[controls]",
+    ),
+  );
+  Option.map(((element, _)) => element, chosen^);
+};
+let first_tabbable = (~exclude=_ => false, root) =>
+  tabbable(~backwards=false, ~exclude, root);
+let last_tabbable = (~exclude=_ => false, root) =>
+  tabbable(~backwards=true, ~exclude, root);
+let focus_first = (~within) =>
+  with_element(within, (root, done_) =>
+    switch (first_tabbable(root)) {
+    | None => done_(Error(Not_found(within)))
+    | Some(element) =>
+      B.focus(element, { "preventScroll": false });
+      done_(Ok());
+    }
   );
 let scroll_into_view = (~block=`Nearest, id) =>
   effect(id, element =>

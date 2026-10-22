@@ -74,6 +74,45 @@ export async function run(context) {
   assert.ok(animations >= 40, 'waits for real animation completion');
   assert.ok(animations < 5000, 'animation settles without watchdog');
 
+  const tabbable = await page.evaluate(() => {
+    const { dom } = window.probe;
+    const root = document.createElement('section');
+    root.id = 'tabbable-fixture';
+    root.setAttribute('aria-label', 'Tab order checks');
+    document.querySelector('main').append(root);
+    const failures = [];
+    const check = (label, html, first, last) => {
+      root.innerHTML = html;
+      const actual = [dom.first_tabbable(undefined, root)?.id ?? null, dom.last_tabbable(undefined, root)?.id ?? null];
+      if (actual[0] !== first || actual[1] !== last) failures.push({ label, actual, expected: [first, last] });
+    };
+    check('empty', '', null, null);
+    check('positive then DOM', '<button id="tab-zero">Zero</button><button id="tab-three" tabindex="3">Three</button><button id="tab-one" tabindex="1">One</button><button id="tab-two" tabindex="2">Two</button>', 'tab-one', 'tab-zero');
+    check('equal priorities', '<button id="tab-a" tabindex="2">A</button><button id="tab-b" tabindex="2">B</button>', 'tab-a', 'tab-b');
+    check('maximum positive', '<button id="tab-zero">Zero</button><button id="tab-max" tabindex="2147483647">Max</button>', 'tab-max', 'tab-zero');
+    check('exclusions', '<div hidden><button>Hidden</button></div><div inert><button>Inert</button></div><div style="display:none"><button>Display</button></div><div style="visibility:collapse"><button>Visibility</button></div><fieldset disabled><button>Disabled</button></fieldset><input type="hidden" tabindex="1"><button tabindex="-1">Negative</button>', null, null);
+    check('closed details first summary only', '<details><summary id="tab-summary">Summary<button id="tab-nested">Nested</button></summary><summary tabindex="0">Second</summary><button>Content</button></details>', 'tab-summary', 'tab-nested');
+    check('open details', '<details open><summary id="tab-summary">Summary</summary><button id="tab-content">Content</button></details>', 'tab-summary', 'tab-content');
+    check('editable/media', '<div id="tab-edit" contenteditable>Editable</div><video id="tab-video" controls></video>', 'tab-edit', 'tab-video');
+    check('explicit negative media', '<div contenteditable tabindex="-1">Editable</div><video controls tabindex="-1"></video>', null, null);
+    check('checked radio', '<input id="tab-a" type="radio" name="tab-group"><input id="tab-b" type="radio" name="tab-group" checked><input id="tab-c" type="radio" name="tab-group">', 'tab-b', 'tab-b');
+    check('unchecked radio direction', '<input id="tab-a" type="radio" name="tab-group"><input id="tab-b" type="radio" name="tab-group">', 'tab-a', 'tab-b');
+    check('different form owners', '<form><input id="tab-a" type="radio" name="tab-group"></form><form><input id="tab-b" type="radio" name="tab-group" checked></form>', 'tab-a', 'tab-b');
+    root.innerHTML = '<input type="radio" name="tab-group" checked><div id="tab-radio-root"><input type="radio" name="tab-group"></div>';
+    const radioRoot = root.querySelector('#tab-radio-root');
+    if (dom.first_tabbable(undefined, radioRoot) !== undefined || dom.last_tabbable(undefined, radioRoot) !== undefined) failures.push('checked peer outside root');
+    root.innerHTML = '<span data-boundary tabindex="0"></span><button id="tab-two" tabindex="2">Two</button><button id="tab-one" tabindex="1">One</button><span data-boundary tabindex="0"></span>';
+    const exclude = node => node.hasAttribute('data-boundary');
+    if (dom.first_tabbable(exclude, root)?.id !== 'tab-one' || dom.last_tabbable(exclude, root)?.id !== 'tab-two') failures.push('excluded boundaries');
+    const active = document.activeElement;
+    dom.first_tabbable(undefined, root);
+    dom.last_tabbable(undefined, root);
+    if (document.activeElement !== active) failures.push('selection moved focus');
+    root.remove();
+    return failures;
+  });
+  assert.deepEqual(tabbable, [], 'shared synchronous first/last tabbable rules');
+
   const styles = await page.evaluate(async () => {
     const p = window.probe;
     const before = [document.documentElement, document.body].map(e => e.getAttribute('style'));

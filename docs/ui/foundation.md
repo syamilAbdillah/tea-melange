@@ -16,6 +16,10 @@ type element_info = {rect, viewport_width: float, viewport_height: float,
 let focus: (~prevent_scroll: bool=?, string) => Task.t(unit, error);
 let blur: string => Task.t(unit, error);
 let focus_cmd: string => Cmd.t('msg);
+let first_tabbable:
+  (~exclude: (Dom.node => bool)=?, Dom.node) => option(Dom.node);
+let last_tabbable:
+  (~exclude: (Dom.node => bool)=?, Dom.node) => option(Dom.node);
 let focus_first: (~within: string) => Task.t(unit, error);
 let scroll_into_view:
   (~block: [ `Nearest | `Center | `Start | `End ]=?, string) => Task.t(unit, error);
@@ -33,6 +37,30 @@ returns it for an empty candidate set. Native dialog/scroll APIs are detected;
 unsupported dialog methods only manipulate `open` (not a modality polyfill).
 Focus returns success when the id exists; the platform ultimately decides
 whether an element can actually take focus.
+
+`first_tabbable` and `last_tabbable` are synchronous read-only queries, separate
+from the deferred tasks. They return a descendant node (never the root), or
+`None`, without moving focus or scheduling work. Call them after the required
+render and inside the caller's cancellation/live check. Dialog uses this in the
+same callback as `showModal()` so initial focus cannot steal a later Tab/click;
+Popover and Date_picker share the same ordering and exclusions. `focus_first`
+uses `first_tabbable` after render.
+
+Tab order is ascending positive tabindex, then zero/implicit stops in DOM order;
+ties keep DOM order. Negative tabindex, disabled controls/fieldsets (with the
+first-legend exception), hidden inputs, hidden/inert ancestors, display:none,
+visibility:hidden/collapse, and closed-details content outside its first direct
+summary are skipped. Native editable/media stops are included unless explicitly
+negative. Named radio groups compare names and form owners across the document:
+a checked enabled peer is the group's stop, even outside the search root;
+otherwise the first/last query follows entry direction. Unnamed radios remain
+independent. `aria-disabled` alone does not remove a tab stop.
+
+The optional `exclude` predicate rejects candidates; Date_picker uses it to
+skip its boundary spans. Selection is computed afresh, including ancestor state
+outside the root, with no layout-box measurement (so jsdom works). Visibility
+checks are conservative through ancestors; there is no shadow-root or iframe
+traversal.
 
 `wait_for_animations` takes a subtree snapshot after render. It awaits all-settled
 finished promises, resolves on removal, and has a 5000 ms watchdog for paused,

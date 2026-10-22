@@ -514,6 +514,18 @@ let completed = {
     "start sentinel redirects to last control",
     has_focus("#test-close"),
   );
+  set_attribute(node("#test-close"), "tabindex", "1");
+  focus(node("#test-end"));
+  check(
+    "boundary first respects positive tabindex",
+    has_focus("#test-close"),
+  );
+  focus(node("#test-start"));
+  check(
+    "boundary last follows zero tabindex DOM order",
+    has_focus("#test-cancel"),
+  );
+  remove_attribute(node("#test-close"), "tabindex");
   focus(node("#outside"));
   check(
     "programmatic focus cannot leave an open modal",

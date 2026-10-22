@@ -109,27 +109,7 @@ module Native = {
   external related: Dom.event => Js.Nullable.t(Dom.node) = "relatedTarget";
   [@mel.send] external contains: (Dom.node, Dom.node) => bool = "contains";
   [@mel.send] external focus: Dom.node => unit = "focus";
-  [@mel.get]
-  external parent: Dom.node => Js.Nullable.t(Dom.node) = "parentElement";
   [@mel.get] external local_name: Dom.node => string = "localName";
-  [@mel.get] external tab_index: Dom.node => int = "tabIndex";
-  [@mel.get] external name: Dom.node => string = "name";
-  [@mel.get] external form: Dom.node => Js.Nullable.t(Dom.node) = "form";
-  [@mel.get] external checked: Dom.node => bool = "checked";
-  [@mel.send] external matches: (Dom.node, string) => bool = "matches";
-  [@mel.send] external has: (Dom.node, string) => bool = "hasAttribute";
-  [@mel.send]
-  external query: (Dom.node, string) => array(Dom.node) = "querySelectorAll";
-  [@mel.send]
-  external query_document: (Dom.document, string) => array(Dom.node) =
-    "querySelectorAll";
-  external window: Dom.window = "window";
-  [@mel.send]
-  external computed: (Dom.window, Dom.node) => Dom.cssStyleDeclaration =
-    "getComputedStyle";
-  [@mel.send]
-  external style: (Dom.cssStyleDeclaration, string) => string =
-    "getPropertyValue";
   [@mel.send]
   external add: (Dom.document, string, Dom.event => unit, bool) => unit =
     "addEventListener";
@@ -149,73 +129,8 @@ module Native = {
         ids,
       )
     };
-  /* Browser_dom focus tasks cannot be cancelled between scheduling and focus.
-     The subscription below needs an atomic live check + focus, including when
-     focus leaves or the component unmounts in the intervening frame. */
-  let rec visible = node => {
-    let css = computed(window, node);
-    !has(node, "hidden")
-    && !has(node, "inert")
-    && !String.equal(style(css, "display"), "none")
-    && !List.mem(style(css, "visibility"), ["hidden", "collapse"])
-    && (
-      switch (Js.Nullable.toOption(parent(node))) {
-      | None => true
-      | Some(parent) =>
-        (
-          !String.equal(local_name(parent), "details")
-          || has(parent, "open")
-          || String.equal(local_name(node), "summary")
-        )
-        && visible(parent)
-      }
-    );
-  };
-  let radio_stop = node =>
-    !matches(node, "input[type=radio]")
-    || String.equal(name(node), "")
-    || !
-         Array.exists(
-           other =>
-             other !== node
-             && checked(other)
-             && String.equal(name(other), name(node))
-             && form(other) === form(node)
-             && !matches(other, ":disabled"),
-           query_document(document, "input[type=radio]"),
-         );
-  let first = root => {
-    let candidates =
-      query(
-        root,
-        "a[href],area[href],button,input:not([type=hidden]),select,textarea,iframe,summary,[tabindex],[contenteditable]:not([contenteditable=false]),audio[controls],video[controls]",
-      );
-    Array.fold_left(
-      (best, node) => {
-        let tab = tab_index(node);
-        let implicit =
-          matches(
-            node,
-            "[contenteditable]:not([contenteditable=false]),audio[controls],video[controls]",
-          );
-        if ((tab >= 0 || implicit && !has(node, "tabindex"))
-            && !matches(node, ":disabled,input[type=hidden]")
-            && visible(node)
-            && radio_stop(node)) {
-          let priority = tab > 0 ? tab : max_int;
-          switch (best) {
-          | Some((_, old)) when old <= priority => best
-          | _ => Some((node, priority))
-          };
-        } else {
-          best;
-        };
-      },
-      None,
-      candidates,
-    )
-    |> Option.map(((node, _)) => node);
-  };
+  /* Selection stays synchronous inside the subscription's live check. */
+  let first = root => Browser.first_tabbable(root);
 };
 let focus_source = model =>
   Sub.make(

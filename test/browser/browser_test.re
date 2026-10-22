@@ -197,6 +197,251 @@ let tasks = () => {
   app.shutdown();
   frame();
 };
+/* Exercise both endpoints directly: no task, frame, or focus effect is needed.
+   Markup keeps each exclusion case independent of the component renderers. */
+let tabbable = () => {
+  let app = mount(Html.div([Html.id("tab-fixture")], []));
+  let fixture = node("#tab-fixture");
+  let chosen_id = chosen => Option.map(node => get(node, "id"), chosen);
+  List.iter(
+    ((label, markup, first, last)) => {
+      put(fixture, "innerHTML", markup);
+      check(
+        label ++ " first",
+        chosen_id(B.first_tabbable(fixture)) == first,
+      );
+      check(label ++ " last", chosen_id(B.last_tabbable(fixture)) == last);
+    },
+    [
+      ("empty", "", None, None),
+      ("root excluded", "<div tabindex='0'></div>", Some(""), Some("")),
+      ("single", "<button id='one'></button>", Some("one"), Some("one")),
+      (
+        "DOM ties",
+        "<button id='one'></button><a id='two' href='#'></a>",
+        Some("one"),
+        Some("two"),
+      ),
+      (
+        "positive order",
+        "<button id='zero'></button><button id='three' tabindex='3'></button><button id='one' tabindex='1'></button><button id='two' tabindex='2'></button>",
+        Some("one"),
+        Some("zero"),
+      ),
+      (
+        "positive ties",
+        "<button id='one' tabindex='2'></button><button id='two' tabindex='2'></button>",
+        Some("one"),
+        Some("two"),
+      ),
+      (
+        "positive only",
+        "<button id='two' tabindex='2'></button><button id='one' tabindex='1'></button><button id='three' tabindex='3'></button>",
+        Some("one"),
+        Some("three"),
+      ),
+      (
+        "maximum positive before zero",
+        "<button id='zero'></button><button id='max' tabindex='2147483647'></button>",
+        Some("max"),
+        Some("zero"),
+      ),
+      (
+        "negative and hidden input",
+        "<button tabindex='-1'></button><input type='hidden' tabindex='1'><div tabindex='-2'></div>",
+        None,
+        None,
+      ),
+      (
+        "hidden inert ancestors",
+        "<div hidden><button></button></div><div inert><a href='#'></a></div>",
+        None,
+        None,
+      ),
+      (
+        "styles on ancestors",
+        "<div style='display:none'><button></button></div><div style='visibility:hidden'><button></button></div><div style='visibility:collapse'><button></button></div>",
+        None,
+        None,
+      ),
+      (
+        "stylesheet visibility",
+        "<style>#css-hidden { display: none } #css-invisible { visibility: hidden }</style><div id='css-hidden'><button></button></div><button id='css-invisible'></button>",
+        None,
+        None,
+      ),
+      ("closed dialog", "<dialog><button></button></dialog>", None, None),
+      (
+        "disabled",
+        "<button disabled></button><input disabled><select disabled></select><textarea disabled></textarea><fieldset disabled><button></button></fieldset>",
+        None,
+        None,
+      ),
+      (
+        "first legend exception",
+        "<fieldset disabled><legend><button id='legend'></button></legend><button></button><legend><button></button></legend></fieldset>",
+        Some("legend"),
+        Some("legend"),
+      ),
+      (
+        "aria-disabled stays tabbable",
+        "<button id='aria' aria-disabled='true'></button>",
+        Some("aria"),
+        Some("aria"),
+      ),
+      (
+        "closed details",
+        "<details><summary id='summary'>Summary <button id='inside'></button></summary><button></button><summary tabindex='0'>Second</summary></details>",
+        Some("summary"),
+        Some("inside"),
+      ),
+      (
+        "closed nested details",
+        "<details><summary tabindex='-1'>Summary</summary><details open><summary>Nested</summary><button></button></details></details>",
+        None,
+        None,
+      ),
+      (
+        "summary must be first direct child",
+        "<details><div><summary tabindex='0'>Nested</summary></div><summary id='direct'>Direct</summary></details>",
+        Some("direct"),
+        Some("direct"),
+      ),
+      (
+        "open details",
+        "<details open><summary id='summary'>Summary</summary><button id='inside'></button></details>",
+        Some("summary"),
+        Some("inside"),
+      ),
+      (
+        "only first summary implicit",
+        "<details open><summary tabindex='-1'>First</summary><summary>Second</summary></details>",
+        None,
+        None,
+      ),
+      (
+        "implicit editable/media",
+        "<div id='edit' contenteditable></div><audio controls></audio><video id='video' controls></video>",
+        Some("edit"),
+        Some("video"),
+      ),
+      (
+        "explicit negative beats implicit",
+        "<div contenteditable tabindex='-1'></div><audio controls tabindex='-1'></audio><video controls tabindex='-1'></video>",
+        None,
+        None,
+      ),
+      (
+        "non-controls",
+        "<a>No href</a><div contenteditable='false'></div><audio></audio><video></video>",
+        None,
+        None,
+      ),
+      (
+        "checked radio",
+        "<input type='radio' name='r' id='one'><input type='radio' name='r' id='two' checked><input type='radio' name='r' id='three'>",
+        Some("two"),
+        Some("two"),
+      ),
+      (
+        "unchecked radio direction",
+        "<input type='radio' name='r' id='one'><input type='radio' name='r' id='two'>",
+        Some("one"),
+        Some("two"),
+      ),
+      (
+        "unnamed radios independent",
+        "<input type='radio' id='one'><input type='radio' id='two' checked>",
+        Some("one"),
+        Some("two"),
+      ),
+      (
+        "radio form owners",
+        "<form id='a'><input type='radio' name='r' id='one'></form><form id='b'><input type='radio' name='r' id='two' checked></form>",
+        Some("one"),
+        Some("two"),
+      ),
+      (
+        "disabled checked radio",
+        "<input type='radio' name='r' checked disabled><input type='radio' name='r' id='one'>",
+        Some("one"),
+        Some("one"),
+      ),
+      (
+        "radio checked outside root",
+        "<input type='radio' name='r' checked><section id='radio-root'><input type='radio' name='r' id='one'></section>",
+        Some(""),
+        Some(""),
+      ),
+    ],
+  );
+  put(
+    fixture,
+    "innerHTML",
+    "<input type='radio' name='quoted' checked><section id='radio-root'><input type='radio' name='quoted'></section>",
+  );
+  set_attribute(node("input[name=quoted]"), "name", "quote\"[name]");
+  set_attribute(node("#radio-root input"), "name", "quote\"[name]");
+  check(
+    "radio peers outside search root",
+    B.first_tabbable(node("#radio-root")) == None
+    && B.last_tabbable(node("#radio-root")) == None,
+  );
+  put(
+    fixture,
+    "innerHTML",
+    "<span data-boundary tabindex='0'></span><button id='one' tabindex='2'></button><button id='two' tabindex='1'></button><span data-boundary tabindex='0'></span>",
+  );
+  let exclude = element =>
+    Option.is_some(
+      Js.Nullable.toOption(attribute(element, "data-boundary")),
+    );
+  check(
+    "excluded boundaries and positive order",
+    chosen_id(B.first_tabbable(~exclude, fixture)) == Some("two")
+    && chosen_id(B.last_tabbable(~exclude, fixture)) == Some("one"),
+  );
+  check(
+    "exclude all",
+    B.first_tabbable(~exclude=_ => true, fixture) == None
+    && B.last_tabbable(~exclude=_ => true, fixture) == None,
+  );
+  let active_before = active(document);
+  ignore(B.first_tabbable(fixture));
+  ignore(B.last_tabbable(fixture));
+  check("selection does not move focus", active(document) === active_before);
+  put(
+    fixture,
+    "innerHTML",
+    "<section id='nested'><button id='one'></button></section>",
+  );
+  set_attribute(fixture, "inert", "");
+  check(
+    "ancestors outside the search root participate",
+    B.first_tabbable(node("#nested")) == None
+    && B.last_tabbable(node("#nested")) == None,
+  );
+  remove_attribute(fixture, "inert");
+  check(
+    "live ancestor changes are read synchronously",
+    chosen_id(B.first_tabbable(node("#nested"))) == Some("one"),
+  );
+  set_attribute(fixture, "tabindex", "1");
+  put(fixture, "innerHTML", "");
+  check(
+    "search never includes root",
+    B.first_tabbable(fixture) == None && B.last_tabbable(fixture) == None,
+  );
+  put(fixture, "innerHTML", "<button id='one'></button>");
+  let task = B.focus_first(~within="tab-fixture");
+  put(fixture, "innerHTML", "<button id='two'></button>");
+  check(
+    "deferred focus uses same current selector",
+    ok(run_task(task)) && has_focus("#two"),
+  );
+  app.shutdown();
+  frame();
+};
 type msg =
   | Enable(bool)
   | Record(string)
@@ -811,6 +1056,7 @@ let animations = () => {
 };
 let completed = {
   tasks();
+  tabbable();
   events();
   resize();
   media();

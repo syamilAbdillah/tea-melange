@@ -269,8 +269,10 @@ let view: (
 No composed components or foundation files are changed. Private browser
 capabilities in Date_picker only:
 
-- Capture-phase document focusin, containment/visibility/tabindex queries, and
-  synchronous first/last-control or roving-date focus at span boundaries.
+- Capture-phase document focusin and synchronous control or roving-date focus
+  at span boundaries. Control selection uses `Browser_dom.first_tabbable` /
+  `last_tabbable`, excluding boundary spans: positive tabindex comes first,
+  followed by DOM order, with the shared browser exclusions.
 - Subscription-owned, live-guarded post-render initial/return focus, using
   Browser_dom.active_element_id as the deferred frame handoff. A generation
   prevents stale completions; no mutable values/DOM nodes are stored in models.
