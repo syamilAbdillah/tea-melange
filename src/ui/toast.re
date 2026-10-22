@@ -588,9 +588,7 @@ let subscriptions = model => {
         ~key=model.id,
         ~tagger=event => event,
         ~start=
-          dispatch => {
-            B.on(~capture=true, B.document, "keydown", dispatch)
-          },
+          dispatch => {B.on(~capture=true, B.document, "keydown", dispatch)},
       ),
     ),
     Sub.make(

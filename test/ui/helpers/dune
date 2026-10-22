@@ -1,12 +1,11 @@
-; Compile the private helper sources directly; do not expose internals publicly.
-(copy_files ../../../src/ui/ui_*.re)
-(copy_files ../../../src/ui/ui_*.rei)
+; Compile the private pure sources directly; do not expose internals publicly.
+(copy_files ../../../src/ui/ui_{attr,keyboard,nav,typeahead}.{re,rei})
 
 (melange.emit
  (target js)
  (alias melange)
  (module_systems es6)
- (libraries tea.core tea.html tea.vdom tea.dom melange.dom melange.js)
+ (libraries tea.core tea.html tea.vdom melange.js)
  (preprocess (pps melange.ppx)))
 
 (rule

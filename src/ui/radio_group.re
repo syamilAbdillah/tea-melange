@@ -2,22 +2,22 @@ module Html = Tea_html.Html;
 module V = Tea_vdom.Vdom;
 module D = Tea_core.Decode;
 module Cmd = Tea_core.Cmd;
-module Events = Tea_browser.Browser_events;
+module R = Ui_roving;
 type direction =
   | Ltr
   | Rtl;
 type orientation =
   | Horizontal
   | Vertical;
-type item = {
-  key: string,
-  label: string,
-  disabled: bool,
-};
+type item =
+  Ui_roving.item = {
+    key: string,
+    label: string,
+    disabled: bool,
+  };
 type model = {
   id: string,
-  focus_generation: int,
-  focus_request: option(string),
+  focus: Ui_focus.t,
   checked: option(string),
   focused: option(string),
   within: bool,
@@ -48,35 +48,18 @@ type parts('parent) = {
   items: array(item_parts('parent)),
   hidden_input: option(Html.t('parent)),
 };
-let same = (a, b) =>
-  switch (a, b) {
-  | (Some(a), Some(b)) => String.equal(a, b)
-  | (None, None) => true
-  | _ => false
+/* The tab stop when nothing inside has focus: checked, else first enabled. */
+let entry = (~items, checked) =>
+  switch (checked) {
+  | Some(_) => checked
+  | None => R.first(items)
   };
-let index = (items: array(item), key) => {
-  let rec find = i =>
-    i >= Array.length(items)
-      ? (-1) : same(Some(items[i].key), key) ? i : find(i + 1);
-  find(0);
-};
-let flags = items => Array.map((item: item) => item.disabled, items);
-let key_at = (items: array(item), i) => Option.map(i => items[i].key, i);
-let valid = (items: array(item), key) => {
-  let i = index(items, key);
-  i >= 0 && !items[i].disabled ? key : None;
-};
 let normalize = (~items, model: model) => {
-  let checked = valid(items, model.checked);
-  let fallback =
-    switch (checked) {
-    | Some(_) => checked
-    | None => key_at(items, Ui_nav.first(flags(items)))
-    };
+  let checked = R.valid(items, model.checked);
   let focused =
-    switch (valid(items, model.focused)) {
+    switch (R.valid(items, model.focused)) {
     | Some(_) as key => key
-    | None => fallback
+    | None => entry(~items, checked)
     };
   {
     ...model,
@@ -99,8 +82,7 @@ let init =
     ~items,
     {
       id,
-      focus_generation: 0,
-      focus_request: None,
+      focus: Ui_focus.none,
       checked,
       focused: checked,
       within: false,
@@ -115,9 +97,9 @@ let checked = (model: model) => model.checked;
 let focused = (model: model) => model.focused;
 let request_focus = (model, key) => {
   ...model,
-  focus_generation: model.focus_generation + 1,
-  focus_request:
-    Some(
+  focus:
+    Ui_focus.element(
+      model.focus,
       switch (key) {
       | None => model.id
       | Some(key) => Ui_attr.item_id(model.id, key)
@@ -127,7 +109,7 @@ let request_focus = (model, key) => {
 let repair_state = (~items, ~force, model) => {
   let repaired = normalize(~items, model);
   let repair_focus =
-    model.within && (force || !same(model.focused, repaired.focused));
+    model.within && (force || !R.same(model.focused, repaired.focused));
   let repaired = {
     ...repaired,
     pending: repair_focus ? repaired.focused : model.pending,
@@ -151,12 +133,7 @@ let configure =
         orientation: Option.value(~default=model.orientation, orientation),
       },
     );
-  let entry =
-    switch (model.checked) {
-    | Some(_) => model.checked
-    | None => key_at(items, Ui_nav.first(flags(items)))
-    };
-  let focused = model.readonly ? model.focused : entry;
+  let focused = model.readonly ? model.focused : entry(~items, model.checked);
   let model = {
     ...model,
     focused,
@@ -187,7 +164,7 @@ let update = (~items, msg, original) => {
   let (model, repair) = repair_state(~items, ~force=false, original);
   let choose = (~move, key) => {
     let changed =
-      !model.disabled && !model.readonly && !same(model.checked, key);
+      !model.disabled && !model.readonly && !R.same(model.checked, key);
     let model = {
       ...model,
       focused: key,
@@ -207,11 +184,11 @@ let update = (~items, msg, original) => {
     );
   };
   switch (msg) {
-  | Click(key) when !model.disabled && valid(items, Some(key)) != None =>
+  | Click(key) when !model.disabled && R.is_valid(items, key) =>
     choose(~move=true, Some(key))
-  | Focus(key) when valid(items, Some(key)) != None =>
+  | Focus(key) when R.is_valid(items, key) =>
     switch (model.pending) {
-    | Some(_) when !same(model.pending, Some(key)) => (model, repair, [])
+    | Some(_) when !R.same(model.pending, Some(key)) => (model, repair, [])
     | _ => (
         {
           ...model,
@@ -223,77 +200,57 @@ let update = (~items, msg, original) => {
         [],
       )
     }
-  | Leave(target) =>
-    let inside =
-      same(target, Some(model.id))
-      || Array.exists(
-           (item: item) =>
-             same(target, Some(Ui_attr.item_id(model.id, item.key))),
-           items,
-         );
-    (
-      inside
+  | Leave(target) => (
+      R.inside(~id=model.id, items, target)
         ? model
         : {
           ...model,
           within: false,
           pending: None,
-          focus_request: None,
-          focused:
-            switch (model.checked) {
-            | Some(_) => model.checked
-            | None => key_at(items, Ui_nav.first(flags(items)))
-            },
+          focus: Ui_focus.cancel(model.focus),
+          focused: entry(~items, model.checked),
         },
       repair,
       [],
-    );
-  | Key(source, key)
-      when !model.disabled && valid(items, Some(source)) != None =>
+    )
+  | Key(source, key) when !model.disabled && R.is_valid(items, source) =>
     switch (step(model, key)) {
     | Some(delta) =>
-      let from = index(items, model.focused);
-      let next =
-        delta > 0
-          ? Ui_nav.next(~from, flags(items))
-          : Ui_nav.prev(~from, flags(items));
-      switch (key_at(items, next)) {
+      switch (R.step(items, ~from=model.focused, delta)) {
       | Some(_) as key => choose(~move=true, key)
       | None => (model, repair, [])
-      };
+      }
     | None when String.equal(key, " ") && !model.readonly =>
       choose(~move=false, model.focused)
     | None => (model, repair, [])
     }
-  | Focus_finished(generation) when generation == model.focus_generation => (
-      {
-        ...model,
-        focus_request: None,
-        pending: None,
-      },
-      repair,
-      [],
-    )
+  | Focus_finished(generation) =>
+    switch (Ui_focus.finish(model.focus, generation)) {
+    | (focus, true) => (
+        {
+          ...model,
+          focus,
+          pending: None,
+        },
+        repair,
+        [],
+      )
+    | (_, false) => (model, repair, [])
+    }
   | _ => (model, repair, [])
   };
 };
 let subscriptions = model =>
-  switch (model.focus_request) {
-  | Some(target) when model.within =>
-    Events.focus(
-      ~key=
-        string_of_int(String.length(model.id))
-        ++ ":"
-        ++ model.id
-        ++ ":"
-        ++ string_of_int(model.focus_generation),
-      ~target=Events.Element(target),
-      ~from=[model.id],
-      _ =>
-      Focus_finished(model.focus_generation)
-    )
-  | _ => Tea_core.Sub.none
-  };
+  model.within
+    ? Ui_focus.sub(
+        ~home="Radio_group",
+        ~id=model.id,
+        ~from=[model.id],
+        model.focus,
+        (generation, _) =>
+        Focus_finished(generation)
+      )
+    : Tea_core.Sub.none;
 let view =
     (
       ~model,
@@ -309,12 +266,9 @@ let view =
     ) => {
   let model = normalize(~items, model);
   let part = Ui_attr.part_id(model.id);
-  let entry =
-    switch (model.checked) {
-    | Some(_) => model.checked
-    | None => key_at(items, Ui_nav.first(flags(items)))
-    };
-  let tabstop = model.readonly && model.within ? model.focused : entry;
+  let tabstop =
+    model.readonly && model.within
+      ? model.focused : entry(~items, model.checked);
   let map = attrs => List.map(V.map_fact(to_parent), attrs);
   to_view({
     root:
@@ -353,8 +307,9 @@ let view =
       Array.map(
         (item: item) => {
           let disabled = model.disabled || item.disabled;
-          let checked = same(model.checked, Some(item.key));
-          let focused = model.within && same(model.focused, Some(item.key));
+          let checked = R.same(model.checked, Some(item.key));
+          let focused =
+            model.within && R.same(model.focused, Some(item.key));
           {
             item,
             checked,
@@ -366,7 +321,8 @@ let view =
                 Html.aria("label", item.label),
                 Ui_attr.aria_bool("checked", checked),
                 Html.tabindex(
-                  !item.disabled && same(tabstop, Some(item.key)) ? 0 : (-1),
+                  !item.disabled && R.same(tabstop, Some(item.key))
+                    ? 0 : (-1),
                 ),
                 disabled ? Ui_attr.aria_bool("disabled", true) : Html.none,
                 Ui_attr.data_flag("checked", checked),
