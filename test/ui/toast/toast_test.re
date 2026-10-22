@@ -758,6 +758,51 @@ let completed = {
     && pending() == 1,
   );
   stop(app);
+  let app = start();
+  frames();
+  push(app, "race", ~duration=None, "Focus race");
+  focus(node("#opener"));
+  ignore(key("#opener", "keydown", "F8"));
+  focus(node("#after"));
+  frames();
+  check(
+    "hotkey deferred focus never steals moved focus",
+    has_focus("#after"),
+  );
+  focus(node("#opener"));
+  ignore(key("#opener", "keydown", "F8"));
+  focus(node("#after"));
+  focus(node("#opener"));
+  frames();
+  check(
+    "hotkey ignores an away-and-back focus journey",
+    has_focus("#opener"),
+  );
+  ignore(key("#opener", "keydown", "F8"));
+  stop(app);
+  check("shutdown cancels pending hotkey focus", !has_focus(root("race")));
+  let app = start();
+  frames();
+  push(app, "repair", ~duration=None, "Ordinary focus repair");
+  focus(node(close_button("repair")));
+  app.dispatch(Dismiss("repair"));
+  let rec until_removed = remaining =>
+    if (remaining > 0 && List.mem("repair", T.keys(app.model().toast))) {
+      flush();
+      until_removed(remaining - 1);
+    };
+  until_removed(14);
+  check(
+    "ordinary dismissal completed before repair frame",
+    !List.mem("repair", T.keys(app.model().toast)),
+  );
+  focus(node("#after"));
+  frames();
+  check(
+    "ordinary focus repair never steals a later destination",
+    has_focus("#after"),
+  );
+  stop(app);
   visibility(false);
   restore_clock();
   check(

@@ -316,3 +316,10 @@ Document visibility is a property/event fixture (headless tabs do not reliably
 background); it exercises the real Browser_events source, not a Toast test hook.
 Axe is unfiltered in empty, normal, urgent, action, queued, alternate and restored
 states, including after real visual transitions.
+
+Hotkey entry uses a cancellable post-render focus request. A focus movement
+before its frame supersedes entry, including moving away and back, and shutdown
+cancels it. Ordinary focus repair after a focused toast disappears uses the same
+ownership and does not override a later destination. The existing Tab/Escape
+return bridges retain their command ordering
+with the opener restoration lease; they are separate from hotkey entry.
