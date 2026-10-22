@@ -553,8 +553,19 @@ let completed = {
   check("all six unclaimed events reached ancestor", propagated^ == 6);
   check("Tab not prevented", key(root("focus"), "keydown", "Tab"));
   check("Tab propagates", propagated^ == 7);
-  check("Escape consumed", !key(root("focus"), "keydown", "Escape"));
-  check("Escape never reaches enclosing overlay", propagated^ == 7);
+  check(
+    "modified and composing Escape reach document",
+    key_at_document(~ctrl=true, root("focus"), "Escape") == (true, true)
+    && key_at_document(~alt=true, root("focus"), "Escape") == (true, true)
+    && key_at_document(~meta=true, root("focus"), "Escape") == (true, true)
+    && key_at_document(~composing=true, root("focus"), "Escape")
+    == (true, true),
+  );
+  check(
+    "Escape consumed and stopped at document",
+    key_at_document(root("focus"), "Escape") == (false, false),
+  );
+  check("Escape never reaches enclosing overlay", propagated^ == 11);
   frames();
   check(
     "Escape dismisses and returns",
@@ -563,9 +574,16 @@ let completed = {
   check("empty F8 consumed", !key("#opener", "keydown", "F8"));
   frames();
   check("empty region focuses", has_focus("#notice"));
-  check("empty Escape consumed", !key("#notice", "keydown", "Escape"));
+  check(
+    "empty Escape consumed and stopped at document",
+    key_at_document("#notice", "Escape") == (false, false),
+  );
   frames();
   check("empty Escape returns", has_focus("#opener"));
+  check(
+    "unclaimed region Escape reaches document",
+    key_at_document("#notice", "Escape") == (true, true),
+  );
   push(app, "tab", ~duration=None, "Tab exit");
   ignore(key("#opener", "keydown", "F8"));
   frames();

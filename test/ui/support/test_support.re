@@ -102,6 +102,42 @@ let key =
   let accepted = dispatch(node(selector), e);
   accepted;
 };
+/* Observe bubbling at document; cancelBubble resets after dispatch. */
+[@mel.send]
+external listen_key: (Dom.document, string, Dom.event => unit) => unit =
+  "addEventListener";
+[@mel.send]
+external unlisten_key: (Dom.document, string, Dom.event => unit) => unit =
+  "removeEventListener";
+let key_at_document =
+    (
+      ~shift=false,
+      ~ctrl=false,
+      ~alt=false,
+      ~meta=false,
+      ~composing=false,
+      ~repeat=false,
+      selector,
+      key_,
+    ) => {
+  let reached = ref(false);
+  let spy = _ => reached := true;
+  listen_key(document, "keydown", spy);
+  let accepted =
+    key(
+      ~shift,
+      ~ctrl,
+      ~alt,
+      ~meta,
+      ~composing,
+      ~repeat,
+      selector,
+      "keydown",
+      key_,
+    );
+  unlisten_key(document, "keydown", spy);
+  (accepted, reached^);
+};
 let tick = () =>
   Js.Promise.make((~resolve, ~reject as _) =>
     ignore(timeout(() => resolve(. true), 0))

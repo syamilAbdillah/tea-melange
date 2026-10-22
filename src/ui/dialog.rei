@@ -4,7 +4,9 @@
 
     Keyboard table:
     - Tab / Shift+Tab: native modal focus containment; never prevented.
-    - Escape: request dismissal of the focused/top dialog; prevent native close.
+    - Escape while visible (including Leaving): request dismissal of the
+      focused/top dialog; prevent native close and stop propagation.
+      Closed, mounted dialogs leave Escape to enclosing handlers.
     - Enter / Space: native buttons and form submission; never synthesized.
     - Other keys: unchanged, or the optional unmodified-key hook.
     - Ctrl/Alt/Meta chords, IME: unchanged.
@@ -119,10 +121,10 @@ type parts('parent) = {
     Backdrop dismissal requires down, up AND click on root, outside its bounding
     box; a drag originating in content never dismisses. Use padding:0 on root
     and put padded content in a child. Style ::backdrop using root data flags.
-    Escape keydown and cancel are both handled: this prevents Chromium's
-    repeated-Escape close watcher from bypassing a guard or an exit animation.
-    on_key_down receives other unmodified, non-composing keys; it returns an
-    optional parent message without preventing default or stopping propagation.
+    While visible, Escape keydown and cancel are both handled: this prevents
+    Chromium's repeated-Escape close watcher from bypassing a guard or an exit animation.
+    on_key_down receives unhandled unmodified, non-composing keys (including
+    Escape while closed); it returns an optional parent message without preventing default or stopping propagation.
     Tab is owned but never prevented. Only Escape stops propagation. */
 let view:
   (

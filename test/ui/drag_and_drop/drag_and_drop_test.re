@@ -245,6 +245,10 @@ let completed = {
     "orientation",
     attr(list_selector("left"), "data-orientation") == Some("vertical"),
   );
+  check(
+    "idle Escape reaches document",
+    key_at_document(handle("a"), "Escape") == (true, true),
+  );
   check("idle arrows untouched", key(handle("a"), "keydown", "ArrowDown"));
   List.iter(
     k => {
@@ -330,7 +334,18 @@ let completed = {
   press(app, "Enter");
   frame();
   press(app, "ArrowDown");
-  press(app, "Escape");
+  check(
+    "modified and composing drag Escape reach document",
+    key_at_document(~ctrl=true, handle("a"), "Escape") == (true, true)
+    && key_at_document(~alt=true, handle("a"), "Escape") == (true, true)
+    && key_at_document(~meta=true, handle("a"), "Escape") == (true, true)
+    && key_at_document(~composing=true, handle("a"), "Escape")
+    == (true, true),
+  );
+  check(
+    "drag Escape prevented and stopped at document",
+    key_at_document(handle("a"), "Escape") == (false, false),
+  );
   frame();
   check(
     "Escape restores",

@@ -256,6 +256,10 @@ let completed = {
     "initial closed",
     !D.is_visible(app.model().dialog) && get(node("#test-dialog"), "hidden"),
   );
+  check(
+    "closed mounted Escape propagates without prevention",
+    key_at_document("#first", "Escape") == (true, true),
+  );
   check("native role not overridden", attr("#test-dialog", "role") == None);
   check(
     "root semantics",
@@ -327,14 +331,24 @@ let completed = {
   );
   check("Enter native", key("#first", "keydown", "Enter"));
   check("Space native", key("#first", "keydown", " "));
-  check("Escape prevented", !key("#first", "keydown", "Escape"));
+  check(
+    "modified Escape propagates",
+    key_at_document(~ctrl=true, "#first", "Escape") == (true, true)
+    && key_at_document(~alt=true, "#first", "Escape") == (true, true)
+    && key_at_document(~meta=true, "#first", "Escape") == (true, true)
+    && key_at_document(~composing=true, "#first", "Escape") == (true, true),
+  );
+  check(
+    "Escape prevented and stopped at document",
+    key_at_document("#first", "Escape") == (false, false),
+  );
   check(
     "leave starts immediately",
     D.phase(app.model().dialog) == A.Leaving,
   );
   check(
     "repeat Escape prevented",
-    !key(~repeat=true, "#first", "keydown", "Escape"),
+    key_at_document(~repeat=true, "#first", "Escape") == (false, false),
   );
   check(
     "only one request during leave",

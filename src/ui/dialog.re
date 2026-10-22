@@ -535,7 +535,7 @@ let view =
     Ui_keyboard.custom(event =>
       !Ui_keyboard.plain(event)
         ? None
-        : String.equal(event.key, "Escape")
+        : String.equal(event.key, "Escape") && is_visible(model)
             ? Some((Some(to_parent(Request(Escape))), true))
             : String.equal(event.key, "Tab")
                 ? Some((Some(to_parent(Tab(event.shift))), false))
