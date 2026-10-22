@@ -1,0 +1,69 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <base href="/">
+  <link rel="icon" href="data:,">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Tea UI · Tooltip</title>
+  <style>
+    :root { font: 16px/1.6 Verdana, sans-serif; color: #16354a; background: #f7fbfe; }
+    body { margin: 0; }
+    main { max-width: 48rem; margin: 3rem auto; padding: 0 1.5rem 4rem; }
+    h1 { font-size: clamp(2rem, 5vw, 3rem); line-height: 1.2; letter-spacing: -.04em; max-width: 20ch; }
+    h2 { font-size: 1.15rem; margin: 0 0 1rem; }
+    p { max-width: 65ch; }
+    section { margin-top: 2rem; padding: 1.5rem 0; border-top: 2px solid #b7d7e5; }
+    button, input[type=text] { font: inherit; color: #16354a; background: #fff; border: 2px solid #356780; border-radius: .35rem; padding: .55rem .85rem; }
+    button { cursor: pointer; }
+    button:hover:enabled { background: #e1f2f5; }
+    :focus-visible { outline: 3px solid #955800; outline-offset: 4px; }
+    label { display: block; margin: .75rem 0; }
+    .tools { display: flex; gap: .6rem; }
+    .tools button { font-size: 1.7rem; min-width: 3.5rem; }
+    .pair { display: inline-block; }
+    .tip { padding: .6rem .85rem; max-width: min(24rem, 85vw); border: 0; border-radius: .35rem; color: #fff; background: #163f55; font-size: .9rem; line-height: 1.5; overflow: visible; }
+    .animated { transform: translateY(0); }
+    .animated[data-transition] { transition: transform 180ms ease; }
+    .animated[data-closed] { transform: translateY(5px); }
+    .arrow { position: absolute; width: 8px; height: 8px; background: #163f55; transform: rotate(45deg); }
+    .arrow[data-placement^=top] { left: var(--tea-arrow-offset); bottom: -4px; }
+    .arrow[data-placement^=bottom] { left: var(--tea-arrow-offset); top: -4px; }
+    .arrow[data-placement^=left] { top: var(--tea-arrow-offset); right: -4px; }
+    .arrow[data-placement^=right] { top: var(--tea-arrow-offset); left: -4px; }
+    .disabled-wrapper { display: inline-block; border-radius: .35rem; }
+    .disabled-control { pointer-events: none; color: #4b6170; background: #e5edf1; border-style: dashed; cursor: not-allowed; }
+    dialog { padding: 0; border: 2px solid #356780; border-radius: .6rem; color: #16354a; max-width: min(35rem, 90vw); }
+    dialog::backdrop { background: #16354a88; }
+    .dialog-content { padding: 1.5rem; }
+    .dialog-content button { margin-right: .75rem; }
+    #activity { margin-top: 2rem; }
+    @media (prefers-reduced-motion: reduce) { .animated[data-transition] { transition: none; } }
+  </style>
+</head>
+<body>
+  <div id="app"></div>
+  <script type="importmap">
+{
+  "imports": {
+    "melange/": "./node_modules/melange/",
+    "melange.dom/": "./node_modules/melange.dom/",
+    "melange.js/": "./node_modules/melange.js/",
+    "melange.__private__.melange_mini_stdlib/": "./node_modules/melange.__private__.melange_mini_stdlib/",
+    "tea.browser/": "./node_modules/tea.browser/",
+    "tea.ui/": "./node_modules/tea.ui/",
+    "tea/": "./node_modules/tea/",
+    "tea.core/": "./node_modules/tea.core/",
+    "tea.dom/": "./node_modules/tea.dom/",
+    "tea.effects/": "./node_modules/tea.effects/",
+    "tea.html/": "./node_modules/tea.html/",
+    "tea.http/": "./node_modules/tea.http/",
+    "tea.nav/": "./node_modules/tea.nav/",
+    "tea.url/": "./node_modules/tea.url/",
+    "tea.vdom/": "./node_modules/tea.vdom/"
+  }
+}
+  </script>
+  <script type="module" src="./examples/ui/tooltip/main.mjs"></script>
+</body>
+</html>
