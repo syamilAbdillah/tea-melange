@@ -3,6 +3,21 @@ import {openExample, frames, pressKeys, assertFocus, ariaSnapshot, axe} from '..
 
 export async function run(context) {
   const page = await openExample(context, 'date_picker');
+  // Unavailable cells fail Playwright's enabled check; click by coordinates once
+  // the anchored panel has stopped moving instead of forcing the click.
+  const clickWhenStable = async locator => {
+    await locator.scrollIntoViewIfNeeded();
+    let previous = null;
+    for (;;) {
+      await frames(page);
+      const box = await locator.boundingBox();
+      if (previous && box && ['x', 'y', 'width', 'height'].every(k => box[k] === previous[k])) {
+        await page.mouse.click(box.x + box.width / 2, box.y + box.height / 2);
+        return;
+      }
+      previous = box;
+    }
+  };
   const input = name => page.locator(`#${name}-input-control`);
   const panel = name => page.locator(`#${name}-panel`);
   const trigger = name => page.locator(`#${name}-trigger`);
@@ -151,7 +166,7 @@ export async function run(context) {
   await open('range'); await focusDate('range','5 March 2026');
   await pressKeys(page,'ArrowRight','ArrowRight'); assert.equal(await active('range').getAttribute('aria-disabled'),'true');
   await pressKeys(page,'Enter','Space'); assert.equal(await trigger('range').getAttribute('aria-expanded'),'true');
-  await active('range').click({force:true}); assert.equal(await trigger('range').getAttribute('aria-expanded'),'true');
+  await clickWhenStable(active('range')); assert.equal(await trigger('range').getAttribute('aria-expanded'),'true');
   await page.locator('#range-cancel').focus(); await pressKeys(page, 'Tab');
   await assertFocus(page, await active('range').evaluate(e => '#' + e.id));
   await pressKeys(page, 'Shift+Tab'); await assertFocus(page, '#range-cancel');
