@@ -1,0 +1,12 @@
+; One contract, two targets: the Eio server links the native build and the
+; browser client links the Melange build of the same source.
+(library
+ (name todo_shared)
+ (modules contract)
+ (modes native melange)
+ (libraries tea.core))
+
+(test
+ (name contract_test)
+ (modules contract_test)
+ (libraries todo_shared tea.core))
