@@ -48,7 +48,11 @@ type msg;
 /** Initially closed. id is a unique prefix. Defaults: no role/focus movement,
     close_on_focus_out=true, top_layer=true. Geometry defaults match Anchor
     except offset=8. group_triggers lists peer trigger ids that may receive focus
-    without closing this member; parents enforce exclusivity on Opened. */
+    without closing this member; parents enforce exclusivity on Opened.
+    anchor_id positions the panel against another element (e.g. an input group
+    containing the trigger) instead of the trigger; it only affects geometry.
+    The trigger keeps aria-expanded/aria-controls, toggling and focus return,
+    and outside-pointer detection still uses the trigger and panel. */
 let init:
   (
     ~id: string,
@@ -64,6 +68,7 @@ let init:
     ~dir: Anchor.direction=?,
     ~top_layer: bool=?,
     ~arrow_size: float=?,
+    ~anchor_id: string=?,
     unit
   ) =>
   model;

@@ -180,6 +180,15 @@ position use inline styles. Hidden/native top-layer state, not CSS, determines
 closed visibility. The local example CSS demonstrates reversible scale motion
 and honors reduced motion. Do not style hidden content back into view.
 
+## Anchoring to another element
+
+By default the panel is positioned against the trigger. Pass
+`~anchor_id` to position it against another element instead, for example an
+input group that contains the trigger (a date picker's text field plus its
+"Choose date" button). It only changes geometry: the trigger keeps
+`aria-expanded`/`aria-controls`, toggling and focus return, and outside-pointer
+detection still uses the trigger and panel ids.
+
 ## Full public API
 
 Available as `Tea_ui.Popover` / `Tea.Ui.Popover`. Every public item is documented
@@ -197,7 +206,8 @@ let init: (
   ~close_on_focus_out: bool=?, ~group_triggers: list(string)=?,
   ~placement: Anchor.placement=?, ~offset: float=?, ~flip: bool=?,
   ~shift_padding: option(float)=?, ~match_width: bool=?,
-  ~dir: Anchor.direction=?, ~top_layer: bool=?, ~arrow_size: float=?, unit
+  ~dir: Anchor.direction=?, ~top_layer: bool=?, ~arrow_size: float=?,
+  ~anchor_id: string=?, unit
 ) => model;
 let trigger_id: model => string;
 let panel_id: model => string;
