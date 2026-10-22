@@ -63,6 +63,7 @@ let init =
       ~dir=Anchor.Ltr,
       ~top_layer=true,
       ~arrow_size=?,
+      ~anchor_id=?,
       (),
     ) => {
   id,
@@ -79,7 +80,8 @@ let init =
     Animation.init(~id=Ui_attr.part_id(id, "panel"), ~open_=false, ()),
   anchor:
     Anchor.init(
-      ~anchor_id=Ui_attr.part_id(id, "trigger"),
+      ~anchor_id=
+        Option.value(~default=Ui_attr.part_id(id, "trigger"), anchor_id),
       ~floating_id=Ui_attr.part_id(id, "panel"),
       ~placement,
       ~offset,

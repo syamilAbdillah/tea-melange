@@ -51,6 +51,7 @@ let start =
       ~unmount=false,
       ~top_layer=false,
       ~advanced_focus=false,
+      ~anchor_id=?,
       (),
     ) =>
   App.element(
@@ -66,6 +67,7 @@ let start =
                 ~close_on_focus_out,
                 ~group_triggers,
                 ~top_layer,
+                ~anchor_id?,
                 (),
               ),
             outs: [],
@@ -159,7 +161,15 @@ let start =
                       Html.div(
                         [],
                         [
-                          Html.button(parts.trigger, [Html.text("Filters")]),
+                          Html.div(
+                            [Html.id("group")],
+                            [
+                              Html.button(
+                                parts.trigger,
+                                [Html.text("Filters")],
+                              ),
+                            ],
+                          ),
                           !unmount || parts.rendered
                             ? Html.div(
                                 parts.panel,
@@ -720,6 +730,38 @@ let completed = {
     "shutdown before first draw cancels starts",
     listener_count() == 0 && Tea_dom.Debug.active_listeners() == 0,
   );
+  /* anchor_id moves geometry only: the panel aligns with the group while the
+     trigger keeps its ARIA and toggling role. */
+  let app = start(~anchor_id="group", ());
+  layout();
+  put(node("#group"), "getBoundingClientRect", () =>
+    {
+      "x": 10.,
+      "y": 50.,
+      "top": 50.,
+      "left": 10.,
+      "right": 310.,
+      "bottom": 80.,
+      "width": 300.,
+      "height": 30.,
+    }
+  );
+  click("#test-trigger");
+  settle();
+  check(
+    "anchor_id positions against the group",
+    switch (P.position(app.model().popover)) {
+    | Some(position) =>
+      position.Ui.Anchor.x == 10. && position.anchor_width == 300.
+    | None => false
+    },
+  );
+  check(
+    "anchor_id keeps trigger semantics",
+    attr("#test-trigger", "aria-expanded") == Some("true")
+    && attr("#test-trigger", "aria-controls") == Some("test-panel"),
+  );
+  stop(app);
   report("popover");
   Js.Promise.resolve();
 };
