@@ -478,8 +478,8 @@ let focus_effect = model =>
     focused =>
     Focus_finished(model.generation, focused)
   );
-/* Capture focus moves across allowed opening origins too (for example native
-   Shift+Tab from Choose back to the input) before Anchor becomes ready. Once
+/* Capture moves across allowed opening origins and explicit blur to body
+   (including native Shift+Tab back to the input) before Anchor is ready. Once
    ready, Browser_events.focus owns the remaining render-to-focus interval. */
 let opening_source = model =>
   Sub.make(
@@ -490,7 +490,11 @@ let opening_source = model =>
       dispatch => {
         let moved = _ => dispatch();
         Native.add(Native.document, "focusin", moved, true);
-        () => Native.remove(Native.document, "focusin", moved, true);
+        Native.add(Native.document, "focusout", moved, true);
+        () => {
+          Native.remove(Native.document, "focusin", moved, true);
+          Native.remove(Native.document, "focusout", moved, true);
+        };
       },
   );
 let boundary_source = model =>

@@ -3,6 +3,7 @@ open Test_support;
 module P = Ui.Date_picker;
 module C = Ui.Calendar;
 module V = Tea_vdom.Vdom;
+[@mel.send] external blur: Dom.node => unit = "blur";
 let date = iso => Option.value(~default=C.Date.first, C.Date.of_iso(iso));
 let today = date("2026-03-05");
 let settle = () =>
@@ -1050,6 +1051,18 @@ let completed = {
   check(
     "opening never steals focus moved back to its input",
     has_focus(input) && !P.is_open(app.model().picker),
+  );
+  focus(node(trigger));
+  app.dispatch(Open);
+  blur(node(trigger));
+  check(
+    "explicit blur leaves focus on body before readiness",
+    has_focus("body"),
+  );
+  settle();
+  check(
+    "opening never steals focus after explicit blur",
+    has_focus("body") && !P.is_open(app.model().picker),
   );
   stop(app);
   let app = start(~top_layer=true, ());
