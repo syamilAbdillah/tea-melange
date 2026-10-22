@@ -11,6 +11,12 @@ export async function run(context) {
   };
   const opened = async id => {
     await page.waitForFunction(id => document.activeElement?.id === id + '-listbox', id);
+    // Anchor keeps the panel visibility:hidden until it is positioned;
+    // coordinate clicks must not target the pre-positioning box.
+    await page.waitForFunction(id => {
+      const el = document.getElementById(id + '-listbox');
+      return el.hasAttribute('data-placement') && getComputedStyle(el).visibility === 'visible';
+    }, id);
     assert.equal(await button(id).getAttribute('aria-expanded'), 'true');
     assert.equal(await popup(id).evaluate(el => el.hidden), false);
   };
@@ -28,6 +34,19 @@ export async function run(context) {
   };
   const escape = async id => { await pressKeys(page, 'Escape'); await closed(id); await assertFocus(page, `#${id}-button`); };
   const activity = () => page.locator('#activity').textContent();
+  const clickWhenStable = async locator => {
+    await locator.scrollIntoViewIfNeeded();
+    let previous = null;
+    for (;;) {
+      await frames(page);
+      const box = await locator.boundingBox();
+      if (previous && box && ['x', 'y', 'width', 'height'].every(k => box[k] === previous[k])) {
+        await page.mouse.click(box.x + box.width / 2, box.y + box.height / 2);
+        return;
+      }
+      previous = box;
+    }
+  };
 
   await ariaSnapshot(button('single'), '- button "Fruit Choose fruit": Choose fruit');
   await ariaSnapshot(popup('single'), '');
@@ -118,7 +137,10 @@ export async function run(context) {
   await page.mouse.up(); await frames(page); await closed('single'); await assertFocus(page, '#single-button');
   await ariaSnapshot(button('single'), '- button "Fruit Cherry": Cherry');
   await button('single').click(); await opened('single');
-  await page.locator('#single-item-apricot').click({ force: true }); await frames(page);
+  // Disabled options fail Playwright's enabled check, so click by coordinates
+  // once the anchored panel has stopped moving (a forced click can scroll and
+  // race Anchor's next-frame reposition, landing outside the panel).
+  await clickWhenStable(page.locator('#single-item-apricot')); await frames(page);
   assert.equal(await button('single').getAttribute('aria-expanded'), 'true');
   await page.locator('#outside').click(); await closed('single'); await assertFocus(page, '#outside');
   await button('single').click(); await opened('single');
