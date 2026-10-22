@@ -87,8 +87,9 @@ A native `close` event from external `.close(value)` is synchronized through
 API has already closed the element and cannot be cancelled, Dialog reopens it
 after render to apply the guard/leave policy. This necessarily has a brief
 native modality/focus interruption; use the submodel API or intercepted forms
-for uninterrupted animations and unsaved-changes guards. Stale queued close
-events on an already-reopened element are ignored.
+for uninterrupted animations and unsaved-changes guards. The `close` event is
+queued, so one caused by Dialog's own previous close can arrive after a reopen;
+it is ignored both before that opening's `showModal` has run and after.
 
 ## Full public API
 

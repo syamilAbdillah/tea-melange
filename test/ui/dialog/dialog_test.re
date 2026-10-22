@@ -440,6 +440,19 @@ let completed = {
     "stale close on reopened element ignored",
     D.is_open(app.model().dialog),
   );
+  /* Our own close's queued event can arrive after a reopen but before that
+     opening's showModal frame, while the element still reports open=false. */
+  app.dispatch(Hide);
+  settle();
+  focus(node("#opener"));
+  app.dispatch(Show);
+  check("reopen pending showModal", !get(node("#test-dialog"), "open"));
+  ignore(emit("#test-dialog", "close"));
+  settle();
+  check(
+    "stale close before showModal ignored",
+    D.is_open(app.model().dialog) && get(node("#test-dialog"), "open"),
+  );
   app.dispatch(Hide);
   focus(node("#elsewhere"));
   settle();

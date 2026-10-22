@@ -143,6 +143,21 @@ export async function run(context) {
   await assertFocus(page, '#open-nested');
   assert.equal(await page.evaluate(() => document.documentElement.style.overflow), 'hidden', 'nested release keeps outer lock');
   await escape('basic'); await assertFocus(page, '#open-basic');
+  // Reopening right after Escape: the previous close's queued 'close' event must
+  // not close the new opening (it arrives before or after its showModal).
+  for (let i = 0; i < 5; ++i) {
+    await show('basic');
+    await pressKeys(page, 'Escape');
+    await page.waitForFunction(() => document.activeElement?.id === 'open-basic');
+    await page.keyboard.press('Enter');
+    await page.waitForFunction(() => {
+      const el = document.getElementById('basic-dialog');
+      return el.open && el.contains(document.activeElement);
+    });
+    await pressKeys(page, 'Tab'); await frames(page);
+    assert.equal(await root('basic').evaluate(el => el.open), true, `reopen ${i} survives a stale close event`);
+    await escape('basic');
+  }
 
   for (const [key, focus] of [['empty', '#empty-dialog'], ['missing', '#missing-close'], ['long', '#long-title'], ['label', '#label-close']]) {
     await show(key); await assertFocus(page, focus); await axe(page);

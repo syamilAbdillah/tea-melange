@@ -338,10 +338,12 @@ let update = (message, model) =>
         return_value: value,
       },
     )
-  | Native_closed(value, false) when is_visible(model) =>
+  | Native_closed(value, false) when is_visible(model) && model.ready =>
     /* An imperative close cannot be cancelled. Repair native modality before
-       continuing the model's guard/leave policy. Stale queued close events see
-       open=true and are ignored. Prefer method=dialog forms (intercepted below). */
+       continuing the model's guard/leave policy. Prefer method=dialog forms
+       (intercepted below). The close event is queued: one from our own previous
+       close can arrive after a reopen, before this opening's showModal has run
+       (ready=false, open=false) or after it (open=true); both are stale. */
     request(
       Native,
       {
