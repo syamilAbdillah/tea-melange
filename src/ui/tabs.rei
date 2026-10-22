@@ -116,10 +116,8 @@ let set_selected:
 let update:
   (~items: array(item), msg, model) =>
   (model, Tea_core.Cmd.t(msg), list(out_msg));
-/** Execute immutable generation-keyed focus requests after render. Always map
-    this subscription into the parent: stopping cancels queued work. Temporary
-    document focus listeners protect intervening user navigation and are removed
-    on completion, removal or shutdown. */
+/** Forward while mounted. Moves focus after render and yields to focus the
+    user moved in the meantime. */
 let subscriptions: model => Tea_core.Sub.t(msg);
 /** Render through parent-typed parts. By default root references visible label;
     aria_label instead supplies a direct accessible name. Keep_mounted is the

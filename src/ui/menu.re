@@ -976,17 +976,6 @@ type parts('parent) = {
   trigger: list(Html.attr('parent)),
   panels: array(panel_parts('parent)),
 };
-let without = (name, attrs) =>
-  List.filter(
-    fact =>
-      switch (fact) {
-      | V.Property(key, _)
-      | V.Attribute(key, _)
-      | V.Event(key, _) => !String.equal(key, name)
-      | _ => true
-      },
-    attrs,
-  );
 let event = (name, msg) => Html.on(name, V.Normal(D.succeed(msg)));
 let prevent_pointer_focus = () =>
   Html.on(
@@ -1175,7 +1164,7 @@ let view =
       phase: Animation.phase(p.animation),
       /* Animation alone owns hidden. Anchor alone owns id. */
       attrs:
-        without("hidden", Anchor.attrs(p.anchor))
+        Ui_attr.without("hidden", Anchor.attrs(p.anchor))
         @ Animation.attrs(p.animation)
         @ [
           Html.role("menu"),
@@ -1226,7 +1215,7 @@ let view =
     Button.parts(~id=trigger_id(m), ~on_press=to_parent(Trigger_click), ());
   to_view({
     trigger:
-      without("keydown", button.root)
+      Ui_attr.without("keydown", button.root)
       @ [
         Html.aria("haspopup", "menu"),
         Ui_attr.aria_bool("expanded", is_open(m)),

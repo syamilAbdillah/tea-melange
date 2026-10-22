@@ -139,9 +139,7 @@ let update:
     model
   ) =>
   (model, Tea_core.Cmd.t(msg), list(out_msg));
-/** Forward throughout lifetime, including Leaving. Owns outside pointer,
-    positioning, cancellable animation waits, frame-debounced announcements,
-    active-option scroll and inline selection range. Shutdown disposes all. */
+/** Forward while mounted, including Leaving. */
 let subscriptions: model => Tea_core.Sub.t(msg);
 /** Apply bundles once to their matching elements; append nonconflicting facts. */
 type parts('parent) = {

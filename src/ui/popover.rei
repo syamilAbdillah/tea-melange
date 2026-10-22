@@ -89,7 +89,7 @@ let phase: model => Animation.phase;
 let position: model => option(Anchor.position);
 /** Forward every intent/submodel message; emits user notifications only. */
 let update: (msg, model) => (model, Tea_core.Cmd.t(msg), list(out_msg));
-/** Required throughout the mounted model lifetime, including Leaving. */
+/** Forward while mounted, including Leaving. */
 let subscriptions: model => Tea_core.Sub.t(msg);
 /** Open/reverse Leaving without an out message; idempotent. */
 let open_: model => (model, Tea_core.Cmd.t(msg));

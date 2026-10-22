@@ -162,9 +162,8 @@ let focus_grid: model => Tea_core.Cmd.t(msg);
 let update:
   (~constraints: constraints=?, ~readonly: bool=?, msg, model) =>
   (model, Tea_core.Cmd.t(msg), list(out_msg));
-/** Execute generation-keyed cancellable post-render focus requests. Required
-    whenever mounted, including when using focus_grid. Temporary document focus
-    listeners yield to user navigation and are released on completion/shutdown. */
+/** Forward while mounted. Moves focus after render, including for
+    [focus_grid], and yields to focus the user moved in the meantime. */
 let subscriptions: model => Tea_core.Sub.t(msg);
 /** A td bundle. Blank cells have no date, events, id or tabindex. */
 type cell('msg) = {

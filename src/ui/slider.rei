@@ -82,8 +82,7 @@ let init:
 let update:
   (~items: array(thumb), msg, model) =>
   (model, Tea_core.Cmd.t(msg), list(out_msg));
-/** Lifecycle-owned drag listeners; none when idle. Always map into the parent
-    subscriptions. Shutdown/removing the submodel disposes listeners and frames. */
+/** Forward while mounted; it listens only during a drag. */
 let subscriptions: model => Tea_core.Sub.t(msg);
 /** Repaired snapshot for the current collection. */
 let values: (~items: array(thumb), model) => values;

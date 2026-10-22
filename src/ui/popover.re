@@ -375,14 +375,7 @@ let view =
   /* Button owns keydown; replace that fact, retaining its native activation
      and keyup semantics. Native Enter/Space remain entirely browser-owned. */
   let trigger =
-    List.filter(
-      fact =>
-        switch (fact) {
-        | V.Event("keydown", _) => false
-        | _ => true
-        },
-      trigger,
-    )
+    Ui_attr.without("keydown", trigger)
     @ [
       Ui_attr.aria_bool("expanded", model.opened),
       should_render(model)
@@ -394,15 +387,7 @@ let view =
       },
       Ui_attr.data_flag("open", model.opened),
     ];
-  let anchor_attrs =
-    List.filter(
-      fact =>
-        switch (fact) {
-        | V.Property("hidden", _) => false
-        | _ => true
-        },
-      Anchor.attrs(model.anchor),
-    );
+  let anchor_attrs = Ui_attr.without("hidden", Anchor.attrs(model.anchor));
   let panel =
     anchor_attrs
     @ Animation.attrs(model.animation)

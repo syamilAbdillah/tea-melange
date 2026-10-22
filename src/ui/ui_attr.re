@@ -32,3 +32,14 @@ let safe_key = key => {
   String.equal(key, "") ? "_" : Buffer.contents(out);
 };
 let item_id = (id, key) => part_id(id, "item-" ++ safe_key(key));
+let without = (name, attrs) =>
+  List.filter(
+    fact =>
+      switch (fact) {
+      | Tea_vdom.Vdom.Property(key, _)
+      | Tea_vdom.Vdom.Attribute(key, _)
+      | Tea_vdom.Vdom.Event(key, _) => !String.equal(key, name)
+      | _ => true
+      },
+    attrs,
+  );

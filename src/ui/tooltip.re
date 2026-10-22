@@ -379,15 +379,7 @@ let view = (~model, ~to_parent, ~on_key_down=_ => None, ~to_view, ()) => {
         ),
       ),
     );
-  let anchor_attrs =
-    List.filter(
-      fact =>
-        switch (fact) {
-        | V.Property("hidden", _) => false
-        | _ => true
-        },
-      Anchor.attrs(model.anchor),
-    );
+  let anchor_attrs = Ui_attr.without("hidden", Anchor.attrs(model.anchor));
   let placement =
     switch (position(model)) {
     | None => Html.none

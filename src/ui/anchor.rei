@@ -170,11 +170,8 @@ let configure:
     the first result per activation/refresh). Missing elements emit Unavailable
     once and retry on subsequent resize/scroll or explicit refresh. */
 let update: (msg, model) => (model, Tea_core.Cmd.t(msg), list(out_msg));
-/** Lifecycle-owned initial post-render measurement, window resize, any captured
-    document scroll and anchor/floating ResizeObservers. Sources feed a shared
-    pending-frame gate, not parent messages. Reads of both nodes are scheduled
-    in the same frame via Browser_dom.get_element. Stopping suppresses pending
-    callbacks. No continuous animation/layout polling. */
+/** Forward while active. Measures after render and on resize, scroll and
+    element resize; stopping cancels pending measurements. */
 let subscriptions: model => Tea_core.Sub.t(msg);
 /** Parent-message-typed floating attrs. Owns id, hidden, popover (when opted in),
     position, inset, margin, box-sizing, left/top, width, visibility and four CSS

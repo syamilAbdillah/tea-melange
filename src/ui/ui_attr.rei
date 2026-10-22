@@ -13,3 +13,8 @@ let part_id: (string, string) => string;
 let safe_key: string => string;
 /** Derive [id ++ "-item-" ++ safe_key(key)]. Never use an array index as key. */
 let item_id: (string, string) => string;
+/** Drop every property, attribute or event listener named [name], to
+    replace part of another component's bundle. */
+let without:
+  (string, list(Tea_html.Html.attr('msg))) =>
+  list(Tea_html.Html.attr('msg));

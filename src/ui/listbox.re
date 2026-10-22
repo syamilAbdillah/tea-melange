@@ -641,22 +641,10 @@ let view =
       (),
     ).
       root
-    |> List.filter(fact =>
-         switch (fact) {
-         | V.Event("keydown", _)
-         | V.Attribute("data-disabled", _) => false
-         | _ => true
-         }
-       )
+    |> Ui_attr.without("keydown")
+    |> Ui_attr.without("data-disabled")
     |> mapped;
-  let anchor =
-    Anchor.attrs(model.anchor)
-    |> List.filter(fact =>
-         switch (fact) {
-         | V.Property("hidden", _) => false
-         | _ => true
-         }
-       );
+  let anchor = Ui_attr.without("hidden", Anchor.attrs(model.anchor));
   let selected =
     Array.to_list(items)
     |> List.filter(item =>

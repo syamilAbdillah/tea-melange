@@ -86,11 +86,9 @@ let open_: model => (model, Tea_core.Cmd.t(msg));
 let close: model => (model, Tea_core.Cmd.t(msg));
 /** Process intent against the latest model. Returns notifications in order. */
 let update: (msg, model) => (model, Tea_core.Cmd.t(msg), list(out_msg));
-/** Required throughout the mounted lifetime, including Leaving. Composes
-    Animation, native show/close, reference-counted scroll_lock and conditional
-    restore_focus within root. Shutdown closes the native dialog and releases
-    locks after render. Removed openers are not focused; intentional focus on
-    another connected element is respected. Choose any fallback in the parent. */
+/** Forward while mounted, including Leaving. Shows the native modal, locks
+    scroll and, on close, returns focus to the opener unless focus has moved
+    to another connected element or the opener was removed. */
 let subscriptions: model => Tea_core.Sub.t(msg);
 /** Attribute bundles in the parent message type and derived state. */
 type parts('parent) = {

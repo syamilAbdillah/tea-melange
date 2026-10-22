@@ -603,15 +603,7 @@ let view =
                     ),
                   ),
                 );
-              let trigger_attrs =
-                List.filter(
-                  fact =>
-                    switch (fact) {
-                    | V.Event("keydown", _) => false
-                    | _ => true
-                    },
-                  trigger.root,
-                );
+              let trigger_attrs = Ui_attr.without("keydown", trigger.root);
               let button = (name, message, disabled) =>
                 Button.parts(
                   ~id=part(model, name),

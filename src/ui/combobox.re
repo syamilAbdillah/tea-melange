@@ -885,24 +885,9 @@ let view =
       ~autocomplete="off",
       (),
     );
-  let control =
-    List.filter(
-      fact =>
-        switch (fact) {
-        | V.Event("input", _) => false
-        | _ => true
-        },
-      base.control,
-    );
+  let control = Ui_attr.without("input", base.control);
   let popup =
-    List.filter(
-      fact =>
-        switch (fact) {
-        | V.Property("hidden", _) => false
-        | _ => true
-        },
-      Anchor.attrs(model.anchor),
-    )
+    Ui_attr.without("hidden", Anchor.attrs(model.anchor))
     @ Animation.attrs(model.animation);
   to_view({
     wrapper: [

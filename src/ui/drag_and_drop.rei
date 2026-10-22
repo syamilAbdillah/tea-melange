@@ -1,6 +1,6 @@
 /** Pointer sorting and accessible button-based moving. APG button pattern:
     https://www.w3.org/WAI/ARIA/apg/patterns/button/
-    There is no APG drag-and-drop pattern; this is NOT a listbox.
+    There is no APG drag-and-drop pattern; this is not a listbox.
 
     Keyboard table: Tab/Shift+Tab navigate normally (and cancel a lift);
     Space/Enter lift or drop; Escape cancels; Up/Down move in vertical lists;
@@ -113,10 +113,8 @@ let announcement: model => string;
 let update:
   (~containers: array(container), msg, model) =>
   (model, Tea_core.Cmd.t(msg), list(out_msg));
-/** Lifecycle-owned pointer listeners, touch timer, scroll/resize measurement,
-    visibility/blur cancellation and auto-scroll frames. A cancelled pointer
-    gesture retains a capture click guard until its release/click; a post-release
-    frame expires it if no click arrives. Shutdown always disposes everything. */
+/** Forward while mounted. After a cancelled pointer drag, swallows the
+    click that ends it. */
 let subscriptions: model => Tea_core.Sub.t(msg);
 /** Programmatically cancel without emitting out messages. Restores handle focus. */
 let cancel: model => (model, Tea_core.Cmd.t(msg));

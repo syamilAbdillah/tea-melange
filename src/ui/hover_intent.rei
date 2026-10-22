@@ -1,6 +1,6 @@
 /** Pointer-hover intent with cancellable opening and shared closing delays.
     Related APG: https://www.w3.org/WAI/ARIA/apg/patterns/tooltip/
-    This primitive is NOT a tooltip: consumers own semantics, visibility,
+    This primitive is not a tooltip: consumers own semantics, visibility,
     positioning, keyboard and focus behavior.
 
     Keyboard table: all keys, including Tab/Shift+Tab, Escape, Enter, Space,
@@ -54,7 +54,7 @@ let is_open: model => bool;
 /** Timestamp of the most recent pointer/environment close, for Group.record_close.
     None before any such close. Programmatic setters do not modify it. */
 let last_close_time: model => option(float);
-/** Process intent against current state. Pass the CURRENT disabled flag on
+/** Process intent against current state. Pass the current disabled flag on
     every call, even for timer messages: disabled clears pending/open state
     without emitting intents. When changing disabled in the parent, also call
     [close_now] immediately. Optional group is read, never stored or mutated.
@@ -64,12 +64,9 @@ let last_close_time: model => option(float);
 let update:
   (~disabled: bool=?, ~group: Group.t=?, msg, model) =>
   (model, Tea_core.Cmd.t(msg), list(out_msg));
-/** Required for timers and window exit handling. Supply a stable, unique key
-    per mounted instance within a runtime (e.g. the consumer's id prefix).
-    No key/id is stored in the model. Removing this subscription or shutdown
-    synchronously clears timers/listeners, including a not-yet-fired delay.
-    Window blur/exit starts the shared close delay (cancels pending opening);
-    hidden document closes immediately. Zero delays need no timer source. */
+/** Forward while mounted. [key] must be unique per instance (for example
+    the consumer's id). Leaving the window starts the close delay; hiding the
+    document closes immediately. */
 let subscriptions: (~key: string, model) => Tea_core.Sub.t(msg);
 /** Open immediately, invalidate pending timers, emit no out messages.
     The consumer decides whether keyboard focus should keep visibility open. */
