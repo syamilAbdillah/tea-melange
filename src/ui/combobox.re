@@ -1,7 +1,7 @@
 open Tea_core;
 module Html = Tea_html.Html;
 module V = Tea_vdom.Vdom;
-module Bdom = Tea_browser.Browser_dom;
+module Browser = Tea_browser.Browser_dom;
 module Events = Tea_browser.Browser_events;
 module Platform = Tea_dom.Browser_platform;
 module D = Decode;
@@ -36,21 +36,6 @@ type out_msg =
   | Opened
   | Closed;
 
-/* Selection ranges are the only DOM capability not supplied by tea.browser.
-   Reads/writes are post-render and subscription-owned, never model mutation. */
-module Bindings = {
-  external document: Dom.document = "document";
-  [@mel.send]
-  external by_id: (Dom.document, string) => Js.Nullable.t(Dom.element) =
-    "getElementById";
-  [@mel.get]
-  external active: Dom.document => Js.Nullable.t(Dom.element) =
-    "activeElement";
-  [@mel.get] external value: Dom.element => string = "value";
-  [@mel.send]
-  external range: (Dom.element, int, int) => unit = "setSelectionRange";
-  [@mel.send] external lower: string => string = "toLowerCase";
-};
 /* Same folding as typeahead: lowercase, NFD without marks, ligature folds. */
 let fold = Ui_typeahead.normalize;
 let filter = (~query, ~label, ~mode=Contains, items) => {
@@ -90,8 +75,7 @@ type model = {
   announcement: string,
   animation: Animation.model,
   anchor: Anchor.model,
-  focus_pending: bool,
-  focus_epoch: int,
+  focus: Ui_focus.t,
 };
 type msg =
   | Key(Ui_keyboard.event)
@@ -109,18 +93,9 @@ type msg =
   | Announce(string)
   | Focused(int);
 let part = (model, name) => Ui_attr.part_id(model.id, name);
-let unique = keys =>
-  List.rev(
-    List.fold_left(
-      (acc, key) =>
-        List.exists(String.equal(key), acc) ? acc : [key, ...acc],
-      [],
-      keys,
-    ),
-  );
 let selection = (~multiple, keys) =>
   multiple
-    ? unique(keys)
+    ? Ui_attr.unique_keys(keys)
     : (
       switch (keys) {
       | [] => []
@@ -163,8 +138,7 @@ let init =
   loading: false,
   pending: "",
   announcement: "",
-  focus_pending: false,
-  focus_epoch: 0,
+  focus: Ui_focus.none,
   animation:
     Animation.init(~id=Ui_attr.part_id(id, "popup"), ~open_=false, ()),
   anchor:
@@ -235,7 +209,7 @@ let close = model => {
     {
       ...model,
       open_: false,
-      focus_pending: false,
+      focus: Ui_focus.cancel(model.focus),
       animation,
       active: None,
       completion: None,
@@ -301,8 +275,8 @@ let refresh =
         /* Require a literal case-insensitive prefix as well: normalized Unicode
            matches can have different UTF-16 lengths and cannot define a range. */
         if (String.starts_with(
-              ~prefix=Bindings.lower(model.query),
-              Bindings.lower(item.label),
+              ~prefix=Js.String.toLowerCase(model.query),
+              Js.String.toLowerCase(item.label),
             )) {
           {
             ...model,
@@ -351,8 +325,7 @@ let changed = (value, model) =>
   String.equal(value, model.query) ? [] : [Query_changed(value)];
 let request_focus = model => {
   ...model,
-  focus_pending: true,
-  focus_epoch: model.focus_epoch + 1,
+  focus: Ui_focus.element(model.focus, part(model, "control")),
 };
 let remove = (key, model) =>
   if (model.disabled
@@ -374,7 +347,8 @@ let choose = (~items, key, model) =>
   switch (find(~items, key)) {
   | Some(item)
       when !item.disabled && !model.disabled && !model.readonly && model.open_ =>
-    let selected = model.multiple ? unique(model.selected @ [key]) : [key];
+    let selected =
+      model.multiple ? Ui_attr.unique_keys(model.selected @ [key]) : [key];
     let value = model.multiple ? "" : item.label;
     let outs =
       [Selected(key)]
@@ -464,10 +438,13 @@ let navigate = (~items, ~forward, model) => {
     switch (active_key(~items, model)) {
     | None => (-1)
     | Some(key) =>
-      let rec index = i =>
-        i >= Array.length(items)
-          ? (-1) : String.equal(items[i].key, key) ? i : index(i + 1);
-      index(0);
+      Option.value(
+        ~default=-1,
+        Array.find_index(
+          (item: item) => String.equal(item.key, key),
+          items,
+        ),
+      )
     };
   let index =
     forward
@@ -525,7 +502,7 @@ let update = (~items, ~label_for_key=?, message, model) => {
     | Animated(message) =>
       let (animation, cmd, outs) =
         Animation.update(message, model.animation);
-      let left = List.exists(out => out == Animation.Left, outs);
+      let left = List.mem(Animation.Left, outs);
       let (anchor, acmd) =
         left ? Anchor.stop(model.anchor) : (model.anchor, Cmd.none);
       (
@@ -588,15 +565,14 @@ let update = (~items, ~label_for_key=?, message, model) => {
           composing: composing || model.composing,
         },
       )
-    | Focused(epoch) when epoch == model.focus_epoch => (
+    | Focused(generation) => (
         {
           ...model,
-          focus_pending: false,
+          focus: fst(Ui_focus.finish(model.focus, generation)),
         },
         Cmd.none,
         [],
       )
-    | Focused(_) => (model, Cmd.none, [])
     | Blur
     | Outside => commit_blur(~items, ~label_for_key, model)
     | Remove(key) => remove(key, model)
@@ -722,22 +698,19 @@ let frame_subscription = (~key, ~home, action) =>
         () => live := false;
       },
   );
-let identity = model =>
-  string_of_int(String.length(model.id)) ++ ":" ++ model.id;
+let identity = model => Ui_sub.prefix(model.id);
 let subscriptions = model =>
   Sub.batch([
     Sub.map(m => Animated(m), Animation.subscriptions(model.animation)),
     Sub.map(m => Anchored(m), Anchor.subscriptions(model.anchor)),
-    model.focus_pending
-      ? Events.focus(
-          ~key=
-            "Combobox:" ++ model.id ++ ":" ++ string_of_int(model.focus_epoch),
-          ~target=Events.Element(part(model, "control")),
-          ~prevent_scroll=false,
-          _ =>
-          Focused(model.focus_epoch)
-        )
-      : Sub.none,
+    Ui_focus.sub(
+      ~home="Combobox",
+      ~id=model.id,
+      ~prevent_scroll=false,
+      model.focus,
+      (generation, _) =>
+      Focused(generation)
+    ),
     model.open_
       ? Events.on_pointer_down_outside(
           ~ids=[part(model, "wrapper"), part(model, "popup")],
@@ -758,7 +731,7 @@ let subscriptions = model =>
         ~home="Tea_ui.Combobox.scroll",
         ~key=identity(model) ++ ":" ++ Ui_attr.safe_key(key),
         _ =>
-        Bdom.scroll_into_view(Ui_attr.item_id(model.id, key), _ => ())
+        Browser.scroll_into_view(Ui_attr.item_id(model.id, key), _ => ())
       )
     | _ => Sub.none
     },
@@ -769,18 +742,13 @@ let subscriptions = model =>
         ~key=
           identity(model) ++ ":" ++ model.text ++ ":" ++ string_of_int(start),
         _ =>
-        switch (
-          Js.Nullable.toOption(
-            Bindings.by_id(Bindings.document, part(model, "control")),
-          )
-        ) {
-        | Some(el) =>
-          /* DOM node identity is compared below without allocating an option. */
-          if (Bindings.active(Bindings.document) === Js.Nullable.return(el)
-              && String.equal(Bindings.value(el), model.text)) {
-            Bindings.range(el, start, Js.String.length(model.text));
-          }
-        | None => ()
+        switch (Ui_dom.find(part(model, "control"))) {
+        | Some(el)
+            when
+              Ui_dom.is_active(el)
+              && String.equal(Ui_dom.value(el), model.text) =>
+          Ui_dom.set_selection_range(el, start, Js.String.length(model.text))
+        | _ => ()
         }
       )
     | _ => Sub.none
@@ -806,17 +774,7 @@ type parts('parent) = {
   is_open: bool,
   should_render: bool,
 };
-let no_blur =
-  Html.on(
-    "pointerdown",
-    V.Custom_optional(
-      D.succeed({
-        V.message: None,
-        prevent_default: true,
-        stop_propagation: false,
-      }),
-    ),
-  );
+let no_blur = Ui_attr.prevent_default("pointerdown");
 let view =
     (
       ~model,
@@ -912,24 +870,9 @@ let view =
       ~autocomplete="off",
       (),
     );
-  let control =
-    List.filter(
-      fact =>
-        switch (fact) {
-        | V.Event("input", _) => false
-        | _ => true
-        },
-      base.control,
-    );
+  let control = Ui_attr.without("input", base.control);
   let popup =
-    List.filter(
-      fact =>
-        switch (fact) {
-        | V.Property("hidden", _) => false
-        | _ => true
-        },
-      Anchor.attrs(model.anchor),
-    )
+    Ui_attr.without("hidden", Anchor.attrs(model.anchor))
     @ Animation.attrs(model.animation);
   to_view({
     wrapper: [
@@ -984,23 +927,7 @@ let view =
           ),
         ],
       )
-      @ [
-        Html.on(
-          "keydown",
-          V.Custom_optional(
-            D.map2(
-              (event: Ui_keyboard.event, custom: V.custom(option('parent))) =>
-                {
-                  ...custom,
-                  V.stop_propagation:
-                    event.key == "Escape" && custom.prevent_default,
-                },
-              Ui_keyboard.decoder,
-              Ui_keyboard.custom(key),
-            ),
-          ),
-        ),
-      ],
+      @ [Html.on("keydown", V.Custom_optional(Ui_keyboard.claiming(key)))],
     description: map(base.description),
     error: map(base.error),
     popup:

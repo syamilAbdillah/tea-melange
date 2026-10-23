@@ -133,9 +133,7 @@ let update:
     model
   ) =>
   (model, Tea_core.Cmd.t(msg), list(out_msg));
-/** Required throughout mounted lifetime, including Leaving. Every picker-owned
-    focus/listener effect is cancellable and subscription-owned. Unmount by
-    removing subscriptions together with DOM; shutdown releases all sources. */
+/** Forward while mounted, including Leaving. */
 let subscriptions: model => Tea_core.Sub.t(msg);
 /** Attribute bundles in the parent's message type, plus derived presentation. */
 type parts('parent) = {

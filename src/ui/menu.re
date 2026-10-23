@@ -5,39 +5,10 @@ module Sub = Tea_core.Sub;
 module D = Tea_core.Decode;
 module Browser = Tea_browser.Browser_dom;
 module Events = Tea_browser.Browser_events;
-/* Tab's native default runs before an after-render Browser_dom task. This
-   private capability sets its sequential-navigation origin synchronously from
-   update's command, without preventing Tab or implementing a tabbable walker. */
-module Native = {
-  external document: Dom.document = "document";
-  [@mel.send]
-  external by_id: (Dom.document, string) => Js.Nullable.t(Dom.element) =
-    "getElementById";
-  [@mel.send]
-  external focus: (Dom.element, {. "preventScroll": bool }) => unit = "focus";
-  [@mel.get] external active: Dom.document => Dom.element = "activeElement";
-  [@mel.send]
-  external closest: (Dom.element, string) => Js.Nullable.t(Dom.element) =
-    "closest";
-  [@mel.send]
-  external attribute: (Dom.element, string) => Js.Nullable.t(string) =
-    "getAttribute";
-  let focus_id = id =>
-    Option.iter(
-      element => focus(element, { "preventScroll": true }),
-      Js.Nullable.toOption(by_id(document, id)),
-    );
-  type timer;
-  external timeout: (unit => unit, int) => timer = "setTimeout";
-  external cancel: timer => unit = "clearTimeout";
-  let focus_now = id =>
-    Cmd.effect(_ =>
-      Option.iter(
-        element => focus(element, { "preventScroll": true }),
-        Js.Nullable.toOption(by_id(document, id)),
-      )
-    );
-};
+/* Tab's native default runs before an after-render Browser_dom task, so
+   focus that must set the sequential-navigation origin runs synchronously
+   from update's command. */
+let focus_now = id => Cmd.effect(_ => Ui_dom.focus_id(id));
 type direction =
   | Ltr
   | Rtl;
@@ -68,7 +39,6 @@ type panel = {
   anchor: Anchor.model,
   open_: bool,
   search: Ui_typeahead.t,
-  focus_pending: bool,
 };
 type hover = {
   hover_owner: option(string),
@@ -85,7 +55,9 @@ type model = {
   selected: option(string),
   hover: option(hover),
   restore: bool,
-  focus_epoch: int,
+  /* Pending focus for the panel owned by [focus_owner]. */
+  focus: Ui_focus.t,
+  focus_owner: option(string),
 };
 type msg =
   | Trigger_click
@@ -97,7 +69,7 @@ type msg =
   | Leave(option(string))
   | Hover(hover)
   | Outside_down
-  | Focused(option(string), int)
+  | Focused(int)
   | Animated(option(string), Animation.msg)
   | Anchored(option(string), Anchor.msg);
 type out_msg =
@@ -106,12 +78,7 @@ type out_msg =
   | Radio_selected(string, string)
   | Opened
   | Closed(close_reason);
-let equal_owner = (a, b) =>
-  switch (a, b) {
-  | (None, None) => true
-  | (Some(a), Some(b)) => String.equal(a, b)
-  | _ => false
-  };
+let equal_owner = Option.equal(String.equal);
 let trigger_id = m => Ui_attr.part_id(m.id, "button");
 let item_id = (m, key) => Ui_attr.item_id(m.id, key);
 let panel_id = (m, owner) =>
@@ -153,7 +120,6 @@ let make_panel = (m, owner, parent) => {
       ),
     open_: false,
     search: Ui_typeahead.empty,
-    focus_pending: false,
   };
 };
 let init =
@@ -183,7 +149,8 @@ let init =
     selected: None,
     hover: None,
     restore: false,
-    focus_epoch: 0,
+    focus: Ui_focus.none,
+    focus_owner: None,
   };
   {
     ...m,
@@ -253,29 +220,21 @@ let rec navigable = items =>
       Array.to_list(items),
     ),
   );
-let rec locate = (items: array(item), key, owner) => {
-  let rec loop = index =>
-    index >= Array.length(items)
-      ? None
-      : {
-        let i = items[index];
-        if (String.equal(i.key, key)) {
-          Some((i, owner));
-        } else {
-          let nested =
-            switch (i.kind) {
-            | Group(children) => locate(children, key, owner)
-            | Submenu(children) => locate(children, key, Some(i.key))
-            | _ => None
-            };
-          switch (nested) {
-          | Some(_) => nested
-          | None => loop(index + 1)
-          };
+/* The item with [key] and the submenu that owns it (None for the root). */
+let rec locate = (items: array(item), key, owner) =>
+  Array.find_map(
+    (i: item) =>
+      if (String.equal(i.key, key)) {
+        Some((i, owner));
+      } else {
+        switch (i.kind) {
+        | Group(children) => locate(children, key, owner)
+        | Submenu(children) => locate(children, key, Some(i.key))
+        | _ => None
         };
-      };
-  loop(0);
-};
+      },
+    items,
+  );
 let panel_items = (items, owner) =>
   switch (owner) {
   | None => Some(items)
@@ -285,12 +244,11 @@ let panel_items = (items, owner) =>
     | _ => None
     }
   };
-let index_of = (items: array(item), key) => {
-  let rec loop = n =>
-    n >= Array.length(items)
-      ? (-1) : equal_owner(Some(items[n].key), key) ? n : loop(n + 1);
-  loop(0);
-};
+let index_of = (items: array(item), key) =>
+  Option.value(
+    ~default=-1,
+    Array.find_index((i: item) => equal_owner(Some(i.key), key), items),
+  );
 let all_flags = items => Array.make(Array.length(items), false);
 let key_at = (items: array(item), index) =>
   Option.map(i => items[i].key, index);
@@ -319,7 +277,6 @@ let hide_branch = (m, ancestor) => {
               open_: false,
               active: None,
               search: Ui_typeahead.empty,
-              focus_pending: false,
             },
             Cmd.map(msg => Animated(p.owner, msg), cmd),
           );
@@ -333,6 +290,9 @@ let hide_branch = (m, ancestor) => {
       ...m,
       panels: List.map(fst, commands),
       hover: None,
+      focus:
+        belongs(m, m.focus_owner, ancestor)
+          ? Ui_focus.cancel(m.focus) : m.focus,
     },
     Cmd.batch(List.map(snd, commands)),
   );
@@ -344,30 +304,18 @@ let close_tree = (m, restore) => {
       ...m,
       restore,
     },
-    Cmd.batch([cmd, restore ? Native.focus_now(trigger_id(m)) : Cmd.none]),
+    Cmd.batch([cmd, restore ? focus_now(trigger_id(m)) : Cmd.none]),
   );
 };
 let close = m => close_tree(m, is_open(m));
-let focus_panel = (m, p) => {
-  let p = {
-    ...p,
-    focus_pending: true,
-  };
-  let m = {
-    ...m,
-    focus_epoch: m.focus_epoch + 1,
-    panels:
-      List.map(
-        p =>
-          {
-            ...p,
-            focus_pending: false,
-          },
-        m.panels,
-      ),
-  };
-  (put_panel(m, p), Cmd.none);
-};
+let focus_panel = (m, p) => (
+  {
+    ...put_panel(m, p),
+    focus: Ui_focus.element(m.focus, panel_id(m, p.owner)),
+    focus_owner: p.owner,
+  },
+  Cmd.none,
+);
 let show_panel = (~items, m, p, last) => {
   let candidates = navigable(items);
   let flags = all_flags(candidates);
@@ -519,7 +467,7 @@ let close_submenu = (m, owner) =>
           active: owner,
         },
       ),
-      Cmd.batch([cmd, Native.focus_now(panel_id(m, p.parent))]),
+      Cmd.batch([cmd, focus_now(panel_id(m, p.parent))]),
       [],
     );
   | _ => (m, Cmd.none, [])
@@ -612,7 +560,7 @@ let menu_key = (~items, m, owner, event: Ui_keyboard.event) => {
     | "Tab" =>
       /* This command must run before the browser's unprevented Tab default. */
       let (m, cmd, outs) = close_user(m, Tab, false);
-      (m, Cmd.batch([cmd, Native.focus_now(trigger_id(m))]), outs);
+      (m, Cmd.batch([cmd, focus_now(trigger_id(m))]), outs);
     | "Escape" =>
       Option.is_some(owner)
         ? close_submenu(m, owner) : close_user(m, Escape, true)
@@ -710,20 +658,14 @@ let update = (~items, message, m) => {
     | Menu_key(owner, event) => menu_key(~items, m, owner, event)
     | Activate(owner, key, keep) => activate(~items, m, owner, key, keep)
     | Outside_down => close_user(m, Outside, false)
-    | Focused(owner, epoch) when epoch == m.focus_epoch =>
-      let p = get_panel(m, owner);
-      (
-        put_panel(
-          m,
-          {
-            ...p,
-            focus_pending: false,
-          },
-        ),
+    | Focused(generation) => (
+        {
+          ...m,
+          focus: fst(Ui_focus.finish(m.focus, generation)),
+        },
         Cmd.none,
         [],
-      );
-    | Focused(_, _) => (m, Cmd.none, [])
+      )
     | Move(owner, key) =>
       let p = get_panel(m, owner);
       let candidates =
@@ -840,15 +782,7 @@ let update = (~items, message, m) => {
       | None => (m, Cmd.none, [])
       | Some(p) =>
         let (animation, cmd, outs) = Animation.update(msg, p.animation);
-        let left =
-          List.exists(
-            out =>
-              switch (out) {
-              | Animation.Left => true
-              | _ => false
-              },
-            outs,
-          );
+        let left = List.mem(Animation.Left, outs);
         let (anchor, stop) =
           left ? Anchor.stop(p.anchor) : (p.anchor, Cmd.none);
         let m =
@@ -907,20 +841,15 @@ let subscriptions = m =>
       ~tagger=() => Outside_down,
       ~start=
         (_, ()) => {
-          let container =
-            Js.Nullable.toOption(
-              Native.closest(
-                Native.active(Native.document),
-                "[data-menu-tree]",
-              ),
+          let tree =
+            Option.bind(Ui_dom.active(), el =>
+              Ui_dom.closest(el, "[data-menu-tree]")
             );
           switch (
-            Option.bind(container, el =>
-              Js.Nullable.toOption(Native.attribute(el, "data-menu-tree"))
-            )
+            Option.bind(tree, el => Ui_dom.attribute(el, "data-menu-tree"))
           ) {
           | Some(id) when String.equal(id, m.id) =>
-            Native.focus_id(trigger_id(m))
+            Ui_dom.focus_id(trigger_id(m))
           | _ => ()
           };
         },
@@ -937,21 +866,14 @@ let subscriptions = m =>
               msg => Anchored(p.owner, msg),
               Anchor.subscriptions(p.anchor),
             ),
-            p.open_ && p.focus_pending
-              ? Events.focus(
-                  ~key=
-                    panel_id(m, p.owner)
-                    ++ ":"
-                    ++ string_of_int(m.focus_epoch),
-                  ~target=Events.Element(panel_id(m, p.owner)),
-                  ~ready=
-                    Option.fold(
-                      ~none=false,
-                      ~some=position => !position.Anchor.reference_hidden,
-                      Anchor.position(p.anchor),
-                    ),
-                  _ =>
-                  Focused(p.owner, m.focus_epoch)
+            p.open_ && equal_owner(p.owner, m.focus_owner)
+              ? Ui_focus.sub(
+                  ~home="Menu",
+                  ~id=panel_id(m, p.owner),
+                  ~ready=Anchor.placed(Anchor.position(p.anchor)),
+                  m.focus,
+                  (generation, _) =>
+                  Focused(generation)
                 )
               : Sub.none,
           ]),
@@ -990,8 +912,8 @@ let subscriptions = m =>
         ~start=
           dispatch => {
             let timer =
-              Native.timeout(() => dispatch(), int_of_float(m.hover_delay));
-            () => Native.cancel(timer);
+              Ui_dom.timeout(() => dispatch(), int_of_float(m.hover_delay));
+            () => Ui_dom.clear_timeout(timer);
           },
       )
     },
@@ -1015,82 +937,40 @@ type parts('parent) = {
   trigger: list(Html.attr('parent)),
   panels: array(panel_parts('parent)),
 };
-let without = (name, attrs) =>
-  List.filter(
-    fact =>
-      switch (fact) {
-      | V.Property(key, _)
-      | V.Attribute(key, _)
-      | V.Event(key, _) => !String.equal(key, name)
-      | _ => true
-      },
-    attrs,
-  );
 let event = (name, msg) => Html.on(name, V.Normal(D.succeed(msg)));
-let prevent_pointer_focus = () =>
-  Html.on(
-    "pointerdown",
-    V.Custom_optional(
-      D.succeed({
-        V.message: None,
-        prevent_default: true,
-        stop_propagation: false,
-      }),
-    ),
-  );
-let key_handler = (intent, hook, trigger, open_, to_parent) =>
+let key_handler = (intent, hook, trigger, open_, to_parent) => {
+  let activation = ["Enter", " ", "ArrowDown", "ArrowUp"];
+  let navigation =
+    activation @ ["Home", "End", "ArrowLeft", "ArrowRight", "Tab"];
   Html.on(
     "keydown",
     V.Custom_optional(
-      D.map2(
-        (e: Ui_keyboard.event, handled) =>
-          {
-            ...handled,
-            V.stop_propagation:
-              String.equal(e.key, "Escape") && handled.V.prevent_default,
-          },
-        Ui_keyboard.decoder,
-        Ui_keyboard.custom(e =>
-          if (!Ui_keyboard.plain(e)) {
-            None;
-          } else {
-            let handled =
-              String.equal(e.key, "Escape")
-              || (trigger || open_)
-              && (
-                trigger
-                  ? List.mem(e.key, ["Enter", " ", "ArrowDown", "ArrowUp"])
-                  : List.mem(
-                      e.key,
-                      [
-                        "Enter",
-                        " ",
-                        "ArrowDown",
-                        "ArrowUp",
-                        "Home",
-                        "End",
-                        "ArrowLeft",
-                        "ArrowRight",
-                        "Escape",
-                        "Tab",
-                      ],
-                    )
-                    || Ui_typeahead.character(e.key)
-              );
-            if (handled) {
-              Some((
-                Some(to_parent(intent(e))),
-                !String.equal(e.key, "Tab")
-                && (!String.equal(e.key, "Escape") || open_),
-              ));
-            } else {
-              Option.map(msg => (Some(msg), false), hook(e.key));
-            };
-          }
-        ),
-      ),
+      Ui_keyboard.claiming(e => {
+        let handled =
+          e.key == "Escape"
+          || (
+            trigger
+              ? List.mem(e.key, activation)
+              : open_
+                && (
+                  List.mem(e.key, navigation)
+                  || Ui_typeahead.character(e.key)
+                )
+          );
+        if (!Ui_keyboard.plain(e)) {
+          None;
+        } else if (handled) {
+          Some((
+            Some(to_parent(intent(e))),
+            e.key != "Tab" && (e.key != "Escape" || open_),
+          ));
+        } else {
+          Option.map(msg => (Some(msg), false), hook(e.key));
+        };
+      }),
     ),
   );
+};
 let view =
     (
       ~model as m,
@@ -1171,7 +1051,7 @@ let view =
               actionable
                 ? [
                   event("pointermove", to_parent(Move(p.owner, i.key))),
-                  prevent_pointer_focus(),
+                  Ui_attr.prevent_default("pointerdown"),
                   Html.on(
                     "click",
                     V.Custom_optional(
@@ -1214,7 +1094,7 @@ let view =
       phase: Animation.phase(p.animation),
       /* Animation alone owns hidden. Anchor alone owns id. */
       attrs:
-        without("hidden", Anchor.attrs(p.anchor))
+        Ui_attr.without("hidden", Anchor.attrs(p.anchor))
         @ Animation.attrs(p.animation)
         @ [
           Html.role("menu"),
@@ -1265,7 +1145,7 @@ let view =
     Button.parts(~id=trigger_id(m), ~on_press=to_parent(Trigger_click), ());
   to_view({
     trigger:
-      without("keydown", button.root)
+      Ui_attr.without("keydown", button.root)
       @ [
         Html.aria("haspopup", "menu"),
         Ui_attr.aria_bool("expanded", is_open(m)),

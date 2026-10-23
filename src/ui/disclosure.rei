@@ -14,7 +14,7 @@ type parts('msg) = {
   button: list(Tea_html.Html.attr('msg)),
   /** Container id and hidden boolean property; render only when mounted. */
   panel: list(Tea_html.Html.attr('msg)),
-  /** True when open or keep_mounted. Caller MUST omit panel when false. */
+  /** True when open or keep_mounted. Omit the panel when false. */
   mounted: bool,
 };
 /** Build bundles. open_ is parent state; on_toggle is an intent message

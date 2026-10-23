@@ -2,7 +2,7 @@ module Html = Tea_html.Html;
 module V = Tea_vdom.Vdom;
 module D = Tea_core.Decode;
 module Cmd = Tea_core.Cmd;
-module Events = Tea_browser.Browser_events;
+module R = Ui_roving;
 type direction =
   | Ltr
   | Rtl;
@@ -15,15 +15,15 @@ type activation =
 type panel_rendering =
   | Selected_only
   | Keep_mounted;
-type item = {
-  key: string,
-  label: string,
-  disabled: bool,
-};
+type item =
+  Ui_roving.item = {
+    key: string,
+    label: string,
+    disabled: bool,
+  };
 type model = {
   id: string,
-  focus_generation: int,
-  focus_request: option(string),
+  focus: Ui_focus.t,
   selected: option(string),
   focused: option(string),
   within: bool,
@@ -53,32 +53,14 @@ type parts('parent) = {
   label: list(Html.attr('parent)),
   items: array(item_parts('parent)),
 };
-let same = (a, b) =>
-  switch (a, b) {
-  | (Some(a), Some(b)) => String.equal(a, b)
-  | (None, None) => true
-  | _ => false
-  };
-let index = (items: array(item), key) => {
-  let rec find = i =>
-    i >= Array.length(items)
-      ? (-1) : same(Some(items[i].key), key) ? i : find(i + 1);
-  find(0);
-};
-let flags = items => Array.map((item: item) => item.disabled, items);
-let key_at = (items: array(item), i) => Option.map(i => items[i].key, i);
-let valid = (items: array(item), key) => {
-  let i = index(items, key);
-  i >= 0 && !items[i].disabled ? key : None;
-};
 let normalize = (~items, model: model) => {
   let selected =
-    switch (valid(items, model.selected)) {
+    switch (R.valid(items, model.selected)) {
     | Some(_) as key => key
-    | None => key_at(items, Ui_nav.first(flags(items)))
+    | None => R.first(items)
     };
   let focused =
-    switch (valid(items, model.focused)) {
+    switch (R.valid(items, model.focused)) {
     | Some(_) as key => key
     | None => selected
     };
@@ -102,8 +84,7 @@ let init =
     ~items,
     {
       id,
-      focus_generation: 0,
-      focus_request: None,
+      focus: Ui_focus.none,
       selected,
       focused: selected,
       within: false,
@@ -117,9 +98,9 @@ let selected = (model: model) => model.selected;
 let focused = (model: model) => model.focused;
 let request_focus = (model, key) => {
   ...model,
-  focus_generation: model.focus_generation + 1,
-  focus_request:
-    Some(
+  focus:
+    Ui_focus.element(
+      model.focus,
       switch (key) {
       | None => model.id
       | Some(key) => Ui_attr.item_id(model.id, key)
@@ -129,7 +110,7 @@ let request_focus = (model, key) => {
 let repair_state = (~items, ~force, model) => {
   let repaired = normalize(~items, model);
   let repair_focus =
-    model.within && (force || !same(model.focused, repaired.focused));
+    model.within && (force || !R.same(model.focused, repaired.focused));
   let repaired = {
     ...repaired,
     pending: repair_focus ? repaired.focused : model.pending,
@@ -182,7 +163,7 @@ let step = (model, key) =>
 let update = (~items, msg, original) => {
   let (model, repair) = repair_state(~items, ~force=false, original);
   let choose = (~move, ~activate, key) => {
-    let changed = activate && !same(model.selected, key);
+    let changed = activate && !R.same(model.selected, key);
     let model = {
       ...model,
       focused: key,
@@ -202,11 +183,11 @@ let update = (~items, msg, original) => {
     );
   };
   switch (msg) {
-  | Click(key) when valid(items, Some(key)) != None =>
+  | Click(key) when R.is_valid(items, key) =>
     choose(~move=true, ~activate=true, Some(key))
-  | Focus(key) when valid(items, Some(key)) != None =>
+  | Focus(key) when R.is_valid(items, key) =>
     switch (model.pending) {
-    | Some(_) when !same(model.pending, Some(key)) => (model, repair, [])
+    | Some(_) when !R.same(model.pending, Some(key)) => (model, repair, [])
     | Some(_) => (
         {
           ...model,
@@ -219,78 +200,64 @@ let update = (~items, msg, original) => {
     | None =>
       choose(~move=false, ~activate=model.activation == Automatic, Some(key))
     }
-  | Leave(target) =>
-    let inside =
-      same(target, Some(model.id))
-      || Array.exists(
-           (item: item) =>
-             same(target, Some(Ui_attr.item_id(model.id, item.key))),
-           items,
-         );
-    (
-      inside
+  | Leave(target) => (
+      R.inside(~id=model.id, items, target)
         ? model
         : {
           ...model,
           within: false,
           pending: None,
-          focus_request: None,
+          focus: Ui_focus.cancel(model.focus),
           focused: model.selected,
         },
       repair,
       [],
-    );
-  | Key(source, key) when valid(items, Some(source)) != None =>
+    )
+  | Key(source, key) when R.is_valid(items, source) =>
     let target =
       switch (key) {
-      | "Home" => Ui_nav.first(flags(items))
-      | "End" => Ui_nav.last(flags(items))
+      | "Home" => R.first(items)
+      | "End" => R.last(items)
       | key =>
         switch (step(model, key)) {
-        | Some(delta) =>
-          let from = index(items, model.focused);
-          delta > 0
-            ? Ui_nav.next(~from, flags(items))
-            : Ui_nav.prev(~from, flags(items));
+        | Some(delta) => R.step(items, ~from=model.focused, delta)
         | None => None
         }
       };
-    switch (key_at(items, target)) {
+    switch (target) {
     | Some(_) as key =>
       choose(~move=true, ~activate=model.activation == Automatic, key)
     | None when String.equal(key, " ") || String.equal(key, "Enter") =>
       choose(~move=false, ~activate=true, model.focused)
     | None => (model, repair, [])
     };
-  | Focus_finished(generation) when generation == model.focus_generation => (
-      {
-        ...model,
-        focus_request: None,
-        pending: None,
-      },
-      repair,
-      [],
-    )
+  | Focus_finished(generation) =>
+    switch (Ui_focus.finish(model.focus, generation)) {
+    | (focus, true) => (
+        {
+          ...model,
+          focus,
+          pending: None,
+        },
+        repair,
+        [],
+      )
+    | (_, false) => (model, repair, [])
+    }
   | _ => (model, repair, [])
   };
 };
 let subscriptions = model =>
-  switch (model.focus_request) {
-  | Some(target) when model.within =>
-    Events.focus(
-      ~key=
-        string_of_int(String.length(model.id))
-        ++ ":"
-        ++ model.id
-        ++ ":"
-        ++ string_of_int(model.focus_generation),
-      ~target=Events.Element(target),
-      ~from=[model.id],
-      _ =>
-      Focus_finished(model.focus_generation)
-    )
-  | _ => Tea_core.Sub.none
-  };
+  model.within
+    ? Ui_focus.sub(
+        ~home="Tabs",
+        ~id=model.id,
+        ~from=[model.id],
+        model.focus,
+        (generation, _) =>
+        Focus_finished(generation)
+      )
+    : Tea_core.Sub.none;
 let view =
     (
       ~model,
@@ -340,8 +307,9 @@ let view =
     items:
       Array.map(
         (item: item) => {
-          let selected = same(model.selected, Some(item.key));
-          let focused = model.within && same(model.focused, Some(item.key));
+          let selected = R.same(model.selected, Some(item.key));
+          let focused =
+            model.within && R.same(model.focused, Some(item.key));
           let panel_id = Ui_attr.item_id(part("panel"), item.key);
           let render_panel = panel_rendering == Keep_mounted || selected;
           {
@@ -357,7 +325,8 @@ let view =
                 Ui_attr.aria_bool("selected", selected),
                 Html.aria("controls", panel_id),
                 Html.tabindex(
-                  !item.disabled && same(tabstop, Some(item.key)) ? 0 : (-1),
+                  !item.disabled && R.same(tabstop, Some(item.key))
+                    ? 0 : (-1),
                 ),
                 item.disabled
                   ? Ui_attr.aria_bool("disabled", true) : Html.none,
@@ -369,15 +338,9 @@ let view =
                   D.succeed((Click(item.key), true)),
                 ),
                 Html.on_focus(Focus(item.key)),
-                Html.on(
+                Ui_attr.prevent_default(
+                  ~enabled=item.disabled,
                   "pointerdown",
-                  V.Custom_optional(
-                    D.succeed({
-                      V.message: None,
-                      stop_propagation: false,
-                      prevent_default: item.disabled,
-                    }),
-                  ),
                 ),
               ])
               @ [

@@ -242,29 +242,16 @@ let compute =
       ),
   };
 };
-/* The only platform capabilities absent from tea.browser: manual popovers and
-   device-pixel ratio. All measurement and event sources use its public API. */
-module Native = {
-  external document: Dom.document = "document";
-  external window: Dom.window = "window";
-  [@mel.get_index] external get: ('a, string) => Js.Json.t;
-  [@mel.send]
-  external by_id: (Dom.document, string) => Js.Nullable.t(Dom.node) =
-    "getElementById";
-  [@mel.get] external connected: Dom.node => bool = "isConnected";
-  [@mel.send] external matches: (Dom.node, string) => bool = "matches";
-  [@mel.send] external show: Dom.node => unit = "showPopover";
-  [@mel.send] external hide: Dom.node => unit = "hidePopover";
-  [@mel.get] external ratio: Dom.window => float = "devicePixelRatio";
-  let find = id => Js.Nullable.toOption(by_id(document, id));
+/* Manual popovers put the floating element in the top layer. */
+module Popover = {
   let supported = element =>
-    Js.typeof(get(element, "showPopover")) == "function"
-    && Js.typeof(get(element, "hidePopover")) == "function";
+    Ui_dom.has_method(element, "showPopover")
+    && Ui_dom.has_method(element, "hidePopover");
   let close = element =>
     if (supported(element)
-        && connected(element)
-        && matches(element, ":popover-open")) {
-      hide(element);
+        && Ui_dom.connected(element)
+        && Ui_dom.matches(element, ":popover-open")) {
+      Ui_dom.hide_popover(element);
     };
 };
 type options = {
@@ -324,6 +311,11 @@ let init =
 };
 let active = model => model.active;
 let position = model => model.position;
+let placed = position =>
+  switch (position) {
+  | Some(p) => !p.reference_hidden
+  | None => false
+  };
 let invalidate = model => {
   ...model,
   revision: model.revision + 1,
@@ -397,54 +389,15 @@ let update = (Measured(revision, position, ratio), model) =>
       ],
     );
   };
-/* These sources are privately nested under one lifecycle leaf, rather than
-   routed through update. A scroll burst consequently sends no intent storm.
-   Their taggers are immutable within this leaf; configuration changes replace
-   the leaf. Public Sub constructors preserve each browser source's disposer. */
-let rec connect: type a. (Sub.t(a), a => unit, unit) => unit =
-        (sub, dispatch) =>
-  switch (sub) {
-  | Sub.None => (() => ())
-  | Sub.Batch(sources) =>
-    let stops = List.map(source => connect(source, dispatch), sources);
-    (() => List.iter(stop => stop(), stops));
-  | Sub.Leaf(leaf) => leaf.start(value => dispatch(leaf.tagger(value)))
-  | Sub.Filtered(leaf) =>
-    leaf.start(value => Option.iter(dispatch, leaf.tagger(value)))
-  };
-let equal_option = (equal, a, b) =>
-  switch (a, b) {
-  | (None, None) => true
-  | (Some(a), Some(b)) => equal(a, b)
-  | _ => false
-  };
-let equal_placement = ((a, b), (c, d)) => a == c && b == d;
-let equal_position = (a, b) =>
-  switch (a, b) {
-  | (None, None) => true
-  | (Some(a), Some(b)) =>
-    a.x == b.x
-    && a.y == b.y
-    && a.width == b.width
-    && a.height == b.height
-    && equal_placement(a.placement, b.placement)
-    && a.anchor_width == b.anchor_width
-    && a.anchor_height == b.anchor_height
-    && a.available_width == b.available_width
-    && a.available_height == b.available_height
-    && equal_option((a, b) => a == b, a.hidden_reason, b.hidden_reason)
-    && equal_option((a, b) => a == b, a.arrow_offset, b.arrow_offset)
-  | _ => false
-  };
+/* Resize/scroll sources run inside this one leaf and call [measure]
+   directly, so a scroll burst does not round-trip through update. */
 let subscriptions = model =>
   !model.active
     ? Sub.none
     : Sub.make(
         ~home="Tea_ui.Anchor",
         ~key=
-          string_of_int(String.length(model.anchor_id))
-          ++ ":"
-          ++ model.anchor_id
+          Ui_sub.prefix(model.anchor_id)
           ++ model.floating_id
           ++ ":"
           ++ string_of_int(model.revision),
@@ -504,11 +457,9 @@ let subscriptions = model =>
                           )
                         | _ => None
                         };
-                      let ratio = finite(Native.ratio(Native.window));
+                      let ratio = finite(Ui_dom.pixel_ratio(Ui_dom.window));
                       let ratio = ratio > 0. ? ratio : 1.;
-                      if (first^
-                          || !equal_position(previous^, p)
-                          || ratio != previous_ratio^) {
+                      if (first^ || previous^ != p || ratio != previous_ratio^) {
                         first := false;
                         previous := p;
                         previous_ratio := ratio;
@@ -536,25 +487,25 @@ let subscriptions = model =>
               if (alive^ && model.options.top_layer) {
                 Option.iter(
                   element =>
-                    if (Native.supported(element)
-                        && Native.connected(element)) {
+                    if (Popover.supported(element)
+                        && Ui_dom.connected(element)) {
                       promoted := Some(element);
-                      if (!Native.matches(element, ":popover-open")) {
-                        Native.show(element);
+                      if (!Ui_dom.matches(element, ":popover-open")) {
+                        Ui_dom.show_popover(element);
                       };
                       /* beforetoggle may synchronously stop this lifecycle
                          before showPopover finishes entering the top layer. */
                       if (! alive^) {
-                        Native.close(element);
+                        Popover.close(element);
                       };
                     },
-                  Native.find(model.floating_id),
+                  Ui_dom.find(model.floating_id),
                 );
               }
             );
             measure();
             let dispose =
-              connect(
+              Ui_sub.connect(
                 Sub.batch([
                   Events.on_resize(_ => ()),
                   Events.on_scroll(),
@@ -566,7 +517,7 @@ let subscriptions = model =>
             () => {
               alive := false;
               dispose();
-              Option.iter(Native.close, promoted^);
+              Option.iter(Popover.close, promoted^);
             };
           },
       );
@@ -588,10 +539,7 @@ let attrs = model => {
         ),
       ),
     ),
-    Ui_attr.data_flag(
-      "reference-hidden",
-      Option.value(~default=false, Option.map(p => p.reference_hidden, p)),
-    ),
+    Ui_attr.data_flag("reference-hidden", Option.is_some(p) && !placed(p)),
     Html.style("position", "fixed"),
     Html.style("inset", "auto"),
     Html.style("margin", "0"),
@@ -605,10 +553,7 @@ let attrs = model => {
     ),
     Html.style(
       "visibility",
-      !model.active
-      || Option.is_none(p)
-      || Option.value(~default=false, Option.map(p => p.reference_hidden, p))
-        ? "hidden" : "visible",
+      model.active && placed(p) ? "visible" : "hidden",
     ),
     Html.style("--tea-anchor-width", px(value(p => p.anchor_width))),
     Html.style("--tea-anchor-height", px(value(p => p.anchor_height))),

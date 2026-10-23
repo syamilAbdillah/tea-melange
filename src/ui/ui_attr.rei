@@ -13,3 +13,18 @@ let part_id: (string, string) => string;
 let safe_key: string => string;
 /** Derive [id ++ "-item-" ++ safe_key(key)]. Never use an array index as key. */
 let item_id: (string, string) => string;
+/** Drop every property, attribute or event listener named [name], to
+    replace part of another component's bundle. */
+let without:
+  (string, list(Tea_html.Html.attr('msg))) =>
+  list(Tea_html.Html.attr('msg));
+/** Keys without duplicates, keeping each first occurrence in order. */
+let unique_keys: list(string) => list(string);
+/** Listener that only prevents the event's default action, when [enabled]
+    (default true); for example pointerdown that must not move focus. */
+let prevent_default: (~enabled: bool=?, string) => Tea_html.Html.attr('msg);
+/** aria-invalid, aria-describedby and aria-errormessage for a form control
+    whose optional parts have ids [id]-description and [id]-error. */
+let field_aria:
+  (~id: string, ~has_description: bool, ~has_error: bool, ~invalid: bool) =>
+  list(Tea_html.Html.attr('msg));

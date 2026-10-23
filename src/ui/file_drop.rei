@@ -84,13 +84,9 @@ let reset_dragging: model => (model, Tea_core.Cmd.t(msg));
 /** Apply an intent using current state. File selection/drop resets depth;
     disabled models ignore all intents. Empty/cancelled selections emit nothing. */
 let update: (msg, model) => (model, Tea_core.Cmd.t(msg), list(out_msg));
-/** Required delegated document listeners, scoped by containment to the part
-    ids and keyed by (File_drop.events.EVENT, id). The latest model is used
-    without restarting listeners. Picker .click() and FileList snapshots run
-    synchronously in the native event stack; no post-render picker command.
-    Cleanup is synchronous when unsubscribed/shutdown. Events outside the
-    target and non-file drags are untouched. No locks or global drop blocking.
-    Do not stop propagation before events reach document. */
+/** Forward while mounted. Listens on document and handles events inside
+    the part ids, so do not stop click, change or drag events from reaching
+    document. Non-file drags are untouched. */
 let subscriptions: model => Tea_core.Sub.t(msg);
 /** Attribute bundles typed in the parent's message type. */
 type parts('parent) = {

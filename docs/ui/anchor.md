@@ -169,6 +169,7 @@ let init: (
 ) => model;
 let active: model => bool;
 let position: model => option(position);
+let placed: option(position) => bool;
 let start: model => (model, Tea_core.Cmd.t(msg));
 let stop: model => (model, Tea_core.Cmd.t(msg));
 let refresh: model => (model, Tea_core.Cmd.t(msg));

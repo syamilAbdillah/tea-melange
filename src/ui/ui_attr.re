@@ -32,3 +32,46 @@ let safe_key = key => {
   String.equal(key, "") ? "_" : Buffer.contents(out);
 };
 let item_id = (id, key) => part_id(id, "item-" ++ safe_key(key));
+let without = (name, attrs) =>
+  List.filter(
+    fact =>
+      switch (fact) {
+      | Tea_vdom.Vdom.Property(key, _)
+      | Tea_vdom.Vdom.Attribute(key, _)
+      | Tea_vdom.Vdom.Event(key, _) => !String.equal(key, name)
+      | _ => true
+      },
+    attrs,
+  );
+let unique_keys = keys =>
+  List.rev(
+    List.fold_left(
+      (seen, key) =>
+        List.exists(String.equal(key), seen) ? seen : [key, ...seen],
+      [],
+      keys,
+    ),
+  );
+let prevent_default = (~enabled=true, name) =>
+  Tea_html.Html.on(
+    name,
+    Tea_vdom.Vdom.Custom_optional(
+      Tea_core.Decode.succeed({
+        Tea_vdom.Vdom.message: None,
+        prevent_default: enabled,
+        stop_propagation: false,
+      }),
+    ),
+  );
+let field_aria = (~id, ~has_description, ~has_error, ~invalid) => {
+  let description = part_id(id, "description");
+  let error = part_id(id, "error");
+  [
+    invalid ? aria_bool("invalid", true) : Attr.none,
+    aria_ids(
+      "describedby",
+      (has_description ? [description] : []) @ (has_error ? [error] : []),
+    ),
+    aria_ids("errormessage", invalid && has_error ? [error] : []),
+  ];
+};

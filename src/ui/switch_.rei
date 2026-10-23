@@ -1,12 +1,12 @@
 /** Native button switch; module Tea.Ui.Switch_ (Reason keyword suffix).
     APG: https://www.w3.org/WAI/ARIA/apg/patterns/switch/
     Keyboard: Tab/Shift+Tab navigate; Enter activates on keydown; Space
-    activates on keyup, without scrolling. These are NATIVE button behaviors:
+    activates on keyup, without scrolling. These are native button behaviors:
     no synthetic key handler is installed, so Space never double-fires.
     Data: data-checked, data-disabled (presence). Owns click only. */
 /** Apply to native elements; render hidden_input for form participation. */
 type parts('msg) = {
-  /** Apply ONLY to button. type=button, role=switch, aria-checked and name. */
+  /** Apply to the button only. type=button, role=switch, aria-checked and name. */
   root: list(Tea_html.Html.attr('msg)),
   /** Apply to label. Native for=button activation toggles and focuses.
      Keep the label text constant when checked changes. */

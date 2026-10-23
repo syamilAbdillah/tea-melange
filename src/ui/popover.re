@@ -93,40 +93,8 @@ let init =
       (),
     ),
 };
-/* Focus containment cannot be expressed by tea.browser's outside source:
-   its focus=true option conflates pointerdown and focusin, losing the reason,
-   and does not observe blur() to body. This private source preserves both. */
-module Native = {
-  external document: Dom.document = "document";
-  [@mel.send]
-  external by_id: (Dom.document, string) => Js.Nullable.t(Dom.node) =
-    "getElementById";
-  [@mel.get]
-  external active: Dom.document => Js.Nullable.t(Dom.node) = "activeElement";
-  [@mel.get] external target: Dom.event => Js.Nullable.t(Dom.node) = "target";
-  [@mel.get]
-  external related: Dom.event => Js.Nullable.t(Dom.node) = "relatedTarget";
-  [@mel.send] external contains: (Dom.node, Dom.node) => bool = "contains";
-  [@mel.send]
-  external add: (Dom.document, string, Dom.event => unit, bool) => unit =
-    "addEventListener";
-  [@mel.send]
-  external remove: (Dom.document, string, Dom.event => unit, bool) => unit =
-    "removeEventListener";
-  let within = (ids, node) =>
-    switch (Js.Nullable.toOption(node)) {
-    | None => false
-    | Some(node) =>
-      List.exists(
-        id =>
-          switch (Js.Nullable.toOption(by_id(document, id))) {
-          | None => false
-          | Some(root) => contains(root, node)
-          },
-        ids,
-      )
-    };
-};
+/* Browser_events.on_pointer_down_outside(~focus=true) would conflate pointer
+   and focus departures and miss blur() to body, so focus has its own source. */
 let focus_source = model =>
   Sub.make(
     ~home="Tea_ui.Popover.focus",
@@ -137,23 +105,25 @@ let focus_source = model =>
         let ids =
           [trigger_id(model), panel_id(model)] @ model.group_triggers;
         let check = () =>
-          if (live^ && !Native.within(ids, Native.active(Native.document))) {
+          if (live^ && !Ui_dom.within_any(ids, Ui_dom.active())) {
             dispatch(Dismiss(Focus_out));
           };
         let on_in = event =>
-          if (live^ && !Native.within(ids, Native.target(event))) {
+          if (live^ && !Ui_dom.within_any(ids, Ui_dom.target(event))) {
             dispatch(Dismiss(Focus_out));
           };
         let on_out = event =>
-          if (Js.Nullable.isNullable(Native.related(event))) {
+          if (Option.is_none(Ui_dom.related(event))) {
             Tea_dom.Browser_platform.request_animation_frame(_ => check());
           };
-        Native.add(Native.document, "focusin", on_in, true);
-        Native.add(Native.document, "focusout", on_out, true);
+        let off_in =
+          Ui_dom.on(~capture=true, Ui_dom.document, "focusin", on_in);
+        let off_out =
+          Ui_dom.on(~capture=true, Ui_dom.document, "focusout", on_out);
         () => {
           live := false;
-          Native.remove(Native.document, "focusin", on_in, true);
-          Native.remove(Native.document, "focusout", on_out, true);
+          off_in();
+          off_out();
         };
       },
     ~tagger=message => message,
@@ -250,12 +220,7 @@ let update = (message, model) =>
     let ready =
       model.opened
       && model.pending_focus
-      && (
-        switch (Anchor.position(anchor)) {
-        | Some(position) => !position.reference_hidden
-        | None => false
-        }
-      );
+      && Anchor.placed(Anchor.position(anchor));
     let focus_job: option(focus_on_open) =
       ready
         ? switch (model.focus_on_open) {
@@ -277,14 +242,7 @@ let update = (message, model) =>
     let (animation, command, outs) =
       Animation.update(message, model.animation);
     let (anchor, anchor_cmd) =
-      List.exists(
-        out =>
-          switch (out) {
-          | Animation.Left => true
-          | Animation.Entered => false
-          },
-        outs,
-      )
+      List.mem(Animation.Left, outs)
         ? Anchor.stop(model.anchor) : (model.anchor, Cmd.none);
     (
       {
@@ -299,37 +257,28 @@ let update = (message, model) =>
       [],
     );
   };
-let focus_effect = (model, policy) =>
-  switch (policy) {
-  | None => Sub.none
-  | Element(id) =>
-    Events.focus(
-      ~key=
-        string_of_int(String.length(model.id))
-        ++ ":"
-        ++ model.id
-        ++ ":"
-        ++ string_of_int(model.focus_generation),
-      ~target=Events.Element(id),
-      ~ready=!model.pending_focus,
-      ~from=model.opened ? [] : [trigger_id(model), panel_id(model)],
-      _ =>
-      Focus_finished(model.focus_generation)
-    )
-  | First_tabbable =>
-    Events.focus(
-      ~key=
-        string_of_int(String.length(model.id))
-        ++ ":"
-        ++ model.id
-        ++ ":"
-        ++ string_of_int(model.focus_generation),
-      ~target=Events.First_tabbable(panel_id(model)),
-      ~ready=!model.pending_focus,
-      _ =>
-      Focus_finished(model.focus_generation)
-    )
-  };
+let focus_effect = (model, policy) => {
+  let target: option(Events.focus_target) =
+    switch ((policy: focus_on_open)) {
+    | None => None
+    | Element(id) => Some(Events.Element(id))
+    | First_tabbable => Some(Events.First_tabbable(panel_id(model)))
+    };
+  Ui_focus.sub(
+    ~home="Popover",
+    ~id=model.id,
+    ~ready=!model.pending_focus,
+    ~from=
+      model.opened || policy == First_tabbable
+        ? [] : [trigger_id(model), panel_id(model)],
+    {
+      generation: model.focus_generation,
+      target,
+    },
+    (generation, _) =>
+    Focus_finished(generation)
+  );
+};
 let subscriptions = model =>
   Sub.batch([
     focus_effect(
@@ -377,35 +326,23 @@ let view =
     Html.on(
       "keydown",
       V.Custom_optional(
-        /* A handled Escape belongs to this popover alone: stop it so an
-           enclosing Dialog or other overlay does not also dismiss. */
-        D.map(
-          handled =>
-            {
-              ...handled,
-              V.stop_propagation: handled.V.prevent_default,
-            },
-          Ui_keyboard.custom(event =>
-            if (!Ui_keyboard.plain(event)) {
-              None;
-            } else if (String.equal(event.key, "Escape")) {
-              /* Dispatch intent even before an opening frame has drawn.
-                 update, not this render snapshot, decides whether to close. */
-              Some((
-                Some(to_parent(Dismiss(Escape))),
-                model.opened,
-              ));
-            } else if (String.equal(event.key, "Tab")
-                       || native
-                       && List.mem(event.key, ["Enter", " "])) {
-              None;
-            } else {
-              Option.map(
-                message => (Some(message), false),
-                hook(event.key),
-              );
-            }
-          ),
+        Ui_keyboard.claiming(event =>
+          if (!Ui_keyboard.plain(event)) {
+            None;
+          } else if (String.equal(event.key, "Escape")) {
+            /* Dispatch intent even before an opening frame has drawn.
+               update, not this render snapshot, decides whether to close. */
+            Some((
+              Some(to_parent(Dismiss(Escape))),
+              model.opened,
+            ));
+          } else if (String.equal(event.key, "Tab")
+                     || native
+                     && List.mem(event.key, ["Enter", " "])) {
+            None;
+          } else {
+            Option.map(message => (Some(message), false), hook(event.key));
+          }
         ),
       ),
     );
@@ -414,14 +351,7 @@ let view =
   /* Button owns keydown; replace that fact, retaining its native activation
      and keyup semantics. Native Enter/Space remain entirely browser-owned. */
   let trigger =
-    List.filter(
-      fact =>
-        switch (fact) {
-        | V.Event("keydown", _) => false
-        | _ => true
-        },
-      trigger,
-    )
+    Ui_attr.without("keydown", trigger)
     @ [
       Ui_attr.aria_bool("expanded", model.opened),
       should_render(model)
@@ -433,15 +363,7 @@ let view =
       },
       Ui_attr.data_flag("open", model.opened),
     ];
-  let anchor_attrs =
-    List.filter(
-      fact =>
-        switch (fact) {
-        | V.Property("hidden", _) => false
-        | _ => true
-        },
-      Anchor.attrs(model.anchor),
-    );
+  let anchor_attrs = Ui_attr.without("hidden", Anchor.attrs(model.anchor));
   let panel =
     anchor_attrs
     @ Animation.attrs(model.animation)

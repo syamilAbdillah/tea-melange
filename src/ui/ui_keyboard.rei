@@ -34,6 +34,11 @@ let available: event => bool;
 let custom:
   (event => option((option('msg), bool))) =>
   Tea_core.Decode.t(Tea_vdom.Vdom.custom(option('msg)));
+/** [custom] for overlays: a handled Escape that prevents default also stops
+    propagation, so an enclosing overlay does not dismiss as well. */
+let claiming:
+  (event => option((option('msg), bool))) =>
+  Tea_core.Decode.t(Tea_vdom.Vdom.custom(option('msg)));
 /** Keydown fact: prevent default only on a handled key, dispatch its intent.
     Owns keydown; compose hooks inside the supplied function, not another fact. */
 let on_key_down: (event => option('msg)) => Tea_html.Html.attr('msg);

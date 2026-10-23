@@ -1,6 +1,5 @@
 ; Compile the private pure sources directly; do not expose internals publicly.
-(copy_files ../../../src/ui/ui_*.re)
-(copy_files ../../../src/ui/ui_*.rei)
+(copy_files ../../../src/ui/ui_{attr,keyboard,nav,typeahead}.{re,rei})
 
 (melange.emit
  (target js)

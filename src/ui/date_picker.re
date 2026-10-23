@@ -391,72 +391,26 @@ let update =
     }
   | Focus_finished(_, _) => (model, Cmd.none, [])
   };
-/* Synchronous modal boundary focus. Deferred opening/return requests belong
-   to Browser_events subscriptions; no live runtime state enters the model. */
-module Native = {
-  external document: Dom.document = "document";
-  external window: Dom.window = "window";
-  [@mel.send]
-  external by_id: (Dom.document, string) => Js.Nullable.t(Dom.node) =
-    "getElementById";
-  [@mel.get] external target: Dom.event => Js.Nullable.t(Dom.node) = "target";
-  [@mel.get] external local_name: Dom.node => string = "localName";
-  [@mel.send] external contains: (Dom.node, Dom.node) => bool = "contains";
-  [@mel.send] external focus: Dom.node => unit = "focus";
-  [@mel.send]
-  external query: (Dom.node, string) => array(Dom.node) = "querySelectorAll";
-  [@mel.send] external matches: (Dom.node, string) => bool = "matches";
-  [@mel.get]
-  external parent: Dom.node => Js.Nullable.t(Dom.node) = "parentElement";
-  [@mel.send]
-  external computed: (Dom.window, Dom.node) => Dom.cssStyleDeclaration =
-    "getComputedStyle";
-  [@mel.send]
-  external style: (Dom.cssStyleDeclaration, string) => string =
-    "getPropertyValue";
-  [@mel.send]
-  external add: (Dom.document, string, Dom.event => unit, bool) => unit =
-    "addEventListener";
-  [@mel.send]
-  external remove: (Dom.document, string, Dom.event => unit, bool) => unit =
-    "removeEventListener";
-  let find = id => Js.Nullable.toOption(by_id(document, id));
-  let rec visible = node => {
-    let css = computed(window, node);
-    !matches(node, "[hidden],[inert]")
-    && !String.equal(style(css, "display"), "none")
-    && !List.mem(style(css, "visibility"), ["hidden", "collapse"])
-    && (
-      switch (Js.Nullable.toOption(parent(node))) {
-      | None => true
-      | Some(parent) =>
-        (
-          !matches(parent, "details:not([open])")
-          || String.equal(local_name(node), "summary")
-        )
-        && visible(parent)
-      }
-    );
-  };
-  let grid_focus = panel =>
-    Option.iter(
-      focus,
-      Array.to_list(query(panel, "[role=gridcell][tabindex='0']"))
-      |> List.find_opt(visible),
-    );
-  let within = (id, node) =>
-    Option.fold(~none=false, ~some=root => contains(root, node), find(id));
-};
+/* The modal boundary sentinels wrap focus synchronously; deferred opening
+   and return focus go through Browser_events.focus. */
+let is_boundary = node => Ui_dom.matches(node, "[data-tea-date-boundary]");
+let grid_focus = panel =>
+  Option.iter(
+    Ui_dom.focus,
+    Browser.first_tabbable(
+      ~exclude=node => !Ui_dom.matches(node, "[role=gridcell]"),
+      panel,
+    ),
+  );
 let ready = model =>
-  is_open(model)
-  && Option.fold(
-       ~none=false,
-       ~some=position => !position.Anchor.reference_hidden,
-       Popover.position(model.popover),
-     );
+  is_open(model) && Anchor.placed(Popover.position(model.popover));
 let focus_effect = model =>
   Events.focus(
-    ~key="Date_picker:" ++ model.id ++ ":" ++ string_of_int(model.generation),
+    ~key=
+      "Date_picker:"
+      ++ Ui_sub.prefix(model.id)
+      ++ ":"
+      ++ string_of_int(model.generation),
     ~target=
       Events.Element(
         model.initial_focus
@@ -481,33 +435,30 @@ let boundary_source = model =>
         let live = ref(true);
         let on_focus = event =>
           if (live^) {
-            switch (
-              Native.find(Popover.panel_id(model.popover)),
-              Js.Nullable.toOption(Native.target(event)),
-            ) {
-            | (Some(panel), Some(target)) =>
-              let start = Native.within(part(model, "start"), target);
-              let end_ = Native.within(part(model, "end"), target);
+            let target = Ui_dom.target(event);
+            switch (Ui_dom.find(Popover.panel_id(model.popover)), target) {
+            | (Some(panel), Some(node)) =>
+              let start = Ui_dom.within(part(model, "start"), target);
+              let end_ = Ui_dom.within(part(model, "end"), target);
               if (start || end_) {
                 Option.iter(
-                  Native.focus,
+                  Ui_dom.focus,
                   (start ? Browser.last_tabbable : Browser.first_tabbable)(
-                    ~exclude=
-                      node =>
-                        Native.matches(node, "[data-tea-date-boundary]"),
+                    ~exclude=is_boundary,
                     panel,
                   ),
                 );
-              } else if (!Native.contains(panel, target)) {
-                Native.grid_focus(panel);
+              } else if (!Ui_dom.contains(panel, node)) {
+                grid_focus(panel);
               };
             | _ => ()
             };
           };
-        Native.add(Native.document, "focusin", on_focus, true);
+        let off =
+          Ui_dom.on(~capture=true, Ui_dom.document, "focusin", on_focus);
         () => {
           live := false;
-          Native.remove(Native.document, "focusin", on_focus, true);
+          off();
         };
       },
     ~tagger=message => message,
@@ -631,31 +582,16 @@ let view =
                 Html.on(
                   "keydown",
                   V.Custom_optional(
-                    D.map(
-                      handled =>
-                        {
-                          ...handled,
-                          V.stop_propagation: handled.V.prevent_default,
-                        },
-                      Ui_keyboard.custom(event =>
-                        Ui_keyboard.plain(event)
-                        && String.equal(event.key, "Escape")
-                        && is_open(model)
-                          ? Some((Some(to_parent(Dismiss(Escape))), true))
-                          : None
-                      ),
+                    Ui_keyboard.claiming(event =>
+                      Ui_keyboard.plain(event)
+                      && String.equal(event.key, "Escape")
+                      && is_open(model)
+                        ? Some((Some(to_parent(Dismiss(Escape))), true))
+                        : None
                     ),
                   ),
                 );
-              let trigger_attrs =
-                List.filter(
-                  fact =>
-                    switch (fact) {
-                    | V.Event("keydown", _) => false
-                    | _ => true
-                    },
-                  trigger.root,
-                );
+              let trigger_attrs = Ui_attr.without("keydown", trigger.root);
               let button = (name, message, disabled) =>
                 Button.parts(
                   ~id=part(model, name),

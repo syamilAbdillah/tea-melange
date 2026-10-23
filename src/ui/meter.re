@@ -6,15 +6,8 @@ type parts('msg) = {
   percent: float,
   state: string,
 };
-let finite = value =>
-  switch (classify_float(value)) {
-  | FP_nan
-  | FP_infinite => false
-  | _ => true
-  };
-let clamp = (~min, ~max, value) =>
-  classify_float(value) == FP_nan
-    ? min : value < min ? min : value > max ? max : value;
+let finite = Ui_number.finite;
+let clamp = Ui_number.clamp;
 let threshold = (~min, ~max, ~default, value) =>
   switch (value) {
   | Some(value) when finite(value) => clamp(~min, ~max, value)
@@ -34,9 +27,7 @@ let parts =
       ~format=?,
       (),
     ) => {
-  if (!finite(min) || !finite(max) || min >= max) {
-    invalid_arg("Meter: expected finite min < max");
-  };
+  Ui_number.check_range(~component="Meter", ~min, ~max);
   let aria_label = Option.map(Js.String.trim, aria_label);
   if (Option.fold(~none=!has_label, ~some=String.equal(""), aria_label)) {
     invalid_arg(
@@ -57,14 +48,7 @@ let parts =
     } else {
       value >= low && value <= high ? "optimum" : "suboptimal";
     };
-  /* Half-scale only when subtracting finite endpoints overflows. */
-  let percent =
-    100.
-    *. (
-      finite(max -. min)
-        ? (value -. min) /. (max -. min)
-        : (value /. 2. -. min /. 2.) /. (max /. 2. -. min /. 2.)
-    );
+  let percent = Ui_number.percent(~min, ~max, value);
   {
     root: [
       Html.id(id),

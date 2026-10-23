@@ -3,44 +3,8 @@ module V = Tea_vdom.Vdom;
 module Cmd = Tea_core.Cmd;
 module Sub = Tea_core.Sub;
 module D = Tea_core.Decode;
-module Dom = Tea_browser.Browser_dom;
+module Browser = Tea_browser.Browser_dom;
 module Events = Tea_browser.Browser_events;
-type focus_lease = {
-  opened: ref(bool),
-  restore: ref(bool),
-};
-/* Live leases exist only between subscription start/stop, keyed by the
-   document-unique prefix. Commands set runtime policy; pure functions never
-   inspect this registry. No runtime state is stored in or captured by model. */
-let focus_leases: ref(list((string, focus_lease))) = ref([]);
-let lease_for = id =>
-  List.find_map(
-    ((key, lease)) => String.equal(key, id) ? Some(lease) : None,
-    focus_leases^,
-  );
-let policy = (id, opened, restore) =>
-  Cmd.effect(_ =>
-    Option.iter(
-      lease => {
-        lease.opened := opened;
-        lease.restore := restore;
-      },
-      lease_for(id),
-    )
-  );
-/* restore_focus owns no listeners: its disposer is the restoration itself.
-   Cancelling that one-shot action is required for outside/Tab dismissal. */
-let rec connect: type a. (Sub.t(a), a => unit, unit) => unit =
-        (sub, dispatch) =>
-  switch (sub) {
-  | Sub.None => (() => ())
-  | Sub.Batch(subs) =>
-    let stops = List.map(sub => connect(sub, dispatch), subs);
-    (() => List.iter(stop => stop(), stops));
-  | Sub.Leaf(leaf) => leaf.start(raw => dispatch(leaf.tagger(raw)))
-  | Sub.Filtered(leaf) =>
-    leaf.start(raw => Option.iter(dispatch, leaf.tagger(raw)))
-  };
 type item('value) = {
   key: string,
   label: string,
@@ -68,9 +32,7 @@ type model = {
   animation: Animation.model,
   anchor: Anchor.model,
   search: Ui_typeahead.t,
-  focus_pending: bool,
-  focus_epoch: int,
-  return_focus: bool,
+  focus: Ui_focus.t,
 };
 type msg =
   | Trigger
@@ -94,16 +56,10 @@ let should_render = model => Animation.should_render(model.animation);
 let selected_keys = model => model.selected;
 let active_key = model => model.active;
 let phase = model => Animation.phase(model.animation);
-let unique = keys =>
-  List.fold_left(
-    (acc, key) => List.exists(String.equal(key), acc) ? acc : acc @ [key],
-    [],
-    keys,
-  );
 let selection_keys = (multiple, keys) =>
-  switch (unique(keys)) {
-  | [] => []
-  | [first, ...rest] => multiple ? [first, ...rest] : [first]
+  switch (Ui_attr.unique_keys(keys)) {
+  | [first, _, ..._] when !multiple => [first]
+  | keys => keys
   };
 let set_selected = (keys, model) => {
   ...model,
@@ -144,16 +100,10 @@ let init =
       (),
     ),
   search: Ui_typeahead.empty,
-  focus_pending: false,
-  focus_epoch: 0,
-  return_focus: false,
+  focus: Ui_focus.none,
 };
-let index = (items, key) => {
-  let rec find = i =>
-    i >= Array.length(items)
-      ? None : String.equal(items[i].key, key) ? Some(i) : find(i + 1);
-  find(0);
-};
+let index = (items, key) =>
+  Array.find_index(item => String.equal(item.key, key), items);
 let flags = (items: array(item('value))) =>
   Array.map((item: item('value)) => item.disabled, items);
 let current = (items, model) =>
@@ -190,7 +140,8 @@ let scroll = model =>
   switch (model.active) {
   | Some(key) when is_open(model) =>
     Cmd.effect(_ =>
-      Dom.scroll_into_view(~block=`Nearest, Ui_attr.item_id(model.id, key), _ =>
+      Browser.scroll_into_view(
+        ~block=`Nearest, Ui_attr.item_id(model.id, key), _ =>
         ()
       )
     )
@@ -228,15 +179,12 @@ let open_ = (~items, ~last=false, model) =>
           anchor,
           animation,
           search: Ui_typeahead.empty,
-          focus_pending: true,
-          focus_epoch: model.focus_epoch + 1,
-          return_focus: true,
+          focus: Ui_focus.element(model.focus, part(model, "listbox")),
         },
       );
     (
       next,
       Cmd.batch([
-        policy(model.id, true, true),
         Cmd.map(m => Anchored(m), ac),
         Cmd.map(m => Animated(m), an),
         scroll(next),
@@ -252,15 +200,13 @@ let close = (~return_focus=false, model) =>
       {
         ...model,
         animation,
-        focus_pending: return_focus,
-        focus_epoch: model.focus_epoch + 1,
-        return_focus,
+        focus:
+          return_focus
+            ? Ui_focus.element(model.focus, part(model, "button"))
+            : Ui_focus.cancel(model.focus),
         search: Ui_typeahead.empty,
       },
-      Cmd.batch([
-        policy(model.id, false, return_focus),
-        Cmd.map(m => Animated(m), command),
-      ]),
+      Cmd.map(m => Animated(m), command),
     );
   };
 let configure = (~disabled=?, ~readonly=?, ~invalid=?, ~wrap=?, model) => {
@@ -363,7 +309,7 @@ let update = (~items, message, original) => {
     | Animated(message) =>
       let (animation, command, outs) =
         Animation.update(message, model.animation);
-      let left = List.exists(out => out == Animation.Left, outs);
+      let left = List.mem(Animation.Left, outs);
       let (anchor, stop) =
         left ? Anchor.stop(model.anchor) : (model.anchor, Cmd.none);
       (
@@ -388,22 +334,16 @@ let update = (~items, message, original) => {
         Cmd.map(m => Anchored(m), command),
         [],
       );
-    | Focused(epoch) when epoch == model.focus_epoch => (
+    | Focused(generation) => (
         {
           ...model,
-          focus_pending: false,
+          focus: fst(Ui_focus.finish(model.focus, generation)),
         },
         Cmd.none,
         [],
       )
-    | Focused(_) => (model, Cmd.none, [])
     | Blur(target)
-        when
-          !is_open(model)
-          || Option.value(
-               ~default=false,
-               Option.map(String.equal(part(model, "button")), target),
-             ) => (
+        when !is_open(model) || target == Some(part(model, "button")) => (
         model,
         Cmd.none,
         [],
@@ -507,66 +447,47 @@ let subscriptions = model =>
   Sub.batch([
     Sub.map(m => Animated(m), Animation.subscriptions(model.animation)),
     Sub.map(m => Anchored(m), Anchor.subscriptions(model.anchor)),
-    should_render(model)
-      ? Sub.make(
-          ~home="Tea_ui.Listbox.focus",
-          ~key=model.id,
-          ~tagger=x => x,
-          ~start=
-            _ => {
-              let lease = {
-                opened: ref(is_open(model)),
-                restore: ref(model.return_focus),
-              };
-              focus_leases := [(model.id, lease), ...focus_leases^];
-              let stop =
-                connect(
-                  Events.restore_focus(
-                    ~key=model.id,
-                    ~within=part(model, "listbox"),
-                    (),
-                  ),
-                  _ =>
-                  ()
-                );
-              () => {
-                focus_leases :=
-                  List.filter(
-                    ((id, _)) => !String.equal(id, model.id),
-                    focus_leases^,
-                  );
-                /* Normal closes already made their explicit focus decision.
-                   Only unmount/shutdown of a still-open popup restores here.
-                   Discarding restore_focus's stopper owns no resources. */
-                if (lease.opened^ && lease.restore^) {
-                  stop();
+    /* Unmount or shutdown while open returns focus to the button. A stopping
+       subscription cannot read the model, so it reads the rendered data-open;
+       ordinary closes have already decided focus and leave it closed. */
+    Sub.make(
+      ~home="Tea_ui.Listbox.unmount",
+      ~key=model.id,
+      ~tagger=x => x,
+      ~start=
+        (_, ()) => {
+          let popup = part(model, "listbox");
+          switch (Ui_dom.find(popup)) {
+          | Some(el) when Ui_dom.matches(el, "[data-open]") =>
+            Tea_dom.Browser_platform.request_animation_frame(_ => {
+              let free =
+                switch (Ui_dom.active()) {
+                | None => true
+                | Some(active) =>
+                  active === Ui_dom.body(Ui_dom.document)
+                  || !Ui_dom.connected(active)
+                  || Ui_dom.within(popup, Some(active))
                 };
+              if (free) {
+                Ui_dom.focus_id(part(model, "button"));
               };
-            },
-        )
-      : Sub.none,
-    model.focus_pending
-      ? Events.focus(
-          ~key=
-            "Listbox:" ++ model.id ++ ":" ++ string_of_int(model.focus_epoch),
-          ~target=
-            Events.Element(
-              part(model, is_open(model) ? "listbox" : "button"),
-            ),
-          ~ready=
-            !is_open(model)
-            || Option.fold(
-                 ~none=false,
-                 ~some=position => !position.Anchor.reference_hidden,
-                 Anchor.position(model.anchor),
-               ),
-          ~from=
-            is_open(model)
-              ? [] : [part(model, "button"), part(model, "listbox")],
-          _ =>
-          Focused(model.focus_epoch)
-        )
-      : Sub.none,
+            })
+          | _ => ()
+          };
+        },
+    ),
+    Ui_focus.sub(
+      ~home="Listbox",
+      ~id=model.id,
+      ~ready=
+        !is_open(model) || Anchor.placed(Anchor.position(model.anchor)),
+      ~from=
+        is_open(model)
+          ? [] : [part(model, "button"), part(model, "listbox")],
+      model.focus,
+      (generation, _) =>
+      Focused(generation)
+    ),
     is_open(model)
       ? Events.on_pointer_down_outside(
           ~ids=[part(model, "button"), part(model, "listbox")],
@@ -609,47 +530,36 @@ let view =
     Html.on(
       "keydown",
       V.Custom_optional(
-        /* A claimed Escape belongs to this listbox alone: stop it so an
-           enclosing Dialog or other overlay does not also dismiss. */
-        D.map2(
-          (claimed, key) =>
-            {
-              ...claimed,
-              V.stop_propagation:
-                claimed.V.prevent_default && String.equal(key, "Escape"),
-            },
-          Ui_keyboard.custom(event => {
-            let handled =
-              String.equal(event.key, "Tab")
-              || Ui_keyboard.plain(event)
-              && (
-                switch (event.key) {
-                | "Enter"
-                | " "
-                | "ArrowDown"
-                | "ArrowUp" => true
-                | "Escape" => opened
-                | "Home"
-                | "End"
-                | "PageUp"
-                | "PageDown" => !trigger && opened
-                | key => printable(key)
-                }
-              );
-            if (handled && !model.disabled) {
-              Some((
-                Some(to_parent(Key(trigger, event))),
-                !String.equal(event.key, "Tab"),
-              ));
-            } else {
-              Option.map(
-                message => (Some(message), false),
-                Ui_keyboard.plain(event) ? on_key_down(event.key) : None,
-              );
-            };
-          }),
-          D.field("key", D.string),
-        ),
+        Ui_keyboard.claiming(event => {
+          let handled =
+            String.equal(event.key, "Tab")
+            || Ui_keyboard.plain(event)
+            && (
+              switch (event.key) {
+              | "Enter"
+              | " "
+              | "ArrowDown"
+              | "ArrowUp" => true
+              | "Escape" => opened
+              | "Home"
+              | "End"
+              | "PageUp"
+              | "PageDown" => !trigger && opened
+              | key => printable(key)
+              }
+            );
+          if (handled && !model.disabled) {
+            Some((
+              Some(to_parent(Key(trigger, event))),
+              !String.equal(event.key, "Tab"),
+            ));
+          } else {
+            Option.map(
+              message => (Some(message), false),
+              Ui_keyboard.plain(event) ? on_key_down(event.key) : None,
+            );
+          };
+        }),
       ),
     );
   let button =
@@ -660,22 +570,10 @@ let view =
       (),
     ).
       root
-    |> List.filter(fact =>
-         switch (fact) {
-         | V.Event("keydown", _)
-         | V.Attribute("data-disabled", _) => false
-         | _ => true
-         }
-       )
+    |> Ui_attr.without("keydown")
+    |> Ui_attr.without("data-disabled")
     |> mapped;
-  let anchor =
-    Anchor.attrs(model.anchor)
-    |> List.filter(fact =>
-         switch (fact) {
-         | V.Property("hidden", _) => false
-         | _ => true
-         }
-       );
+  let anchor = Ui_attr.without("hidden", Anchor.attrs(model.anchor));
   let selected =
     Array.to_list(items)
     |> List.filter(item =>
@@ -757,28 +655,12 @@ let view =
           Html.aria("setsize", string_of_int(Array.length(items))),
           Ui_attr.data_flag("selected", selected),
           Ui_attr.data_flag("disabled", disabled),
-          Ui_attr.data_flag(
-            "active",
-            opened
-            && Option.value(
-                 ~default=false,
-                 Option.map(String.equal(key), model.active),
-               ),
-          ),
+          Ui_attr.data_flag("active", opened && model.active == Some(key)),
           Html.on(
             "pointermove",
             V.Normal(D.succeed(to_parent(Point(key)))),
           ),
-          Html.on(
-            "pointerdown",
-            V.Custom_optional(
-              D.succeed({
-                V.message: None,
-                prevent_default: true,
-                stop_propagation: false,
-              }),
-            ),
-          ),
+          Ui_attr.prevent_default("pointerdown"),
           Html.on_click(to_parent(Select(key))),
         ];
       },

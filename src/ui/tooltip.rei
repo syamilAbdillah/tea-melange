@@ -100,11 +100,9 @@ let set_disabled: (bool, model) => (model, Tea_core.Cmd.t(msg));
 let update:
   (~group: Hover_intent.Group.t=?, msg, model) =>
   (model, Tea_core.Cmd.t(msg), list(out_msg));
-/** Forward for the entire mounted lifetime. Owns pointer/keyboard modality,
-    hover timers, Animation and Anchor. Open hover-only tooltips also claim
-    unmodified Escape outside the trigger so dismissal never requires moving
-    focus. Shutdown/removal synchronously disposes listeners/timers/observers
-    and top-layer promotion (shared scheduler callbacks become inert). */
+/** Forward while mounted. An open tooltip also claims plain Escape outside
+    its trigger, so hover-only users can dismiss it without moving focus
+    (WCAG 1.4.13). */
 let subscriptions: model => Tea_core.Sub.t(msg);
 /** Wrapper-free, parent-message-typed bundles. */
 type parts('parent) = {
@@ -122,7 +120,7 @@ type parts('parent) = {
   arrow: list(Tea_html.Html.attr('parent)),
   /** Requested open state. */
   open_: bool,
-  /** Lifecycle visibility; NOT permission to unmount Label-mode text. */
+  /** Lifecycle visibility; not permission to unmount Label-mode text. */
   visible: bool,
   /** Latest geometry. */
   position: option(Anchor.position),

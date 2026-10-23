@@ -107,8 +107,7 @@ let close: model => (model, Tea_core.Cmd.t(msg));
 let update:
   (~items: array(item), msg, model) =>
   (model, Tea_core.Cmd.t(msg), list(out_msg));
-/** Forward throughout Leaving. Owns outside pointerdown, cancellable hover
-    delay, Anchor/Animation sources and applicable focus restoration. */
+/** Forward while mounted, including Leaving. */
 let subscriptions: model => Tea_core.Sub.t(msg);
 /** One entry in a panel; Group children are recursive but submenu panels are
     separate entries in parts.panels. Render neutral divs, not native buttons. */

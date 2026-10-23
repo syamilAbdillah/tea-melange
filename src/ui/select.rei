@@ -1,4 +1,4 @@
-/** Controlled NATIVE select, not a custom Listbox.
+/** Controlled native select, not a custom Listbox.
     APG: https://www.w3.org/WAI/ARIA/apg/patterns/combobox/ and
     https://www.w3.org/WAI/ARIA/apg/patterns/listbox/ are custom patterns;
     this helper deliberately retains platform-native select behavior.
@@ -44,7 +44,7 @@ type selection =
 type parts('msg) = {
   /** Apply to label; for points to control. */
   label: list(Tea_html.Html.attr('msg)),
-  /** Apply to native select using Html.keyed, NOT Html.select. */
+  /** Apply to native select using Html.keyed, not Html.select. */
   control: list(Tea_html.Html.attr('msg)),
   /** Optional description, hidden unless declared present. */
   description: list(Tea_html.Html.attr('msg)),
@@ -54,11 +54,11 @@ type parts('msg) = {
   options: list((string, Tea_html.Html.t('msg))),
 };
 /** Keep existing keys, including disabled selections, and remove duplicate
-    multiple keys. Use in parent update with CURRENT items when collections
+    multiple keys. Use in parent update with the current items when collections
     can change between messages; view also normalizes for rendering.
     Programmatic normalization emits no change message. */
 let normalize: (~items: array(item), selection) => selection;
-/** Build bundles. on_change receives actual selected option KEYS (not indices).
+/** Build bundles. on_change receives actual selected option keys (not indices).
     Parent owns selection and items. Presence flags default false and must
     match rendered parts. invalid describes the error when present and also
     sets aria-errormessage. Placeholder is single-mode only, disabled, with

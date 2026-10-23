@@ -107,10 +107,8 @@ let close: (~return_focus: bool=?, model) => (model, Tea_core.Cmd.t(msg));
 let update:
   (~items: array(item('value)), msg, model) =>
   (model, Tea_core.Cmd.t(msg), list(out_msg('value)));
-/** Required throughout the mounted lifetime, including Leaving. Shutdown stops
-    Anchor promotion/listeners, suppresses pending focus/Animation work and
-    restores an open popup's opener when it is still connected. All cancellation
-    cells are subscription-owned, never part of model. */
+/** Forward while mounted, including Leaving. Unmounting an open listbox
+    returns focus to its button when that is still connected. */
 let subscriptions: model => Tea_core.Sub.t(msg);
 /** Parent-message-typed attributes and derived content. */
 type parts('value, 'parent) = {

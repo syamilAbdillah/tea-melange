@@ -4,7 +4,7 @@ module D = Tea_core.Decode;
 module Cmd = Tea_core.Cmd;
 module Sub = Tea_core.Sub;
 module Task = Tea_core.Task;
-module Dom = Tea_browser.Browser_dom;
+module Browser = Tea_browser.Browser_dom;
 module Events = Tea_browser.Browser_events;
 type orientation =
   | Horizontal
@@ -34,7 +34,7 @@ type drag = {
   serial: int,
   point,
   key: option(string),
-  rect: option(Dom.rect),
+  rect: option(Browser.rect),
   ended: bool,
   changed: bool,
   capture: bool,
@@ -61,13 +61,13 @@ type msg =
   | Down(point, bool)
   | Move(int, point)
   | End(int, point)
-  | Measured(int, result(Dom.element_info, Dom.error))
+  | Measured(int, result(Browser.element_info, Browser.error))
   | Measure
   | Cancel(int);
-[@mel.scope "Number"] external finite: float => bool = "isFinite";
-[@mel.scope "Math"] external round: float => float = "round";
-[@mel.scope "Math"] external floor: float => float = "floor";
-[@mel.send] external fixed: (float, int) => string = "toFixed";
+let finite = Js.Float.isFinite;
+let round = Js.Math.round;
+let floor = Js.Math.floor_float;
+let fixed = (value, digits) => Js.Float.toFixed(~digits, value);
 let decimal_places = number => {
   let pieces = String.split_on_char('e', Js.Float.toString(number));
   let (base, exponent) =
@@ -269,16 +269,13 @@ let bounds = (model, items: array(thumb), index) => {
         -. gap;
   (lo, hi);
 };
-let change = (model, items: array(thumb), key, target) => {
-  let index = ref(None);
-  Array.iteri(
-    (i, item: thumb) =>
-      if (String.equal(item.key, key) && !item.disabled) {
-        index := Some(i);
-      },
+let enabled_index = (items, key) =>
+  Array.find_index(
+    (item: thumb) => String.equal(item.key, key) && !item.disabled,
     items,
   );
-  switch (index^) {
+let change = (model, items: array(thumb), key, target) => {
+  switch (enabled_index(items, key)) {
   | None => (model, [])
   | Some(i) =>
     let (lo, hi) = bounds(model, items, i);
@@ -319,9 +316,9 @@ let delta = (model, event: Ui_keyboard.event) => {
 let measure = model =>
   Task.attempt(
     result => Measured(model.serial, result),
-    Dom.get_element(Ui_attr.part_id(model.id, "track")),
+    Browser.get_element(Ui_attr.part_id(model.id, "track")),
   );
-let position = (model, rect: Dom.rect, point) => {
+let position = (model, rect: Browser.rect, point) => {
   let fraction =
     switch (model.orientation) {
     | Horizontal =>
@@ -388,7 +385,7 @@ let apply_drag = (model, items, drag) =>
       let changed = drag.changed || out != [];
       let command =
         drag.key == None
-          ? Dom.focus_cmd(Ui_attr.item_id(model.id, key)) : Cmd.none;
+          ? Browser.focus_cmd(Ui_attr.item_id(model.id, key)) : Cmd.none;
       (
         {
           ...next,
@@ -410,15 +407,7 @@ let update = (~items, message, model) => {
   let model = repair(~items, model);
   switch (message) {
   | Key(key, event) when !model.disabled && Ui_keyboard.plain(event) =>
-    let index = ref(None);
-    Array.iteri(
-      (i, item: thumb) =>
-        if (String.equal(item.key, key) && !item.disabled) {
-          index := Some(i);
-        },
-      items,
-    );
-    switch (index^) {
+    switch (enabled_index(items, key)) {
     | None => (model, Cmd.none, [])
     | Some(i) =>
       let (lo, hi) = bounds(model, items, i);
@@ -431,7 +420,7 @@ let update = (~items, message, model) => {
         };
       let (next, out) = change(model, items, key, target);
       (next, Cmd.none, out == [] ? [] : out @ [Committed(next.values)]);
-    };
+    }
   | Down(point, capture)
       when
         !model.disabled
@@ -557,51 +546,8 @@ let update = (~items, message, model) => {
   | _ => (model, Cmd.none, [])
   };
 };
-/* Private document sources cover release outside the track and pointer capture
-   retargeting. Install synchronously after Down, before the deferred rect read. */
-module B = {
-  type event;
-  type target;
-  type frame =
-    | Animation(int)
-    | Timer(int);
-  external global: Js.Dict.t(Js.Json.t) = "globalThis";
-  external raf: (float => unit) => int = "requestAnimationFrame";
-  external caf: int => unit = "cancelAnimationFrame";
-  external timeout: (unit => unit, int) => int = "setTimeout";
-  external clear: int => unit = "clearTimeout";
-  let schedule = callback =>
-    switch (Js.Dict.get(global, "requestAnimationFrame")) {
-    | Some(f) when Js.typeof(f) == "function" =>
-      Animation(raf(_ => callback()))
-    | _ => Timer(timeout(callback, 16))
-    };
-  let cancel = frame =>
-    switch (frame) {
-    | Animation(id) => caf(id)
-    | Timer(id) => clear(id)
-    };
-  external document: target = "document";
-  external window: target = "window";
-  [@mel.send]
-  external listen: (target, string, event => unit, bool) => unit =
-    "addEventListener";
-  [@mel.send]
-  external unlisten: (target, string, event => unit, bool) => unit =
-    "removeEventListener";
-  [@mel.get] external x: event => float = "clientX";
-  [@mel.get] external y: event => float = "clientY";
-  [@mel.get] external pointer: event => int = "pointerId";
-  [@mel.get] external event_target: event => target = "target";
-  [@mel.get_index] external get: (target, string) => Js.Json.t;
-  [@mel.send]
-  external find: (target, string) => Js.Nullable.t(target) = "getElementById";
-  [@mel.send] external capture: (target, int) => unit = "setPointerCapture";
-  [@mel.send]
-  external has_capture: (target, int) => bool = "hasPointerCapture";
-  [@mel.send]
-  external release: (target, int) => unit = "releasePointerCapture";
-};
+/* Document listeners catch a release outside the track and pointer-capture
+   loss. They install synchronously after Down, before the deferred rect read. */
 let subscriptions = model =>
   switch (model.drag) {
   | None => Sub.none
@@ -617,42 +563,36 @@ let subscriptions = model =>
         ~start=
           dispatch => {
             let captured =
-              if (drag.capture) {
-                switch (
-                  Js.Nullable.toOption(
-                    B.find(B.document, Ui_attr.part_id(model.id, "track")),
-                  )
-                ) {
-                | Some(track)
-                    when
-                      Js.typeof(B.get(track, "setPointerCapture"))
-                      == "function" =>
-                  B.capture(track, drag.point.pointer);
-                  Some(track);
-                | _ => None
-                };
-              } else {
-                None;
+              switch (Ui_dom.find(Ui_attr.part_id(model.id, "track"))) {
+              | Some(track)
+                  when
+                    drag.capture
+                    && Ui_dom.has_method(track, "setPointerCapture") =>
+                Ui_dom.set_pointer_capture(track, drag.point.pointer);
+                Some(track);
+              | _ => None
               };
             let pending = ref(None);
             let frame = ref(None);
             let alive = ref(true);
             let cancel_frame = () => {
-              Option.iter(B.cancel, frame^);
+              Option.iter(cancel => cancel(), frame^);
               frame := None;
             };
             let point = event => {
-              pointer: B.pointer(event),
-              x: B.x(event),
-              y: B.y(event),
+              pointer: Ui_dom.pointer_id(event),
+              x: Ui_dom.client_x(event),
+              y: Ui_dom.client_y(event),
             };
+            let ours = event =>
+              Ui_dom.pointer_id(event) == drag.point.pointer;
             let move = event =>
-              if (B.pointer(event) == drag.point.pointer) {
+              if (ours(event)) {
                 pending := Some(point(event));
-                if (frame^ == None) {
+                if (Option.is_none(frame^)) {
                   frame :=
                     Some(
-                      B.schedule(() => {
+                      Ui_dom.next_frame(() => {
                         frame := None;
                         if (alive^) {
                           Option.iter(
@@ -666,50 +606,45 @@ let subscriptions = model =>
                 };
               };
             let end_ = event =>
-              if (B.pointer(event) == drag.point.pointer) {
+              if (ours(event)) {
                 cancel_frame();
                 pending := None;
                 dispatch(End(drag.serial, point(event)));
               };
             let cancel = event =>
-              if (B.pointer(event) == drag.point.pointer) {
+              if (ours(event)) {
                 cancel_frame();
                 dispatch(Cancel(drag.serial));
               };
             let blur = event =>
-              if (B.event_target(event) === B.window) {
+              if (Ui_dom.is_target(event, Ui_dom.window)) {
                 dispatch(Cancel(drag.serial));
               };
             let lost_capture = event =>
               Option.iter(
                 track =>
-                  if (B.event_target(event) === track) {
+                  if (Ui_dom.is_target(event, track)) {
                     cancel(event);
                   },
                 captured,
               );
-            B.listen(B.document, "lostpointercapture", lost_capture, true);
-            B.listen(B.document, "pointermove", move, true);
-            B.listen(B.document, "pointerup", end_, true);
-            B.listen(B.document, "pointercancel", cancel, true);
-            B.listen(B.window, "blur", blur, true);
+            let on = (target, name, handler) =>
+              Ui_dom.on(~capture=true, target, name, handler);
+            let offs = [
+              on(Ui_dom.document, "lostpointercapture", lost_capture),
+              on(Ui_dom.document, "pointermove", move),
+              on(Ui_dom.document, "pointerup", end_),
+              on(Ui_dom.document, "pointercancel", cancel),
+              on(Ui_dom.window, "blur", blur),
+            ];
             () => {
               alive := false;
               cancel_frame();
-              B.unlisten(B.document, "pointermove", move, true);
-              B.unlisten(B.document, "pointerup", end_, true);
-              B.unlisten(B.document, "pointercancel", cancel, true);
-              B.unlisten(B.window, "blur", blur, true);
-              B.unlisten(
-                B.document,
-                "lostpointercapture",
-                lost_capture,
-                true,
-              );
+              List.iter(off => off(), offs);
               Option.iter(
                 track =>
-                  if (B.has_capture(track, drag.point.pointer)) {
-                    B.release(track, drag.point.pointer);
+                  if (Ui_dom.has_pointer_capture(track, drag.point.pointer)) {
+                    Ui_dom.release_pointer_capture(track, drag.point.pointer);
                   },
                 captured,
               );

@@ -108,11 +108,8 @@ let refresh: (~items: items, model) => (model, Tea_core.Cmd.t(msg));
     estimated target as rows are measured. */
 let update:
   (~items: items, msg, model) => (model, Tea_core.Cmd.t(msg), list(out_msg));
-/** Lifecycle owner: one scroll listener on container, one ResizeObserver for
-    container and variable rows, one child-list MutationObserver to reconcile
-    variable rows. Fixed lists observe only the container (no MutationObserver).
-    All observations and pending deliveries stop synchronously on shutdown.
-    If ResizeObserver is unavailable, estimates remain usable. */
+/** Forward while mounted. Tracks scrolling and, for estimated rows, row
+    sizes; without ResizeObserver the estimates are used. */
 let subscriptions: model => Tea_core.Sub.t(msg);
 /** Scroll even to an unrendered index; Auto is default. Invalid indices no-op.
     Returns the new model immediately; DOM write runs after render. Does not

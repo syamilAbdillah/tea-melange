@@ -44,11 +44,7 @@ let hide: model => (model, Tea_core.Cmd.t(msg));
     count as completed. Finished/cancelled subtree animations are all awaited.
     Inherits Browser_dom's 5000 ms watchdog for paused/infinite animations. */
 let update: (msg, model) => (model, Tea_core.Cmd.t(msg), list(out_msg));
-/** Required while mounted, including during Leaving. Owns frame handoff and
-    animation waits, including initial appear. Identity includes id, generation
-    and stage. Stopping suppresses every pending callback; no DOM listeners are
-    installed. Stopping also cancels an in-flight animation wait, releasing its
-    observer and watchdog immediately. */
+/** Forward while mounted, including Leaving and an initial appear. */
 let subscriptions: model => Tea_core.Sub.t(msg);
 /** Parent-message-polymorphic attributes; owns only the four data flags and
     hidden, no events, id, styles or ARIA. Set the element id to [init]'s id.

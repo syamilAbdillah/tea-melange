@@ -110,10 +110,8 @@ let set_checked:
 let update:
   (~items: array(item), msg, model) =>
   (model, Tea_core.Cmd.t(msg), list(out_msg));
-/** Execute immutable generation-keyed focus requests after render. Always map
-    this subscription into the parent: stopping cancels queued work. Temporary
-    document focus listeners protect intervening user navigation and are removed
-    on completion, removal or shutdown. */
+/** Forward while mounted. Moves focus after render and yields to focus the
+    user moved in the meantime. */
 let subscriptions: model => Tea_core.Sub.t(msg);
 /** Render the repaired state through parts. Apply root and visible label.
     description defaults false; required/invalid default false. Required is

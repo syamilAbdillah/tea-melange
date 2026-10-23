@@ -110,9 +110,7 @@ let dismiss: (model, string) => (model, Tea_core.Cmd.t(msg));
 let dismiss_all: model => (model, Tea_core.Cmd.t(msg));
 /** Process intents against current state; stale timer/animation tokens are ignored. */
 let update: (msg, model) => (model, Tea_core.Cmd.t(msg), list(out_msg));
-/** Required while the region is mounted, including empty and leaving states.
-    Owns cancellable timers, visibility, hotkey, boundary focus listeners and
-    Animation subscriptions. Stop/unmount cancels all live work. */
+/** Forward while the region is mounted, including when it is empty. */
 let subscriptions: model => Tea_core.Sub.t(msg);
 /** Per-entry parent-typed parts. */
 type toast_parts('parent) = {

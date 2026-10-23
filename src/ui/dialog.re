@@ -4,94 +4,38 @@ module V = Tea_vdom.Vdom;
 module D = Decode;
 module Events = Tea_browser.Browser_events;
 
-/* Private platform reads: geometry at event time, and focus verification.
-   No raw JS or browser-wide listeners are necessary. */
-module Browser = {
-  external document: Dom.document = "document";
-  [@mel.send]
-  external find: (Dom.document, string) => Js.Nullable.t(Dom.node) =
-    "getElementById";
-  [@mel.get]
-  external active: Dom.document => Js.Nullable.t(Dom.node) = "activeElement";
-  [@mel.send] external contains: (Dom.node, Dom.node) => bool = "contains";
-  [@mel.send]
-  external rect:
-    Dom.node =>
-    {
-      .
-      "left": float,
-      "right": float,
-      "top": float,
-      "bottom": float,
-    } =
-    "getBoundingClientRect";
-  [@mel.get] external body: Dom.document => Dom.node = "body";
-  [@mel.send] external matches: (Dom.node, string) => bool = "matches";
-  [@mel.send] external focus: Dom.node => unit = "focus";
-  [@mel.send]
-  external focus_without_scroll:
-    (Dom.node, {. "preventScroll": bool }) => unit =
-    "focus";
-  let repair_tab = (id, backwards, live) =>
-    Tea_dom.Browser_platform.request_animation_frame(_ =>
-      switch (
-        Js.Nullable.toOption(find(document, id)),
-        Js.Nullable.toOption(active(document)),
-      ) {
-      | (Some(root), Some(active))
-          when
-            live^
-            && matches(root, "[open]:not([hidden])")
-            && active === body(document) =>
-        /* Chromium permits viewport focus at native modal Tab boundaries.
-           Repair AFTER default navigation; never cancel Tab or steal focus
-           from another connected element. */
-        if (backwards) {
-          focus(
-            Option.value(
-              ~default=root,
-              Tea_browser.Browser_dom.last_tabbable(root),
-            ),
-          );
-        } else {
-          focus(
-            Option.value(
-              ~default=root,
-              Tea_browser.Browser_dom.first_tabbable(root),
-            ),
-          );
-        }
-      | _ => ()
-      }
-    );
-  let outside = (id, target, x, y) =>
-    String.equal(id, target)
-    && (
-      switch (Js.Nullable.toOption(find(document, id))) {
-      | None => false
-      | Some(node) =>
-        let r = rect(node);
-        x < r##left || x > r##right || y < r##top || y > r##bottom;
-      }
-    );
-  let inside = (root, id) =>
-    switch (
-      Js.Nullable.toOption(find(document, root)),
-      Js.Nullable.toOption(find(document, id)),
-    ) {
-    | (Some(root), Some(node)) => contains(root, node)
-    | _ => false
-    };
-  let focused = id =>
-    switch (
-      Js.Nullable.toOption(find(document, id)),
-      Js.Nullable.toOption(active(document)),
-    ) {
-    | (Some(node), Some(active)) => node === active
-    | _ => false
-    };
-};
-module Dom = Tea_browser.Browser_dom;
+/* Chromium lets focus reach the viewport at a native modal's Tab boundary.
+   Repair after default navigation; never cancel Tab or steal focus from
+   another connected element. */
+let repair_tab = (id, backwards, live) =>
+  Tea_dom.Browser_platform.request_animation_frame(_ =>
+    switch (Ui_dom.find(id)) {
+    | Some(root)
+        when
+          live^
+          && Ui_dom.matches(root, "[open]:not([hidden])")
+          && Ui_dom.is_active(Ui_dom.body(Ui_dom.document)) =>
+      let edge =
+        backwards
+          ? Tea_browser.Browser_dom.last_tabbable(root)
+          : Tea_browser.Browser_dom.first_tabbable(root);
+      Ui_dom.focus(Option.value(~default=root, edge));
+    | _ => ()
+    }
+  );
+/* Whether a pointer event on the dialog element itself fell outside its box,
+   i.e. on the ::backdrop. */
+let outside = (id, target, x, y) =>
+  String.equal(id, target)
+  && (
+    switch (Ui_dom.find(id)) {
+    | None => false
+    | Some(node) =>
+      let r = Ui_dom.rect(node);
+      x < r.left || x > r.right || y < r.top || y > r.bottom;
+    }
+  );
+module Browser = Tea_browser.Browser_dom;
 type kind =
   | Modal
   | Alertdialog(string);
@@ -130,8 +74,10 @@ type model = {
   pointer_down: bool,
   pointer_up: bool,
   ready: bool,
-  tab: option((bool, bool)),
-  native_repair: option(bool),
+  /* Pending Tab-boundary repair (backwards, attempt) and native modality
+     repair attempt; attempts re-key their subscriptions. */
+  tab: option((bool, int)),
+  native_repair: option(int),
   return_value: string,
 };
 let root_id = model => Ui_attr.part_id(model.id, "dialog");
@@ -213,15 +159,7 @@ let update = (message, model) =>
   | Animation(message) =>
     let (animation, command, outs) =
       Animation.update(message, model.animation);
-    let left =
-      List.exists(
-        out =>
-          switch (out) {
-          | Animation.Left => true
-          | _ => false
-          },
-        outs,
-      );
+    let left = List.mem(Animation.Left, outs);
     (
       {
         ...model,
@@ -246,11 +184,10 @@ let update = (message, model) =>
         tab:
           Some((
             backwards,
-            !
-              Option.value(
-                ~default=false,
-                Option.map(((_, token)) => token, model.tab),
-              ),
+            switch (model.tab) {
+            | Some((_, attempt)) => attempt + 1
+            | None => 0
+            },
           )),
       },
       Cmd.none,
@@ -277,7 +214,12 @@ let update = (message, model) =>
         ...model,
         return_value: value,
         native_repair:
-          Some(!Option.value(~default=false, model.native_repair)),
+          Some(
+            switch (model.native_repair) {
+            | Some(attempt) => attempt + 1
+            | None => 0
+            },
+          ),
       },
     )
   | Native_closed(_, _) => (model, Cmd.none, [])
@@ -324,29 +266,23 @@ let update = (message, model) =>
    frame let a Tab pressed in between move focus, which this then stole back. */
 let initial_focus = (model, live) =>
   if (live^) {
-    let id = root_id(model);
-    switch (Js.Nullable.toOption(Browser.find(Browser.document, id))) {
+    switch (Ui_dom.find(root_id(model))) {
     | None => ()
     | Some(root) =>
-      let focus = node =>
-        Browser.focus_without_scroll(node, { "preventScroll": true });
+      let focus = Ui_dom.focus(~prevent_scroll=true);
       let fallback = () =>
-        focus(Option.value(~default=root, Dom.first_tabbable(root)));
+        focus(Option.value(~default=root, Browser.first_tabbable(root)));
       let target =
         switch (model.kind) {
         | Alertdialog(id) => Some(id)
         | Modal => model.initial_focus
         };
-      switch (target) {
-      | Some(target) when Browser.inside(id, target) =>
-        switch (Js.Nullable.toOption(Browser.find(Browser.document, target))) {
-        | Some(node) =>
-          focus(node);
-          if (!Browser.focused(target)) {
-            fallback();
-          };
-        | None => fallback()
-        }
+      switch (Option.bind(target, Ui_dom.find)) {
+      | Some(node) when Ui_dom.contains(root, node) =>
+        focus(node);
+        if (!Ui_dom.is_active(node)) {
+          fallback();
+        };
       | _ => fallback()
       };
     };
@@ -363,7 +299,7 @@ let subscriptions = model => {
           ~start=
             dispatch => {
               let live = ref(true);
-              Dom.show_modal(id, result =>
+              Browser.show_modal(id, result =>
                 if (live^) {
                   switch (result) {
                   | Ok () =>
@@ -375,21 +311,21 @@ let subscriptions = model => {
               );
               () => {
                 live := false;
-                Dom.close(id, _ => ());
+                Browser.close(id, _ => ());
               };
             },
         )
       : Sub.none,
     switch (model.native_repair) {
-    | Some(token) when is_visible(model) =>
+    | Some(attempt) when is_visible(model) =>
       Sub.make(
         ~home="Tea_ui.Dialog.repair",
-        ~key=id ++ (token ? ":1" : ":0"),
+        ~key=id ++ ":" ++ string_of_int(attempt),
         ~tagger=message => message,
         ~start=
           _ => {
             let live = ref(true);
-            Dom.show_modal(id, result =>
+            Browser.show_modal(id, result =>
               if (live^) {
                 switch (result) {
                 | Ok () => initial_focus(model, live)
@@ -403,15 +339,15 @@ let subscriptions = model => {
     | _ => Sub.none
     },
     switch (model.tab) {
-    | Some((backwards, token)) when is_visible(model) =>
+    | Some((backwards, attempt)) when is_visible(model) =>
       Sub.make(
         ~home="Tea_ui.Dialog.tab",
-        ~key=id ++ (token ? ":1" : ":0"),
+        ~key=id ++ ":" ++ string_of_int(attempt),
         ~tagger=message => message,
         ~start=
           _ => {
             let live = ref(true);
-            Browser.repair_tab(id, backwards, live);
+            repair_tab(id, backwards, live);
             () => live := false;
           },
       )
@@ -450,13 +386,13 @@ let view =
   let id = root_id(model);
   let point = constructor =>
     D.map3(
-      (target, x, y) => constructor(Browser.outside(id, target, x, y)),
+      (target, x, y) => constructor(outside(id, target, x, y)),
       D.one_of([D.at(["target", "id"], D.string), D.succeed("")]),
       D.field("clientX", D.float),
       D.field("clientY", D.float),
     );
   let keyboard =
-    Ui_keyboard.custom(event =>
+    Ui_keyboard.claiming(event =>
       !Ui_keyboard.plain(event)
         ? None
         : String.equal(event.key, "Escape") && is_visible(model)
@@ -498,19 +434,7 @@ let view =
         Html.property("returnValue", V.String(model.return_value)),
         /* Only Escape stops propagation (nested dialogs) and native default
            (Chromium's repeated-Escape close watcher). Tab is never cancelled. */
-        Html.on(
-          "keydown",
-          V.Custom_optional(
-            D.map(
-              event =>
-                {
-                  ...event,
-                  V.stop_propagation: event.V.prevent_default,
-                },
-              keyboard,
-            ),
-          ),
-        ),
+        Html.on("keydown", V.Custom_optional(keyboard)),
       ]
       @ own([
           Html.custom(
