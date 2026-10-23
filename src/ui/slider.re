@@ -269,16 +269,13 @@ let bounds = (model, items: array(thumb), index) => {
         -. gap;
   (lo, hi);
 };
-let change = (model, items: array(thumb), key, target) => {
-  let index = ref(None);
-  Array.iteri(
-    (i, item: thumb) =>
-      if (String.equal(item.key, key) && !item.disabled) {
-        index := Some(i);
-      },
+let enabled_index = (items, key) =>
+  Array.find_index(
+    (item: thumb) => String.equal(item.key, key) && !item.disabled,
     items,
   );
-  switch (index^) {
+let change = (model, items: array(thumb), key, target) => {
+  switch (enabled_index(items, key)) {
   | None => (model, [])
   | Some(i) =>
     let (lo, hi) = bounds(model, items, i);
@@ -410,15 +407,7 @@ let update = (~items, message, model) => {
   let model = repair(~items, model);
   switch (message) {
   | Key(key, event) when !model.disabled && Ui_keyboard.plain(event) =>
-    let index = ref(None);
-    Array.iteri(
-      (i, item: thumb) =>
-        if (String.equal(item.key, key) && !item.disabled) {
-          index := Some(i);
-        },
-      items,
-    );
-    switch (index^) {
+    switch (enabled_index(items, key)) {
     | None => (model, Cmd.none, [])
     | Some(i) =>
       let (lo, hi) = bounds(model, items, i);
@@ -431,7 +420,7 @@ let update = (~items, message, model) => {
         };
       let (next, out) = change(model, items, key, target);
       (next, Cmd.none, out == [] ? [] : out @ [Committed(next.values)]);
-    };
+    }
   | Down(point, capture)
       when
         !model.disabled
