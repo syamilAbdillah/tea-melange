@@ -111,15 +111,14 @@ module Geometry = {
       };
     };
 };
+/* [keys] is copied on construction, so its identity identifies a collection. */
 type items = {
-  token: int,
   keys: array(string),
   indices: Js.Dict.t(int),
 };
 /* Arbitrary keys (including __proto__/constructor) must not touch a prototype. */
 [@mel.scope "Object"]
 external empty_indices: Js.Nullable.t(unit) => Js.Dict.t(int) = "create";
-let serial = ref(0);
 let items = keys => {
   let keys = Array.copy(keys);
   let indices = empty_indices(Js.Nullable.null);
@@ -132,9 +131,7 @@ let items = keys => {
     },
     keys,
   );
-  incr(serial);
   {
-    token: serial^,
     keys,
     indices,
   };
@@ -156,7 +153,7 @@ type target = {
 };
 type model = {
   id: string,
-  token: int,
+  keys: array(string),
   generation: int,
   row_size,
   geometry: Geometry.t,
@@ -184,7 +181,7 @@ let estimate = size =>
   };
 let init = (~id, ~items: items, ~row_size, ~viewport=0., ~overscan=2, ()) => {
   id,
-  token: items.token,
+  keys: items.keys,
   generation: 0,
   row_size,
   geometry:
@@ -211,7 +208,7 @@ let row_id = (~key, model) => Ui_attr.item_id(model.id, key);
 let clamp = (scroll, viewport, geometry) =>
   min(nonnegative(scroll), max(0., Geometry.total(geometry) -. viewport));
 let synchronize = (~items: items, model) =>
-  if (model.token == items.token) {
+  if (model.keys === items.keys) {
     model;
   } else {
     let geometry =
@@ -234,7 +231,7 @@ let synchronize = (~items: items, model) =>
       );
     {
       ...model,
-      token: items.token,
+      keys: items.keys,
       generation: model.generation + 1,
       measured,
       geometry: geometry^,
