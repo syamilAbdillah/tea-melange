@@ -458,7 +458,7 @@ let update = (message, model) => {
       | Some(e) when e.instance == instance =>
         let (animation, command, outs) =
           Animation.update(message, e.animation);
-        let left = List.exists(out => out == Animation.Left, outs);
+        let left = List.mem(Animation.Left, outs);
         let entries =
           left
             ? List.filter(e => !String.equal(e.key, key), model.entries)

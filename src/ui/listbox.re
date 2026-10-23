@@ -313,7 +313,7 @@ let update = (~items, message, original) => {
     | Animated(message) =>
       let (animation, command, outs) =
         Animation.update(message, model.animation);
-      let left = List.exists(out => out == Animation.Left, outs);
+      let left = List.mem(Animation.Left, outs);
       let (anchor, stop) =
         left ? Anchor.stop(model.anchor) : (model.anchor, Cmd.none);
       (
@@ -347,12 +347,7 @@ let update = (~items, message, original) => {
         [],
       )
     | Blur(target)
-        when
-          !is_open(model)
-          || Option.value(
-               ~default=false,
-               Option.map(String.equal(part(model, "button")), target),
-             ) => (
+        when !is_open(model) || target == Some(part(model, "button")) => (
         model,
         Cmd.none,
         [],
@@ -489,12 +484,7 @@ let subscriptions = model =>
       ~home="Listbox",
       ~id=model.id,
       ~ready=
-        !is_open(model)
-        || Option.fold(
-             ~none=false,
-             ~some=position => !position.Anchor.reference_hidden,
-             Anchor.position(model.anchor),
-           ),
+        !is_open(model) || Anchor.placed(Anchor.position(model.anchor)),
       ~from=
         is_open(model)
           ? [] : [part(model, "button"), part(model, "listbox")],
@@ -680,14 +670,7 @@ let view =
           Html.aria("setsize", string_of_int(Array.length(items))),
           Ui_attr.data_flag("selected", selected),
           Ui_attr.data_flag("disabled", disabled),
-          Ui_attr.data_flag(
-            "active",
-            opened
-            && Option.value(
-                 ~default=false,
-                 Option.map(String.equal(key), model.active),
-               ),
-          ),
+          Ui_attr.data_flag("active", opened && model.active == Some(key)),
           Html.on(
             "pointermove",
             V.Normal(D.succeed(to_parent(Point(key)))),

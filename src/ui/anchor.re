@@ -311,6 +311,11 @@ let init =
 };
 let active = model => model.active;
 let position = model => model.position;
+let placed = position =>
+  switch (position) {
+  | Some(p) => !p.reference_hidden
+  | None => false
+  };
 let invalidate = model => {
   ...model,
   revision: model.revision + 1,
@@ -534,10 +539,7 @@ let attrs = model => {
         ),
       ),
     ),
-    Ui_attr.data_flag(
-      "reference-hidden",
-      Option.value(~default=false, Option.map(p => p.reference_hidden, p)),
-    ),
+    Ui_attr.data_flag("reference-hidden", Option.is_some(p) && !placed(p)),
     Html.style("position", "fixed"),
     Html.style("inset", "auto"),
     Html.style("margin", "0"),
@@ -551,10 +553,7 @@ let attrs = model => {
     ),
     Html.style(
       "visibility",
-      !model.active
-      || Option.is_none(p)
-      || Option.value(~default=false, Option.map(p => p.reference_hidden, p))
-        ? "hidden" : "visible",
+      model.active && placed(p) ? "visible" : "hidden",
     ),
     Html.style("--tea-anchor-width", px(value(p => p.anchor_width))),
     Html.style("--tea-anchor-height", px(value(p => p.anchor_height))),

@@ -791,15 +791,7 @@ let update = (~items, message, m) => {
       | None => (m, Cmd.none, [])
       | Some(p) =>
         let (animation, cmd, outs) = Animation.update(msg, p.animation);
-        let left =
-          List.exists(
-            out =>
-              switch (out) {
-              | Animation.Left => true
-              | _ => false
-              },
-            outs,
-          );
+        let left = List.mem(Animation.Left, outs);
         let (anchor, stop) =
           left ? Anchor.stop(p.anchor) : (p.anchor, Cmd.none);
         let m =
@@ -887,12 +879,7 @@ let subscriptions = m =>
               ? Ui_focus.sub(
                   ~home="Menu",
                   ~id=panel_id(m, p.owner),
-                  ~ready=
-                    Option.fold(
-                      ~none=false,
-                      ~some=position => !position.Anchor.reference_hidden,
-                      Anchor.position(p.anchor),
-                    ),
+                  ~ready=Anchor.placed(Anchor.position(p.anchor)),
                   m.focus,
                   (generation, _) =>
                   Focused(generation)

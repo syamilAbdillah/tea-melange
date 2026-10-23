@@ -140,6 +140,9 @@ let init:
 let active: model => bool;
 /** Latest measurement; None before first measurement or for missing elements. */
 let position: model => option(position);
+/** Whether a position was measured and its reference is visible, i.e. the
+    floating element is on screen. */
+let placed: option(position) => bool;
 /** Activate idempotently. Mount the elements and include subscriptions in the
     same parent update. No focus is moved. Commands use the component msg type. */
 let start: model => (model, Tea_core.Cmd.t(msg));

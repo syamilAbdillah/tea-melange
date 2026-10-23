@@ -220,12 +220,7 @@ let update = (message, model) =>
     let ready =
       model.opened
       && model.pending_focus
-      && (
-        switch (Anchor.position(anchor)) {
-        | Some(position) => !position.reference_hidden
-        | None => false
-        }
-      );
+      && Anchor.placed(Anchor.position(anchor));
     let focus_job: option(focus_on_open) =
       ready
         ? switch (model.focus_on_open) {
@@ -247,14 +242,7 @@ let update = (message, model) =>
     let (animation, command, outs) =
       Animation.update(message, model.animation);
     let (anchor, anchor_cmd) =
-      List.exists(
-        out =>
-          switch (out) {
-          | Animation.Left => true
-          | Animation.Entered => false
-          },
-        outs,
-      )
+      List.mem(Animation.Left, outs)
         ? Anchor.stop(model.anchor) : (model.anchor, Cmd.none);
     (
       {

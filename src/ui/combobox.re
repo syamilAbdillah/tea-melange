@@ -499,7 +499,7 @@ let update = (~items, ~label_for_key=?, message, model) => {
     | Animated(message) =>
       let (animation, cmd, outs) =
         Animation.update(message, model.animation);
-      let left = List.exists(out => out == Animation.Left, outs);
+      let left = List.mem(Animation.Left, outs);
       let (anchor, acmd) =
         left ? Anchor.stop(model.anchor) : (model.anchor, Cmd.none);
       (

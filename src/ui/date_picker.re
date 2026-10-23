@@ -403,12 +403,7 @@ let grid_focus = panel =>
     ),
   );
 let ready = model =>
-  is_open(model)
-  && Option.fold(
-       ~none=false,
-       ~some=position => !position.Anchor.reference_hidden,
-       Popover.position(model.popover),
-     );
+  is_open(model) && Anchor.placed(Popover.position(model.popover));
 let focus_effect = model =>
   Events.focus(
     ~key=

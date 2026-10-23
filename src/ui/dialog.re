@@ -159,15 +159,7 @@ let update = (message, model) =>
   | Animation(message) =>
     let (animation, command, outs) =
       Animation.update(message, model.animation);
-    let left =
-      List.exists(
-        out =>
-          switch (out) {
-          | Animation.Left => true
-          | _ => false
-          },
-        outs,
-      );
+    let left = List.mem(Animation.Left, outs);
     (
       {
         ...model,
