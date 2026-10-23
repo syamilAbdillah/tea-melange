@@ -5,29 +5,6 @@ module Sub = Tea_core.Sub;
 module D = Tea_core.Decode;
 module Browser = Tea_browser.Browser_dom;
 module Events = Tea_browser.Browser_events;
-type focus_lease = {
-  opened: ref(bool),
-  restore: ref(bool),
-};
-/* Live leases exist only between subscription start/stop, keyed by the
-   document-unique prefix. Commands set runtime policy; pure functions never
-   inspect this registry. No runtime state is stored in or captured by model. */
-let focus_leases: ref(list((string, focus_lease))) = ref([]);
-let lease_for = id =>
-  List.find_map(
-    ((key, lease)) => String.equal(key, id) ? Some(lease) : None,
-    focus_leases^,
-  );
-let policy = (id, opened, restore) =>
-  Cmd.effect(_ =>
-    Option.iter(
-      lease => {
-        lease.opened := opened;
-        lease.restore := restore;
-      },
-      lease_for(id),
-    )
-  );
 type item('value) = {
   key: string,
   label: string,
@@ -56,7 +33,6 @@ type model = {
   anchor: Anchor.model,
   search: Ui_typeahead.t,
   focus: Ui_focus.t,
-  return_focus: bool,
 };
 type msg =
   | Trigger
@@ -125,7 +101,6 @@ let init =
     ),
   search: Ui_typeahead.empty,
   focus: Ui_focus.none,
-  return_focus: false,
 };
 let index = (items, key) => {
   let rec find = i =>
@@ -209,13 +184,11 @@ let open_ = (~items, ~last=false, model) =>
           animation,
           search: Ui_typeahead.empty,
           focus: Ui_focus.element(model.focus, part(model, "listbox")),
-          return_focus: true,
         },
       );
     (
       next,
       Cmd.batch([
-        policy(model.id, true, true),
         Cmd.map(m => Anchored(m), ac),
         Cmd.map(m => Animated(m), an),
         scroll(next),
@@ -235,13 +208,9 @@ let close = (~return_focus=false, model) =>
           return_focus
             ? Ui_focus.element(model.focus, part(model, "button"))
             : Ui_focus.cancel(model.focus),
-        return_focus,
         search: Ui_typeahead.empty,
       },
-      Cmd.batch([
-        policy(model.id, false, return_focus),
-        Cmd.map(m => Animated(m), command),
-      ]),
+      Cmd.map(m => Animated(m), command),
     );
   };
 let configure = (~disabled=?, ~readonly=?, ~invalid=?, ~wrap=?, model) => {
@@ -487,44 +456,35 @@ let subscriptions = model =>
   Sub.batch([
     Sub.map(m => Animated(m), Animation.subscriptions(model.animation)),
     Sub.map(m => Anchored(m), Anchor.subscriptions(model.anchor)),
-    should_render(model)
-      ? Sub.make(
-          ~home="Tea_ui.Listbox.focus",
-          ~key=model.id,
-          ~tagger=x => x,
-          ~start=
-            _ => {
-              let lease = {
-                opened: ref(is_open(model)),
-                restore: ref(model.return_focus),
-              };
-              focus_leases := [(model.id, lease), ...focus_leases^];
-              let stop =
-                Ui_sub.connect(
-                  Events.restore_focus(
-                    ~key=model.id,
-                    ~within=part(model, "listbox"),
-                    (),
-                  ),
-                  _ =>
-                  ()
-                );
-              () => {
-                focus_leases :=
-                  List.filter(
-                    ((id, _)) => !String.equal(id, model.id),
-                    focus_leases^,
-                  );
-                /* Normal closes already made their explicit focus decision.
-                   Only unmount/shutdown of a still-open popup restores here.
-                   Discarding restore_focus's stopper owns no resources. */
-                if (lease.opened^ && lease.restore^) {
-                  stop();
+    /* Unmount or shutdown while open returns focus to the button. A stopping
+       subscription cannot read the model, so it reads the rendered data-open;
+       ordinary closes have already decided focus and leave it closed. */
+    Sub.make(
+      ~home="Tea_ui.Listbox.unmount",
+      ~key=model.id,
+      ~tagger=x => x,
+      ~start=
+        (_, ()) => {
+          let popup = part(model, "listbox");
+          switch (Ui_dom.find(popup)) {
+          | Some(el) when Ui_dom.matches(el, "[data-open]") =>
+            Tea_dom.Browser_platform.request_animation_frame(_ => {
+              let free =
+                switch (Ui_dom.active()) {
+                | None => true
+                | Some(active) =>
+                  active === Ui_dom.body(Ui_dom.document)
+                  || !Ui_dom.connected(active)
+                  || Ui_dom.within(popup, Some(active))
                 };
+              if (free) {
+                Ui_dom.focus_id(part(model, "button"));
               };
-            },
-        )
-      : Sub.none,
+            })
+          | _ => ()
+          };
+        },
+    ),
     Ui_focus.sub(
       ~home="Listbox",
       ~id=model.id,
