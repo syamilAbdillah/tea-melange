@@ -39,7 +39,6 @@ type panel = {
   anchor: Anchor.model,
   open_: bool,
   search: Ui_typeahead.t,
-  focus_pending: bool,
 };
 type hover = {
   hover_owner: option(string),
@@ -56,7 +55,9 @@ type model = {
   selected: option(string),
   hover: option(hover),
   restore: bool,
-  focus_epoch: int,
+  /* Pending focus for the panel owned by [focus_owner]. */
+  focus: Ui_focus.t,
+  focus_owner: option(string),
 };
 type msg =
   | Trigger_click
@@ -68,7 +69,7 @@ type msg =
   | Leave(option(string))
   | Hover(hover)
   | Outside_down
-  | Focused(option(string), int)
+  | Focused(int)
   | Animated(option(string), Animation.msg)
   | Anchored(option(string), Anchor.msg);
 type out_msg =
@@ -119,7 +120,6 @@ let make_panel = (m, owner, parent) => {
       ),
     open_: false,
     search: Ui_typeahead.empty,
-    focus_pending: false,
   };
 };
 let init =
@@ -149,7 +149,8 @@ let init =
     selected: None,
     hover: None,
     restore: false,
-    focus_epoch: 0,
+    focus: Ui_focus.none,
+    focus_owner: None,
   };
   {
     ...m,
@@ -285,7 +286,6 @@ let hide_branch = (m, ancestor) => {
               open_: false,
               active: None,
               search: Ui_typeahead.empty,
-              focus_pending: false,
             },
             Cmd.map(msg => Animated(p.owner, msg), cmd),
           );
@@ -299,6 +299,9 @@ let hide_branch = (m, ancestor) => {
       ...m,
       panels: List.map(fst, commands),
       hover: None,
+      focus:
+        belongs(m, m.focus_owner, ancestor)
+          ? Ui_focus.cancel(m.focus) : m.focus,
     },
     Cmd.batch(List.map(snd, commands)),
   );
@@ -314,26 +317,14 @@ let close_tree = (m, restore) => {
   );
 };
 let close = m => close_tree(m, is_open(m));
-let focus_panel = (m, p) => {
-  let p = {
-    ...p,
-    focus_pending: true,
-  };
-  let m = {
-    ...m,
-    focus_epoch: m.focus_epoch + 1,
-    panels:
-      List.map(
-        p =>
-          {
-            ...p,
-            focus_pending: false,
-          },
-        m.panels,
-      ),
-  };
-  (put_panel(m, p), Cmd.none);
-};
+let focus_panel = (m, p) => (
+  {
+    ...put_panel(m, p),
+    focus: Ui_focus.element(m.focus, panel_id(m, p.owner)),
+    focus_owner: p.owner,
+  },
+  Cmd.none,
+);
 let show_panel = (~items, m, p, last) => {
   let candidates = navigable(items);
   let flags = all_flags(candidates);
@@ -676,20 +667,14 @@ let update = (~items, message, m) => {
     | Menu_key(owner, event) => menu_key(~items, m, owner, event)
     | Activate(owner, key, keep) => activate(~items, m, owner, key, keep)
     | Outside_down => close_user(m, Outside, false)
-    | Focused(owner, epoch) when epoch == m.focus_epoch =>
-      let p = get_panel(m, owner);
-      (
-        put_panel(
-          m,
-          {
-            ...p,
-            focus_pending: false,
-          },
-        ),
+    | Focused(generation) => (
+        {
+          ...m,
+          focus: fst(Ui_focus.finish(m.focus, generation)),
+        },
         Cmd.none,
         [],
-      );
-    | Focused(_, _) => (m, Cmd.none, [])
+      )
     | Move(owner, key) =>
       let p = get_panel(m, owner);
       let candidates =
@@ -898,21 +883,19 @@ let subscriptions = m =>
               msg => Anchored(p.owner, msg),
               Anchor.subscriptions(p.anchor),
             ),
-            p.open_ && p.focus_pending
-              ? Events.focus(
-                  ~key=
-                    panel_id(m, p.owner)
-                    ++ ":"
-                    ++ string_of_int(m.focus_epoch),
-                  ~target=Events.Element(panel_id(m, p.owner)),
+            p.open_ && equal_owner(p.owner, m.focus_owner)
+              ? Ui_focus.sub(
+                  ~home="Menu",
+                  ~id=panel_id(m, p.owner),
                   ~ready=
                     Option.fold(
                       ~none=false,
                       ~some=position => !position.Anchor.reference_hidden,
                       Anchor.position(p.anchor),
                     ),
-                  _ =>
-                  Focused(p.owner, m.focus_epoch)
+                  m.focus,
+                  (generation, _) =>
+                  Focused(generation)
                 )
               : Sub.none,
           ]),
