@@ -189,29 +189,21 @@ let parts =
       Html.id(Ui_attr.part_id(id, "label")),
       Html.for_(Ui_attr.part_id(id, "control")),
     ],
-    control: [
-      Html.id(Ui_attr.part_id(id, "control")),
-      Html.multiple(multiple),
-      Html.disabled(disabled),
-      Html.required(required),
-      switch (name) {
-      | None => Html.none
-      | Some(name) => Html.name(name)
-      },
-      invalid ? Ui_attr.aria_bool("invalid", true) : Html.none,
-      Ui_attr.aria_ids(
-        "describedby",
-        (has_description ? [Ui_attr.part_id(id, "description")] : [])
-        @ (has_error ? [Ui_attr.part_id(id, "error")] : []),
-      ),
-      Ui_attr.aria_ids(
-        "errormessage",
-        invalid && has_error ? [Ui_attr.part_id(id, "error")] : [],
-      ),
-      Ui_attr.data_flag("invalid", invalid),
-      Ui_attr.data_flag("disabled", disabled),
-      disabled ? Html.none : Html.on("change", V.Normal(decoder)),
-    ],
+    control:
+      [
+        Html.id(Ui_attr.part_id(id, "control")),
+        Html.multiple(multiple),
+        Html.disabled(disabled),
+        Html.required(required),
+        switch (name) {
+        | None => Html.none
+        | Some(name) => Html.name(name)
+        },
+        Ui_attr.data_flag("invalid", invalid),
+        Ui_attr.data_flag("disabled", disabled),
+        disabled ? Html.none : Html.on("change", V.Normal(decoder)),
+      ]
+      @ Ui_attr.field_aria(~id, ~has_description, ~has_error, ~invalid),
     description: [
       Html.id(Ui_attr.part_id(id, "description")),
       Html.hidden(!has_description),

@@ -63,3 +63,15 @@ let prevent_default = (~enabled=true, name) =>
       }),
     ),
   );
+let field_aria = (~id, ~has_description, ~has_error, ~invalid) => {
+  let description = part_id(id, "description");
+  let error = part_id(id, "error");
+  [
+    invalid ? aria_bool("invalid", true) : Attr.none,
+    aria_ids(
+      "describedby",
+      (has_description ? [description] : []) @ (has_error ? [error] : []),
+    ),
+    aria_ids("errormessage", invalid && has_error ? [error] : []),
+  ];
+};

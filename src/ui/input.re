@@ -34,39 +34,31 @@ let parts =
   let error_id = Ui_attr.part_id(id, "error");
   {
     label: [Html.id(Ui_attr.part_id(id, "label")), Html.for_(control_id)],
-    control: [
-      Html.id(control_id),
-      Html.value(value),
-      Html.disabled(disabled),
-      Html.readonly(readonly),
-      Html.required(required),
-      optional("name", name),
-      Html.type_(type_),
-      optional("autocomplete", autocomplete),
-      optional("inputmode", inputmode),
-      invalid ? Ui_attr.aria_bool("invalid", true) : Html.none,
-      Ui_attr.aria_ids(
-        "describedby",
-        (has_description ? [description_id] : [])
-        @ (has_error ? [error_id] : []),
-      ),
-      Ui_attr.aria_ids(
-        "errormessage",
-        invalid && has_error ? [error_id] : [],
-      ),
-      Ui_attr.data_flag("invalid", invalid),
-      Ui_attr.data_flag("disabled", disabled),
-      Ui_attr.data_flag("readonly", readonly),
-      disabled || readonly ? Html.none : Html.on_input(on_input),
-      switch (on_change) {
-      | Some(f) when !disabled && !readonly => Html.on_change(f)
-      | _ => Html.none
-      },
-      switch (on_blur) {
-      | Some(msg) => Html.on_blur(msg)
-      | None => Html.none
-      },
-    ],
+    control:
+      [
+        Html.id(control_id),
+        Html.value(value),
+        Html.disabled(disabled),
+        Html.readonly(readonly),
+        Html.required(required),
+        optional("name", name),
+        Html.type_(type_),
+        optional("autocomplete", autocomplete),
+        optional("inputmode", inputmode),
+        Ui_attr.data_flag("invalid", invalid),
+        Ui_attr.data_flag("disabled", disabled),
+        Ui_attr.data_flag("readonly", readonly),
+        disabled || readonly ? Html.none : Html.on_input(on_input),
+        switch (on_change) {
+        | Some(f) when !disabled && !readonly => Html.on_change(f)
+        | _ => Html.none
+        },
+        switch (on_blur) {
+        | Some(msg) => Html.on_blur(msg)
+        | None => Html.none
+        },
+      ]
+      @ Ui_attr.field_aria(~id, ~has_description, ~has_error, ~invalid),
     description: [Html.id(description_id), Html.hidden(!has_description)],
     error: [Html.id(error_id), Html.hidden(!has_error)],
   };
