@@ -949,59 +949,39 @@ let prevent_pointer_focus = () =>
       }),
     ),
   );
-let key_handler = (intent, hook, trigger, open_, to_parent) =>
+let key_handler = (intent, hook, trigger, open_, to_parent) => {
+  let activation = ["Enter", " ", "ArrowDown", "ArrowUp"];
+  let navigation =
+    activation @ ["Home", "End", "ArrowLeft", "ArrowRight", "Tab"];
   Html.on(
     "keydown",
     V.Custom_optional(
-      D.map2(
-        (e: Ui_keyboard.event, handled) =>
-          {
-            ...handled,
-            V.stop_propagation:
-              String.equal(e.key, "Escape") && handled.V.prevent_default,
-          },
-        Ui_keyboard.decoder,
-        Ui_keyboard.custom(e =>
-          if (!Ui_keyboard.plain(e)) {
-            None;
-          } else {
-            let handled =
-              String.equal(e.key, "Escape")
-              || (trigger || open_)
-              && (
-                trigger
-                  ? List.mem(e.key, ["Enter", " ", "ArrowDown", "ArrowUp"])
-                  : List.mem(
-                      e.key,
-                      [
-                        "Enter",
-                        " ",
-                        "ArrowDown",
-                        "ArrowUp",
-                        "Home",
-                        "End",
-                        "ArrowLeft",
-                        "ArrowRight",
-                        "Escape",
-                        "Tab",
-                      ],
-                    )
-                    || Ui_typeahead.character(e.key)
-              );
-            if (handled) {
-              Some((
-                Some(to_parent(intent(e))),
-                !String.equal(e.key, "Tab")
-                && (!String.equal(e.key, "Escape") || open_),
-              ));
-            } else {
-              Option.map(msg => (Some(msg), false), hook(e.key));
-            };
-          }
-        ),
-      ),
+      Ui_keyboard.claiming(e => {
+        let handled =
+          e.key == "Escape"
+          || (
+            trigger
+              ? List.mem(e.key, activation)
+              : open_
+                && (
+                  List.mem(e.key, navigation)
+                  || Ui_typeahead.character(e.key)
+                )
+          );
+        if (!Ui_keyboard.plain(e)) {
+          None;
+        } else if (handled) {
+          Some((
+            Some(to_parent(intent(e))),
+            e.key != "Tab" && (e.key != "Escape" || open_),
+          ));
+        } else {
+          Option.map(msg => (Some(msg), false), hook(e.key));
+        };
+      }),
     ),
   );
+};
 let view =
     (
       ~model as m,

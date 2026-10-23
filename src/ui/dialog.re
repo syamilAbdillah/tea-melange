@@ -392,7 +392,7 @@ let view =
       D.field("clientY", D.float),
     );
   let keyboard =
-    Ui_keyboard.custom(event =>
+    Ui_keyboard.claiming(event =>
       !Ui_keyboard.plain(event)
         ? None
         : String.equal(event.key, "Escape") && is_visible(model)
@@ -434,19 +434,7 @@ let view =
         Html.property("returnValue", V.String(model.return_value)),
         /* Only Escape stops propagation (nested dialogs) and native default
            (Chromium's repeated-Escape close watcher). Tab is never cancelled. */
-        Html.on(
-          "keydown",
-          V.Custom_optional(
-            D.map(
-              event =>
-                {
-                  ...event,
-                  V.stop_propagation: event.V.prevent_default,
-                },
-              keyboard,
-            ),
-          ),
-        ),
+        Html.on("keydown", V.Custom_optional(keyboard)),
       ]
       @ own([
           Html.custom(

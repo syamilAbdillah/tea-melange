@@ -937,23 +937,7 @@ let view =
           ),
         ],
       )
-      @ [
-        Html.on(
-          "keydown",
-          V.Custom_optional(
-            D.map2(
-              (event: Ui_keyboard.event, custom: V.custom(option('parent))) =>
-                {
-                  ...custom,
-                  V.stop_propagation:
-                    event.key == "Escape" && custom.prevent_default,
-                },
-              Ui_keyboard.decoder,
-              Ui_keyboard.custom(key),
-            ),
-          ),
-        ),
-      ],
+      @ [Html.on("keydown", V.Custom_optional(Ui_keyboard.claiming(key)))],
     description: map(base.description),
     error: map(base.error),
     popup:

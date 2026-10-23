@@ -713,21 +713,14 @@ let view = (~model, ~to_parent, ~on_key_down=_ => None, ~to_view, ()) => {
     Html.on(
       "keydown",
       V.Custom_optional(
-        D.map(
-          event =>
-            {
-              ...event,
-              V.stop_propagation: event.V.prevent_default,
-            },
-          Ui_keyboard.custom(event =>
-            if (enabled
-                && String.equal(event.key, "Escape")
-                && Ui_keyboard.plain(event)) {
-              Some((Some(Close(key, Escape)), true));
-            } else {
-              None;
-            }
-          ),
+        Ui_keyboard.claiming(event =>
+          if (enabled
+              && String.equal(event.key, "Escape")
+              && Ui_keyboard.plain(event)) {
+            Some((Some(Close(key, Escape)), true));
+          } else {
+            None;
+          }
         ),
       ),
     );
@@ -822,7 +815,7 @@ let view = (~model, ~to_parent, ~on_key_down=_ => None, ~to_view, ()) => {
             D.and_then(
               target_id => {
                 let keyboard =
-                  Ui_keyboard.custom(event =>
+                  Ui_keyboard.claiming(event =>
                     if (String.equal(event.key, "Tab")
                         && Ui_keyboard.plain(event)) {
                       Some((Some(to_parent(Tab)), false));
@@ -840,14 +833,7 @@ let view = (~model, ~to_parent, ~on_key_down=_ => None, ~to_view, ()) => {
                       None;
                     }
                   );
-                D.map(
-                  event =>
-                    {
-                      ...event,
-                      V.stop_propagation: event.V.prevent_default,
-                    },
-                  keyboard,
-                );
+                keyboard;
               },
               D.one_of([D.at(["target", "id"], D.string), D.succeed("")]),
             ),

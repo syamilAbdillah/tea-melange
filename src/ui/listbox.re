@@ -530,47 +530,36 @@ let view =
     Html.on(
       "keydown",
       V.Custom_optional(
-        /* A claimed Escape belongs to this listbox alone: stop it so an
-           enclosing Dialog or other overlay does not also dismiss. */
-        D.map2(
-          (claimed, key) =>
-            {
-              ...claimed,
-              V.stop_propagation:
-                claimed.V.prevent_default && String.equal(key, "Escape"),
-            },
-          Ui_keyboard.custom(event => {
-            let handled =
-              String.equal(event.key, "Tab")
-              || Ui_keyboard.plain(event)
-              && (
-                switch (event.key) {
-                | "Enter"
-                | " "
-                | "ArrowDown"
-                | "ArrowUp" => true
-                | "Escape" => opened
-                | "Home"
-                | "End"
-                | "PageUp"
-                | "PageDown" => !trigger && opened
-                | key => printable(key)
-                }
-              );
-            if (handled && !model.disabled) {
-              Some((
-                Some(to_parent(Key(trigger, event))),
-                !String.equal(event.key, "Tab"),
-              ));
-            } else {
-              Option.map(
-                message => (Some(message), false),
-                Ui_keyboard.plain(event) ? on_key_down(event.key) : None,
-              );
-            };
-          }),
-          D.field("key", D.string),
-        ),
+        Ui_keyboard.claiming(event => {
+          let handled =
+            String.equal(event.key, "Tab")
+            || Ui_keyboard.plain(event)
+            && (
+              switch (event.key) {
+              | "Enter"
+              | " "
+              | "ArrowDown"
+              | "ArrowUp" => true
+              | "Escape" => opened
+              | "Home"
+              | "End"
+              | "PageUp"
+              | "PageDown" => !trigger && opened
+              | key => printable(key)
+              }
+            );
+          if (handled && !model.disabled) {
+            Some((
+              Some(to_parent(Key(trigger, event))),
+              !String.equal(event.key, "Tab"),
+            ));
+          } else {
+            Option.map(
+              message => (Some(message), false),
+              Ui_keyboard.plain(event) ? on_key_down(event.key) : None,
+            );
+          };
+        }),
       ),
     );
   let button =

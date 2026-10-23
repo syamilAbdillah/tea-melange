@@ -582,19 +582,12 @@ let view =
                 Html.on(
                   "keydown",
                   V.Custom_optional(
-                    D.map(
-                      handled =>
-                        {
-                          ...handled,
-                          V.stop_propagation: handled.V.prevent_default,
-                        },
-                      Ui_keyboard.custom(event =>
-                        Ui_keyboard.plain(event)
-                        && String.equal(event.key, "Escape")
-                        && is_open(model)
-                          ? Some((Some(to_parent(Dismiss(Escape))), true))
-                          : None
-                      ),
+                    Ui_keyboard.claiming(event =>
+                      Ui_keyboard.plain(event)
+                      && String.equal(event.key, "Escape")
+                      && is_open(model)
+                        ? Some((Some(to_parent(Dismiss(Escape))), true))
+                        : None
                     ),
                   ),
                 );

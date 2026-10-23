@@ -47,7 +47,7 @@ let decoder =
   );
 let plain = event => !event.ctrl && !event.alt && !event.meta;
 let available = event => !event.composing;
-let custom = handle =>
+let decide = (~stop_escape, handle) =>
   D.and_then(
     event =>
       if (!available(event)) {
@@ -59,12 +59,15 @@ let custom = handle =>
           D.succeed({
             Tea_vdom.Vdom.message,
             prevent_default,
-            stop_propagation: false,
+            stop_propagation:
+              stop_escape && prevent_default && event.key == "Escape",
           })
         };
       },
     decoder,
   );
+let custom = handle => decide(~stop_escape=false, handle);
+let claiming = handle => decide(~stop_escape=true, handle);
 let on_key_down = handle =>
   Tea_html.Events.on(
     "keydown",

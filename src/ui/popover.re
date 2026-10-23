@@ -326,35 +326,23 @@ let view =
     Html.on(
       "keydown",
       V.Custom_optional(
-        /* A handled Escape belongs to this popover alone: stop it so an
-           enclosing Dialog or other overlay does not also dismiss. */
-        D.map(
-          handled =>
-            {
-              ...handled,
-              V.stop_propagation: handled.V.prevent_default,
-            },
-          Ui_keyboard.custom(event =>
-            if (!Ui_keyboard.plain(event)) {
-              None;
-            } else if (String.equal(event.key, "Escape")) {
-              /* Dispatch intent even before an opening frame has drawn.
-                 update, not this render snapshot, decides whether to close. */
-              Some((
-                Some(to_parent(Dismiss(Escape))),
-                model.opened,
-              ));
-            } else if (String.equal(event.key, "Tab")
-                       || native
-                       && List.mem(event.key, ["Enter", " "])) {
-              None;
-            } else {
-              Option.map(
-                message => (Some(message), false),
-                hook(event.key),
-              );
-            }
-          ),
+        Ui_keyboard.claiming(event =>
+          if (!Ui_keyboard.plain(event)) {
+            None;
+          } else if (String.equal(event.key, "Escape")) {
+            /* Dispatch intent even before an opening frame has drawn.
+               update, not this render snapshot, decides whether to close. */
+            Some((
+              Some(to_parent(Dismiss(Escape))),
+              model.opened,
+            ));
+          } else if (String.equal(event.key, "Tab")
+                     || native
+                     && List.mem(event.key, ["Enter", " "])) {
+            None;
+          } else {
+            Option.map(message => (Some(message), false), hook(event.key));
+          }
         ),
       ),
     );

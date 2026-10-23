@@ -353,29 +353,22 @@ let view = (~model, ~to_parent, ~on_key_down=_ => None, ~to_view, ()) => {
     Html.on(
       "keydown",
       V.Custom_optional(
-        D.map(
-          handled =>
-            {
-              ...handled,
-              V.stop_propagation: handled.V.prevent_default,
-            },
-          Ui_keyboard.custom(event =>
-            if (!Ui_keyboard.plain(event)) {
-              None;
-            } else if (String.equal(event.key, "Escape")) {
-              Some((
-                Some(to_parent(Escape(event.time_stamp))),
-                model.opened,
-              ));
-            } else if (String.equal(event.key, "Tab")) {
-              None;
-            } else {
-              Option.map(
-                message => (Some(message), false),
-                on_key_down(event.key),
-              );
-            }
-          ),
+        Ui_keyboard.claiming(event =>
+          if (!Ui_keyboard.plain(event)) {
+            None;
+          } else if (String.equal(event.key, "Escape")) {
+            Some((
+              Some(to_parent(Escape(event.time_stamp))),
+              model.opened,
+            ));
+          } else if (String.equal(event.key, "Tab")) {
+            None;
+          } else {
+            Option.map(
+              message => (Some(message), false),
+              on_key_down(event.key),
+            );
+          }
         ),
       ),
     );
