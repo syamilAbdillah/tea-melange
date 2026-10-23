@@ -338,15 +338,9 @@ let view =
                   D.succeed((Click(item.key), true)),
                 ),
                 Html.on_focus(Focus(item.key)),
-                Html.on(
+                Ui_attr.prevent_default(
+                  ~enabled=item.disabled,
                   "pointerdown",
-                  V.Custom_optional(
-                    D.succeed({
-                      V.message: None,
-                      stop_propagation: false,
-                      prevent_default: item.disabled,
-                    }),
-                  ),
                 ),
               ])
               @ [

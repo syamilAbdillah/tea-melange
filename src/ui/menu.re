@@ -938,17 +938,6 @@ type parts('parent) = {
   panels: array(panel_parts('parent)),
 };
 let event = (name, msg) => Html.on(name, V.Normal(D.succeed(msg)));
-let prevent_pointer_focus = () =>
-  Html.on(
-    "pointerdown",
-    V.Custom_optional(
-      D.succeed({
-        V.message: None,
-        prevent_default: true,
-        stop_propagation: false,
-      }),
-    ),
-  );
 let key_handler = (intent, hook, trigger, open_, to_parent) => {
   let activation = ["Enter", " ", "ArrowDown", "ArrowUp"];
   let navigation =
@@ -1062,7 +1051,7 @@ let view =
               actionable
                 ? [
                   event("pointermove", to_parent(Move(p.owner, i.key))),
-                  prevent_pointer_focus(),
+                  Ui_attr.prevent_default("pointerdown"),
                   Html.on(
                     "click",
                     V.Custom_optional(

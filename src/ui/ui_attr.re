@@ -52,3 +52,14 @@ let unique_keys = keys =>
       keys,
     ),
   );
+let prevent_default = (~enabled=true, name) =>
+  Tea_html.Html.on(
+    name,
+    Tea_vdom.Vdom.Custom_optional(
+      Tea_core.Decode.succeed({
+        Tea_vdom.Vdom.message: None,
+        prevent_default: enabled,
+        stop_propagation: false,
+      }),
+    ),
+  );

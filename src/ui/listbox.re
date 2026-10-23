@@ -660,16 +660,7 @@ let view =
             "pointermove",
             V.Normal(D.succeed(to_parent(Point(key)))),
           ),
-          Html.on(
-            "pointerdown",
-            V.Custom_optional(
-              D.succeed({
-                V.message: None,
-                prevent_default: true,
-                stop_propagation: false,
-              }),
-            ),
-          ),
+          Ui_attr.prevent_default("pointerdown"),
           Html.on_click(to_parent(Select(key))),
         ];
       },

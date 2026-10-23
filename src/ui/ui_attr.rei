@@ -20,3 +20,6 @@ let without:
   list(Tea_html.Html.attr('msg));
 /** Keys without duplicates, keeping each first occurrence in order. */
 let unique_keys: list(string) => list(string);
+/** Listener that only prevents the event's default action, when [enabled]
+    (default true); for example pointerdown that must not move focus. */
+let prevent_default: (~enabled: bool=?, string) => Tea_html.Html.attr('msg);

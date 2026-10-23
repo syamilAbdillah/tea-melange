@@ -1080,17 +1080,7 @@ let view = (~model, ~containers, ~to_parent, ~to_view, ()) => {
         ),
       ),
     );
-  let prevent =
-    Html.on(
-      "dragstart",
-      V.Custom_optional(
-        D.succeed({
-          V.message: None,
-          prevent_default: true,
-          stop_propagation: false,
-        }),
-      ),
-    );
+  let prevent = Ui_attr.prevent_default("dragstart");
 
   let instructions_id = Ui_attr.part_id(model.id, "instructions");
   to_view({

@@ -774,17 +774,7 @@ type parts('parent) = {
   is_open: bool,
   should_render: bool,
 };
-let no_blur =
-  Html.on(
-    "pointerdown",
-    V.Custom_optional(
-      D.succeed({
-        V.message: None,
-        prevent_default: true,
-        stop_propagation: false,
-      }),
-    ),
-  );
+let no_blur = Ui_attr.prevent_default("pointerdown");
 let view =
     (
       ~model,
