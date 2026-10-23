@@ -438,10 +438,13 @@ let navigate = (~items, ~forward, model) => {
     switch (active_key(~items, model)) {
     | None => (-1)
     | Some(key) =>
-      let rec index = i =>
-        i >= Array.length(items)
-          ? (-1) : String.equal(items[i].key, key) ? i : index(i + 1);
-      index(0);
+      Option.value(
+        ~default=-1,
+        Array.find_index(
+          (item: item) => String.equal(item.key, key),
+          items,
+        ),
+      )
     };
   let index =
     forward

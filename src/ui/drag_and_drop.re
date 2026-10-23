@@ -252,25 +252,18 @@ let handle_id = (model, key) =>
 let container_id = (model, key) =>
   Ui_attr.part_id(model.id, "container-" ++ Ui_attr.safe_key(key));
 let find_container = (containers: array(container), key) =>
-  List.find_opt(
-    (c: container) => String.equal(c.key, key),
-    Array.to_list(containers),
-  );
-let find_item = (containers: array(container), key) => {
-  let found = ref(None);
-  Array.iter(
+  Array.find_opt((c: container) => String.equal(c.key, key), containers);
+/* The container holding [key], the item's index there, and the item. */
+let find_item = (containers: array(container), key) =>
+  Array.find_map(
     (c: container) =>
-      Array.iteri(
+      Array.find_mapi(
         (i, item: item) =>
-          if (String.equal(item.key, key)) {
-            found := Some((c, i, item));
-          },
+          String.equal(item.key, key) ? Some((c, i, item)) : None,
         c.items,
       ),
     containers,
   );
-  found^;
-};
 let count = (c: container, key) =>
   Array.fold_left(
     (n, i: item) => n + (String.equal(i.key, key) ? 0 : 1),
@@ -377,52 +370,48 @@ let measurement = model =>
     ~tagger=Fun.id,
   );
 let box_for = (boxes, id) =>
-  List.find_opt((b: box) => String.equal(b.id, id), Array.to_list(boxes));
+  Array.find_opt((b: box) => String.equal(b.id, id), boxes);
+/* The last enabled container under the pointer, and the drop index: the
+   number of its other items whose midpoint the pointer has passed. */
 let hit_target = (containers, model, s, boxes) => {
-  let over = ref(None);
-  Array.iter(
-    (c: container) =>
-      if (!c.disabled) {
-        switch (box_for(boxes, container_id(model, c.key))) {
-        | Some(b)
-            when
-              s.current.x >= b.left
-              && s.current.x <= b.right
-              && s.current.y >= b.top
-              && s.current.y <= b.bottom =>
-          let index = ref(0);
-          Array.iter(
-            (item: item) =>
-              if (!String.equal(item.key, s.key)) {
-                switch (box_for(boxes, item_id(model, item.key))) {
-                | Some(b) =>
-                  let after =
-                    switch (model.orientation) {
-                    | Vertical => s.current.y > (b.top +. b.bottom) /. 2.
-                    | Horizontal =>
-                      model.dir == Rtl
-                        ? s.current.x < (b.left +. b.right) /. 2.
-                        : s.current.x > (b.left +. b.right) /. 2.
-                    };
-                  if (after) {
-                    incr(index);
-                  };
-                | None => ()
-                };
-              },
-            c.items,
-          );
-          over :=
-            Some({
-              container: c.key,
-              index: index^,
-            });
-        | _ => ()
-        };
-      },
+  let { x, y, _ } = s.current;
+  let inside = (b: box) =>
+    x >= b.left && x <= b.right && y >= b.top && y <= b.bottom;
+  let past = (b: box) =>
+    switch (model.orientation) {
+    | Vertical => y > (b.top +. b.bottom) /. 2.
+    | Horizontal =>
+      model.dir == Rtl
+        ? x < (b.left +. b.right) /. 2. : x > (b.left +. b.right) /. 2.
+    };
+  let target = (c: container) => {
+    container: c.key,
+    index:
+      Array.fold_left(
+        (n, item: item) =>
+          !String.equal(item.key, s.key)
+          && Option.fold(
+               ~none=false,
+               ~some=past,
+               box_for(boxes, item_id(model, item.key)),
+             )
+            ? n + 1 : n,
+        0,
+        c.items,
+      ),
+  };
+  Array.fold_left(
+    (over, c: container) =>
+      !c.disabled
+      && Option.fold(
+           ~none=false,
+           ~some=inside,
+           box_for(boxes, container_id(model, c.key)),
+         )
+        ? Some(target(c)) : over,
+    None,
     containers,
   );
-  over^;
 };
 let with_target = (containers, model, s, target) => {
   let changed =
@@ -457,28 +446,21 @@ let with_target = (containers, model, s, target) => {
     text,
   };
 };
+let vertical_delta = key =>
+  switch (key) {
+  | "ArrowUp" => Some(-1)
+  | "ArrowDown" => Some(1)
+  | _ => None
+  };
+let horizontal_delta = (model, key) =>
+  Ui_nav.horizontal(~dir=model.dir == Rtl ? Ui_nav.Rtl : Ui_nav.Ltr, key);
+/* Arrow movement along the list, and across to another container. */
 let axis_delta = (model, key) =>
-  switch (model.orientation) {
-  | Vertical =>
-    switch (key) {
-    | "ArrowUp" => Some(-1)
-    | "ArrowDown" => Some(1)
-    | _ => None
-    }
-  | Horizontal =>
-    Ui_nav.horizontal(~dir=model.dir == Rtl ? Ui_nav.Rtl : Ui_nav.Ltr, key)
-  };
+  model.orientation == Vertical
+    ? vertical_delta(key) : horizontal_delta(model, key);
 let cross_delta = (model, key) =>
-  switch (model.orientation) {
-  | Vertical =>
-    Ui_nav.horizontal(~dir=model.dir == Rtl ? Ui_nav.Rtl : Ui_nav.Ltr, key)
-  | Horizontal =>
-    switch (key) {
-    | "ArrowUp" => Some(-1)
-    | "ArrowDown" => Some(1)
-    | _ => None
-    }
-  };
+  model.orientation == Vertical
+    ? horizontal_delta(model, key) : vertical_delta(key);
 let lift = (containers, model, key, start, keyboard) =>
   switch (find_item(containers, key)) {
   | Some((c, index, item)) when !c.disabled && !item.disabled =>
@@ -610,20 +592,20 @@ let update = (~containers, message, model) =>
           let target =
             switch (delta, s.target) {
             | (Some(delta), Some(t)) when event.shift =>
-              let from = ref(-1);
-              Array.iteri(
-                (i, c: container) =>
-                  if (String.equal(c.key, t.container)) {
-                    from := i;
-                  },
-                containers,
-              );
+              let from =
+                Option.value(
+                  ~default=-1,
+                  Array.find_index(
+                    (c: container) => String.equal(c.key, t.container),
+                    containers,
+                  ),
+                );
               let flags =
                 Array.map((c: container) => c.disabled, containers);
               let next =
                 delta > 0
-                  ? Ui_nav.next(~wrap=false, ~from=from^, flags)
-                  : Ui_nav.prev(~wrap=false, ~from=from^, flags);
+                  ? Ui_nav.next(~wrap=false, ~from, flags)
+                  : Ui_nav.prev(~wrap=false, ~from, flags);
               switch (next) {
               | Some(i) =>
                 Some({

@@ -5,12 +5,12 @@ type item = {
   disabled: bool,
 };
 let same = Option.equal(String.equal);
-let index = (items: array(item), key) => {
-  let rec find = i =>
-    i >= Array.length(items)
-      ? (-1) : same(Some(items[i].key), key) ? i : find(i + 1);
-  find(0);
-};
+/** Index of [key], or -1 when absent. */
+let index = (items: array(item), key) =>
+  Option.value(
+    ~default=-1,
+    Array.find_index((item: item) => same(Some(item.key), key), items),
+  );
 let flags = items => Array.map((item: item) => item.disabled, items);
 let key_at = (items: array(item), i) => Option.map(i => items[i].key, i);
 /** The key when it names an enabled item. */

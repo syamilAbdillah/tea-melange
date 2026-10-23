@@ -102,12 +102,8 @@ let init =
   search: Ui_typeahead.empty,
   focus: Ui_focus.none,
 };
-let index = (items, key) => {
-  let rec find = i =>
-    i >= Array.length(items)
-      ? None : String.equal(items[i].key, key) ? Some(i) : find(i + 1);
-  find(0);
-};
+let index = (items, key) =>
+  Array.find_index(item => String.equal(item.key, key), items);
 let flags = (items: array(item('value))) =>
   Array.map((item: item('value)) => item.disabled, items);
 let current = (items, model) =>

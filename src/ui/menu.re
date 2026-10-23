@@ -220,29 +220,21 @@ let rec navigable = items =>
       Array.to_list(items),
     ),
   );
-let rec locate = (items: array(item), key, owner) => {
-  let rec loop = index =>
-    index >= Array.length(items)
-      ? None
-      : {
-        let i = items[index];
-        if (String.equal(i.key, key)) {
-          Some((i, owner));
-        } else {
-          let nested =
-            switch (i.kind) {
-            | Group(children) => locate(children, key, owner)
-            | Submenu(children) => locate(children, key, Some(i.key))
-            | _ => None
-            };
-          switch (nested) {
-          | Some(_) => nested
-          | None => loop(index + 1)
-          };
+/* The item with [key] and the submenu that owns it (None for the root). */
+let rec locate = (items: array(item), key, owner) =>
+  Array.find_map(
+    (i: item) =>
+      if (String.equal(i.key, key)) {
+        Some((i, owner));
+      } else {
+        switch (i.kind) {
+        | Group(children) => locate(children, key, owner)
+        | Submenu(children) => locate(children, key, Some(i.key))
+        | _ => None
         };
-      };
-  loop(0);
-};
+      },
+    items,
+  );
 let panel_items = (items, owner) =>
   switch (owner) {
   | None => Some(items)
@@ -252,12 +244,11 @@ let panel_items = (items, owner) =>
     | _ => None
     }
   };
-let index_of = (items: array(item), key) => {
-  let rec loop = n =>
-    n >= Array.length(items)
-      ? (-1) : equal_owner(Some(items[n].key), key) ? n : loop(n + 1);
-  loop(0);
-};
+let index_of = (items: array(item), key) =>
+  Option.value(
+    ~default=-1,
+    Array.find_index((i: item) => equal_owner(Some(i.key), key), items),
+  );
 let all_flags = items => Array.make(Array.length(items), false);
 let key_at = (items: array(item), index) =>
   Option.map(i => items[i].key, index);
